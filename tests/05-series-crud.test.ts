@@ -967,7 +967,9 @@ describe('Delete Series', () => {
       id: 'comp-1',
       seriesId: id,
       instanceDate: '2024-01-15' as LocalDate,
-      completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+      date: '2024-01-15' as LocalDate,
+      startTime: '2024-01-15T13:30:00' as LocalDateTime,
+      endTime: '2024-01-15T14:00:00' as LocalDateTime,
     })
     await expect(deleteSeries(adapter, id)).rejects.toThrow(CompletionsExistError)
   })
@@ -1306,7 +1308,9 @@ describe('Series Splitting', () => {
         id: 'comp-1',
         seriesId: id,
         instanceDate: '2024-01-05' as LocalDate,
-        completedAt: '2024-01-05T14:00:00' as LocalDateTime,
+        date: '2024-01-05' as LocalDate,
+        startTime: '2024-01-05T13:30:00' as LocalDateTime,
+        endTime: '2024-01-05T14:00:00' as LocalDateTime,
       })
       await splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
       const completions = await adapter.getCompletionsBySeries(id)
@@ -1325,7 +1329,9 @@ describe('Series Splitting', () => {
         id: 'comp-1',
         seriesId: id,
         instanceDate: '2024-01-05' as LocalDate,
-        completedAt: '2024-01-05T14:00:00' as LocalDateTime,
+        date: '2024-01-05' as LocalDate,
+        startTime: '2024-01-05T13:30:00' as LocalDateTime,
+        endTime: '2024-01-05T14:00:00' as LocalDateTime,
       })
       const newId = await splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
       const completions = await adapter.getCompletionsBySeries(newId)

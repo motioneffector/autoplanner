@@ -509,11 +509,11 @@ describe('Segment 11: Links (Chains)', () => {
           targetDistance: 15,
         });
 
-        // Parent completed early at 08:45
+        // Parent started and completed early, ending at 08:45
         await logCompletion(adapter, {
           seriesId: parentId,
           instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
+          startTime: parseDateTime('2024-01-15T08:30:00'),
           endTime: parseDateTime('2024-01-15T08:45:00'),
         });
 
@@ -586,10 +586,12 @@ describe('Segment 11: Links (Chains)', () => {
           lateWobble: 10,
         });
 
-        // Verify bounds exist
+        // Parent ends at 09:30, target = 09:30 + 15 = 09:45
+        // earliest = 09:45 - 5 (earlyWobble) = 09:40
+        // latest = 09:45 + 10 (lateWobble) = 09:55
         const window = await getChildValidWindow(adapter, childId, parseDate('2024-01-15'));
-        expect(window.earliest).toBeDefined();
-        expect(window.latest).toBeDefined();
+        expect(window.earliest).toBe(parseDateTime('2024-01-15T09:40:00'));
+        expect(window.latest).toBe(parseDateTime('2024-01-15T09:55:00'));
       });
     });
   });
@@ -887,14 +889,23 @@ describe('Segment 11: Links (Chains)', () => {
         parentSeriesId: parentId,
         childSeriesId: childId,
         targetDistance: 15,
-        earlyWobble: 5,
-        lateWobble: 10,
+        earlyWobble: 0,  // No early flexibility
+        lateWobble: 5,   // Only 5 min late flexibility
       });
 
-      // This test verifies that bounds exist - actual conflict handling depends on implementation
+      // Get the valid window
       const window = await getChildValidWindow(adapter, childId, parseDate('2024-01-15'));
-      expect(window.earliest).toBeDefined();
-      expect(window.latest).toBeDefined();
+
+      // Parent ends at 09:30, target = 09:30 + 15 = 09:45
+      // With earlyWobble=0 and lateWobble=5, window is [09:45, 09:50]
+      expect(window.earliest).toBe(parseDateTime('2024-01-15T09:45:00'));
+      expect(window.latest).toBe(parseDateTime('2024-01-15T09:50:00'));
+
+      // Attempting to schedule child outside this window should produce conflict
+      const conflicts = await detectConflicts(adapter, childId, parseDate('2024-01-15'), {
+        proposedTime: parseDateTime('2024-01-15T10:00:00'),  // Outside window
+      });
+      expect(conflicts.some((c) => c.type === 'chainBoundsViolated')).toBe(true);
     });
   });
 

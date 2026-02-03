@@ -193,7 +193,7 @@ LAW 17: Unsatisfiable constraints produce conflicts (Segment 13)
 
 ```
 INV 1: withinMinutes specified iff type = 'mustBeWithin'
-INV 2: withinMinutes > 0
+INV 2: withinMinutes >= 0 (note: 0 means "must be adjacent" per B2)
 INV 3: Constraints are independent of series lifecycle
 ```
 

@@ -329,7 +329,9 @@ describe('Series Operations', () => {
         id: 'comp-1',
         seriesId: 'series-1',
         instanceDate: '2024-01-15' as LocalDate,
-        completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+        date: '2024-01-15' as LocalDate,
+        startTime: '2024-01-15T13:30:00' as LocalDateTime,
+        endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       await expect(adapter.deleteSeries('series-1')).rejects.toThrow(ForeignKeyError)
     })
@@ -1009,7 +1011,9 @@ describe('Completion Operations', () => {
         id: 'comp-1',
         seriesId: 'series-1',
         instanceDate: '2024-01-15' as LocalDate,
-        completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+        date: '2024-01-15' as LocalDate,
+        startTime: '2024-01-15T13:30:00' as LocalDateTime,
+        endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       const comp = await adapter.getCompletion('comp-1')
       expect(comp?.instanceDate).toBe('2024-01-15')
@@ -1021,7 +1025,9 @@ describe('Completion Operations', () => {
           id: 'comp-1',
           seriesId: 'nonexistent',
           instanceDate: '2024-01-15' as LocalDate,
-          completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+          date: '2024-01-15' as LocalDate,
+          startTime: '2024-01-15T13:30:00' as LocalDateTime,
+          endTime: '2024-01-15T14:00:00' as LocalDateTime,
         })
       ).rejects.toThrow(ForeignKeyError)
     })
@@ -1031,7 +1037,9 @@ describe('Completion Operations', () => {
         id: 'comp-1',
         seriesId: 'series-1',
         instanceDate: '2024-01-15' as LocalDate,
-        completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+        date: '2024-01-15' as LocalDate,
+        startTime: '2024-01-15T13:30:00' as LocalDateTime,
+        endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       await expect(adapter.deleteSeries('series-1')).rejects.toThrow(ForeignKeyError)
     })
@@ -1041,14 +1049,18 @@ describe('Completion Operations', () => {
         id: 'comp-1',
         seriesId: 'series-1',
         instanceDate: '2024-01-15' as LocalDate,
-        completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+        date: '2024-01-15' as LocalDate,
+        startTime: '2024-01-15T13:30:00' as LocalDateTime,
+        endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       await expect(
         adapter.createCompletion({
           id: 'comp-2',
           seriesId: 'series-1',
           instanceDate: '2024-01-15' as LocalDate,
-          completedAt: '2024-01-15T15:00:00' as LocalDateTime,
+          date: '2024-01-15' as LocalDate,
+          startTime: '2024-01-15T14:30:00' as LocalDateTime,
+          endTime: '2024-01-15T15:00:00' as LocalDateTime,
         })
       ).rejects.toThrow()
     })
@@ -1058,13 +1070,17 @@ describe('Completion Operations', () => {
         id: 'comp-1',
         seriesId: 'series-1',
         instanceDate: '2024-01-15' as LocalDate,
-        completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+        date: '2024-01-15' as LocalDate,
+        startTime: '2024-01-15T13:30:00' as LocalDateTime,
+        endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       await adapter.createCompletion({
         id: 'comp-2',
         seriesId: 'series-1',
         instanceDate: '2024-01-16' as LocalDate,
-        completedAt: '2024-01-16T14:00:00' as LocalDateTime,
+        date: '2024-01-16' as LocalDate,
+        startTime: '2024-01-16T13:30:00' as LocalDateTime,
+        endTime: '2024-01-16T14:00:00' as LocalDateTime,
       })
       const completions = await adapter.getCompletionsBySeries('series-1')
       expect(completions.length).toBe(2)
@@ -1075,7 +1091,9 @@ describe('Completion Operations', () => {
         id: 'comp-1',
         seriesId: 'series-1',
         instanceDate: '2024-01-15' as LocalDate,
-        completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+        date: '2024-01-15' as LocalDate,
+        startTime: '2024-01-15T13:30:00' as LocalDateTime,
+        endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       const comp = await adapter.getCompletionByInstance('series-1', '2024-01-15' as LocalDate)
       expect(comp).not.toBeNull()
@@ -1086,7 +1104,9 @@ describe('Completion Operations', () => {
         id: 'comp-1',
         seriesId: 'series-1',
         instanceDate: '2024-01-15' as LocalDate,
-        completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+        date: '2024-01-15' as LocalDate,
+        startTime: '2024-01-15T13:30:00' as LocalDateTime,
+        endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       await adapter.deleteCompletion('comp-1')
       const comp = await adapter.getCompletion('comp-1')
@@ -1098,30 +1118,42 @@ describe('Completion Operations', () => {
     it('count completions in window', async () => {
       const asOf = '2024-01-15' as LocalDate
       // 3 in window
+      const day1 = addDays(asOf, -1)
       await adapter.createCompletion({
         id: 'c1',
         seriesId: 'series-1',
-        instanceDate: addDays(asOf, -1),
-        completedAt: `${addDays(asOf, -1)}T14:00:00` as LocalDateTime,
+        instanceDate: day1,
+        date: day1,
+        startTime: `${day1}T13:30:00` as LocalDateTime,
+        endTime: `${day1}T14:00:00` as LocalDateTime,
       })
+      const day3 = addDays(asOf, -3)
       await adapter.createCompletion({
         id: 'c2',
         seriesId: 'series-1',
-        instanceDate: addDays(asOf, -3),
-        completedAt: `${addDays(asOf, -3)}T14:00:00` as LocalDateTime,
+        instanceDate: day3,
+        date: day3,
+        startTime: `${day3}T13:30:00` as LocalDateTime,
+        endTime: `${day3}T14:00:00` as LocalDateTime,
       })
+      const day6 = addDays(asOf, -6)
       await adapter.createCompletion({
         id: 'c3',
         seriesId: 'series-1',
-        instanceDate: addDays(asOf, -6),
-        completedAt: `${addDays(asOf, -6)}T14:00:00` as LocalDateTime,
+        instanceDate: day6,
+        date: day6,
+        startTime: `${day6}T13:30:00` as LocalDateTime,
+        endTime: `${day6}T14:00:00` as LocalDateTime,
       })
       // 1 outside window
+      const day10 = addDays(asOf, -10)
       await adapter.createCompletion({
         id: 'c4',
         seriesId: 'series-1',
-        instanceDate: addDays(asOf, -10),
-        completedAt: `${addDays(asOf, -10)}T14:00:00` as LocalDateTime,
+        instanceDate: day10,
+        date: day10,
+        startTime: `${day10}T13:30:00` as LocalDateTime,
+        endTime: `${day10}T14:00:00` as LocalDateTime,
       })
 
       const count = await adapter.countCompletionsInWindow('series-1', addDays(asOf, -6), asOf)
@@ -1130,11 +1162,14 @@ describe('Completion Operations', () => {
 
     it('days since last completion', async () => {
       const asOf = '2024-01-15' as LocalDate
+      const day5 = addDays(asOf, -5)
       await adapter.createCompletion({
         id: 'c1',
         seriesId: 'series-1',
-        instanceDate: addDays(asOf, -5),
-        completedAt: `${addDays(asOf, -5)}T14:00:00` as LocalDateTime,
+        instanceDate: day5,
+        date: day5,
+        startTime: `${day5}T13:30:00` as LocalDateTime,
+        endTime: `${day5}T14:00:00` as LocalDateTime,
       })
       const days = await adapter.daysSinceLastCompletion('series-1', asOf)
       expect(days).toBe(5)
@@ -1148,12 +1183,15 @@ describe('Completion Operations', () => {
     it('recent durations lastN', async () => {
       const asOf = '2024-01-15' as LocalDate
       for (let i = 0; i < 5; i++) {
+        const day = addDays(asOf, -i)
+        const duration = 30 + i * 5
         await adapter.createCompletion({
           id: `c${i}`,
           seriesId: 'series-1',
-          instanceDate: addDays(asOf, -i),
-          completedAt: `${addDays(asOf, -i)}T14:00:00` as LocalDateTime,
-          actualDuration: 30 + i * 5,
+          instanceDate: day,
+          date: day,
+          startTime: `${day}T14:00:00` as LocalDateTime,
+          endTime: `${day}T14:${String(duration).padStart(2, '0')}:00` as LocalDateTime,
         })
       }
       const durations = await adapter.getRecentDurations('series-1', { lastN: 3 })
@@ -1163,12 +1201,14 @@ describe('Completion Operations', () => {
     it('recent durations windowDays', async () => {
       const asOf = '2024-01-15' as LocalDate
       for (let i = 0; i < 10; i++) {
+        const day = addDays(asOf, -i * 5)
         await adapter.createCompletion({
           id: `c${i}`,
           seriesId: 'series-1',
-          instanceDate: addDays(asOf, -i * 5),
-          completedAt: `${addDays(asOf, -i * 5)}T14:00:00` as LocalDateTime,
-          actualDuration: 30,
+          instanceDate: day,
+          date: day,
+          startTime: `${day}T14:00:00` as LocalDateTime,
+          endTime: `${day}T14:30:00` as LocalDateTime, // 30 min duration
         })
       }
       const durations = await adapter.getRecentDurations('series-1', {
@@ -1853,7 +1893,9 @@ describe('Invariants', () => {
       id: 'c1',
       seriesId: 's1',
       instanceDate: '2024-01-15' as LocalDate,
-      completedAt: '2024-01-15T14:00:00' as LocalDateTime,
+      date: '2024-01-15' as LocalDate,
+      startTime: '2024-01-15T13:30:00' as LocalDateTime,
+      endTime: '2024-01-15T14:00:00' as LocalDateTime,
     })
     await expect(adapter.deleteSeries('s1')).rejects.toThrow(ForeignKeyError)
   })
