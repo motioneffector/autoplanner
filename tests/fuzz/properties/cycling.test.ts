@@ -463,7 +463,9 @@ describe('Spec 9: Cycling - Current Item', () => {
     fc.assert(
       fc.property(seriesIdGen(), (seriesId) => {
         const manager = new CyclingManager()
-        expect(manager.getCurrentItem(seriesId) === undefined).toBe(true)
+        expect(manager.getCurrentItem(seriesId)).toBeUndefined()
+        // Verify the series is not configured
+        expect(manager.isConfigured(seriesId)).toBe(false)
       })
     )
   })

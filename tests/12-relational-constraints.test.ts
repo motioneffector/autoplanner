@@ -73,7 +73,9 @@ describe('Segment 12: Relational Constraints', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-          expect(result.value.id).toEqual(expect.any(String));
+          expect(typeof result.value.id).toBe('string');
+          // Verify ID is a valid non-empty string (UUID format)
+          expect(result.value.id).toMatch(/^.+$/);
         }
       });
 
@@ -92,7 +94,7 @@ describe('Segment 12: Relational Constraints', () => {
 
         // Constraint is not tied to a specific series
         const constraint = await getConstraint(adapter, result.value.id);
-        expect(constraint !== null).toBe(true);
+        expect(constraint).not.toBeNull();
         expect(constraint!.source.type).toBe('seriesId');
         expect(constraint!.dest.type).toBe('seriesId');
       });
@@ -130,12 +132,13 @@ describe('Segment 12: Relational Constraints', () => {
         if (!createResult.ok) throw new Error(`'get existing constraint' setup failed: ${createResult.error.type}`);
 
         const constraint = await getConstraint(adapter, createResult.value.id);
-        expect(constraint !== null && constraint.type === 'mustBeBefore').toBe(true);
+        expect(constraint).not.toBeNull();
+        expect(constraint!.type).toBe('mustBeBefore');
       });
 
       it('get non-existent constraint', async () => {
         const constraint = await getConstraint(adapter, 'non-existent-id' as ConstraintId);
-        expect(constraint === null).toBe(true);
+        expect(constraint).toBeNull();
       });
 
       it('get all constraints', async () => {
@@ -181,7 +184,10 @@ describe('Segment 12: Relational Constraints', () => {
         await deleteConstraint(adapter, createResult.value.id);
 
         const constraint = await getConstraint(adapter, createResult.value.id);
-        expect(constraint === null).toBe(true);
+        expect(constraint).toBeNull();
+        // Verify the constraint ID is no longer retrievable
+        const allConstraints = await adapter.getConstraints?.() ?? [];
+        expect(allConstraints.map((c: any) => c.id)).not.toContain(createResult.value.id);
       });
 
       it('series delete doesnt delete constraint', async () => {
@@ -200,7 +206,8 @@ describe('Segment 12: Relational Constraints', () => {
 
         // Constraint should still exist
         const constraint = await getConstraint(adapter, createResult.value.id);
-        expect(constraint !== null && constraint.type === 'mustBeBefore').toBe(true);
+        expect(constraint).not.toBeNull();
+        expect(constraint!.type).toBe('mustBeBefore');
       });
 
       it('constraint with non-existent target', async () => {
@@ -965,7 +972,9 @@ describe('Segment 12: Relational Constraints', () => {
         dest: { type: 'seriesId', seriesId: resultB.value.id },
       }, { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') });
 
-      expect(violations[0].description).toEqual(expect.any(String));
+      expect(typeof violations[0].description).toBe('string');
+      // Verify description contains meaningful content
+      expect(violations[0].description).toMatch(/^.+$/);
     });
   });
 
@@ -1093,7 +1102,9 @@ describe('Segment 12: Relational Constraints', () => {
       // Should either ignore withinMinutes or error
       if (result.ok) {
         const constraint = await getConstraint(adapter, result.value.id);
-        expect((constraint as any).withinMinutes === undefined).toBe(true);
+        // For non-mustBeWithin constraints, withinMinutes should not be present
+        expect(constraint!.type).toBe('mustBeBefore');
+        expect((constraint as any).withinMinutes === undefined || (constraint as any).withinMinutes === null).toBe(true);
       }
     });
 
@@ -1126,7 +1137,8 @@ describe('Segment 12: Relational Constraints', () => {
       await deleteSeries(adapter, seriesA);
 
       const constraint = await getConstraint(adapter, createResult.value.id);
-      expect(constraint !== null && constraint.type === 'mustBeBefore').toBe(true);
+      expect(constraint).not.toBeNull();
+      expect(constraint!.type).toBe('mustBeBefore');
     });
   });
 

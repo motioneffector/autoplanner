@@ -54,7 +54,15 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(targetGen(), (target) => {
           // At least one of tag or seriesId should be present
-          expect(target.tag !== undefined || target.seriesId !== undefined).toBe(true)
+          const hasTag = target.tag !== undefined
+          const hasSeriesId = target.seriesId !== undefined
+          expect(hasTag || hasSeriesId).toBe(true)
+          if (hasTag) {
+            expect(target.tag).toMatch(/^tag-/)
+          }
+          if (hasSeriesId) {
+            expect(target.seriesId).toMatch(/^series-/)
+          }
         })
       )
     })
@@ -65,7 +73,8 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(tagTargetGen(), (target) => {
           expect(typeof target.tag === 'string' && target.tag.length > 0).toBe(true)
-          expect(target.seriesId === undefined).toBe(true)
+          // Verify seriesId is not set and tag is the only defined field
+          expect(target).toEqual({ tag: target.tag })
         })
       )
     })
@@ -76,7 +85,8 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(seriesTargetGen(), (target) => {
           expect(typeof target.seriesId === 'string' && target.seriesId.length > 0).toBe(true)
-          expect(target.tag === undefined).toBe(true)
+          // Verify tag is not set and seriesId is the only defined field
+          expect(target).toEqual({ seriesId: target.seriesId })
         })
       )
     })
@@ -132,7 +142,13 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(andConditionGen(), (condition) => {
           expect(condition.type).toBe('and')
-          expect(condition.conditions).toEqual(expect.any(Array))
+          // Verify conditions is an array with valid condition elements
+          expect(condition.conditions.length >= 1).toBe(true)
+          // Verify each condition has a valid type
+          condition.conditions.forEach((c, i) => {
+            expect(VALID_CONDITION_TYPES).toContain(c.type)
+            expect(condition.conditions[i].type).toBe(c.type)
+          })
         })
       )
     })
@@ -143,7 +159,13 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(orConditionGen(), (condition) => {
           expect(condition.type).toBe('or')
-          expect(condition.conditions).toEqual(expect.any(Array))
+          // Verify conditions is an array with valid condition elements
+          expect(condition.conditions.length >= 1).toBe(true)
+          // Verify each condition has a valid type
+          condition.conditions.forEach((c, i) => {
+            expect(VALID_CONDITION_TYPES).toContain(c.type)
+            expect(condition.conditions[i].type).toBe(c.type)
+          })
         })
       )
     })
@@ -154,7 +176,9 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(notConditionGen(), (condition) => {
           expect(condition.type).toBe('not')
-          expect(typeof condition.condition === 'object' && condition.condition !== null).toBe(true)
+          // Verify condition has a nested condition with a valid type - verify both type and that it's a valid leaf condition
+          expect(['count', 'daysSince']).toContain(condition.condition.type)
+          expect(condition.condition.type === 'count' || condition.condition.type === 'daysSince').toBe(true)
         })
       )
     })
@@ -213,7 +237,8 @@ describe('series component generators', () => {
     it('never has end date when configured', () => {
       fc.assert(
         fc.property(seriesBoundsGen({ hasEndDate: false }), (bounds) => {
-          expect(bounds.endDate === undefined).toBe(true)
+          // Verify bounds only contains startDate (no endDate)
+          expect(bounds).toEqual({ startDate: bounds.startDate })
         })
       )
     })
@@ -284,7 +309,12 @@ describe('series generators', () => {
         fc.property(minimalSeriesGen(), (series) => {
           expect(series.id).toMatch(/^series-/)
           expect(series.title.length >= 1 && typeof series.title === 'string').toBe(true)
-          expect(series.patterns.length >= 1 && series.patterns.every(p => typeof p === 'object' && p !== null)).toBe(true)
+          // Verify patterns array has at least one pattern with valid structure
+          expect(series.patterns.length >= 1).toBe(true)
+          series.patterns.forEach((p, i) => {
+            expect(['daily', 'weekly', 'monthly', 'custom']).toContain(p.pattern.type)
+            expect(series.patterns[i].pattern.type).toBe(p.pattern.type)
+          })
           expect(series.duration).toBeGreaterThanOrEqual(1)
           expect(series.tags).toEqual([])
           expect(series.locked).toBe(false)
@@ -299,10 +329,15 @@ describe('series generators', () => {
         fc.property(fullSeriesGen(), (series) => {
           expect(series.id).toMatch(/^series-/)
           expect(series.title.length >= 1 && typeof series.title === 'string').toBe(true)
-          expect(series.patterns.length >= 1 && series.patterns.every(p => typeof p === 'object' && p !== null)).toBe(true)
+          // Verify patterns array has at least one pattern with valid structure
+          expect(series.patterns.length >= 1).toBe(true)
+          series.patterns.forEach((p, i) => {
+            expect(['daily', 'weekly', 'monthly', 'custom']).toContain(p.pattern.type)
+            expect(series.patterns[i].pattern.type).toBe(p.pattern.type)
+          })
           // Fixed items should not have wiggle
           if (series.fixed) {
-            expect(series.wiggle === undefined).toBe(true)
+            expect(series.wiggle).toBeUndefined()
           }
         })
       )
@@ -313,7 +348,12 @@ describe('series generators', () => {
     it('generates series with associated conditions', () => {
       fc.assert(
         fc.property(seriesWithConditionsGen(), ({ series, conditions }) => {
-          expect(series.patterns.length >= 1 && series.patterns.every(p => typeof p === 'object' && p !== null)).toBe(true)
+          // Verify patterns array has at least one pattern with valid structure
+          expect(series.patterns.length >= 1).toBe(true)
+          series.patterns.forEach((p, i) => {
+            expect(['daily', 'weekly', 'monthly', 'custom']).toContain(p.pattern.type)
+            expect(series.patterns[i].pattern.type).toBe(p.pattern.type)
+          })
           // Each pattern with a conditionId should have a matching condition
           series.patterns.forEach((p) => {
             if (p.conditionId) {
@@ -345,7 +385,12 @@ describe('series generators', () => {
       fc.assert(
         fc.property(seriesGen(), (series) => {
           expect(series.id).toMatch(/^series-/)
-          expect(series.patterns.length >= 1 && series.patterns.every(p => typeof p === 'object' && p !== null)).toBe(true)
+          // Verify patterns array has at least one pattern with valid structure
+          expect(series.patterns.length >= 1).toBe(true)
+          series.patterns.forEach((p, i) => {
+            expect(['daily', 'weekly', 'monthly', 'custom']).toContain(p.pattern.type)
+            expect(series.patterns[i].pattern.type).toBe(p.pattern.type)
+          })
         })
       )
     })
@@ -402,7 +447,8 @@ describe('constraint generators', () => {
           if (constraint.type === 'mustBeWithin') {
             expect(typeof constraint.withinMinutes === 'number' && constraint.withinMinutes >= 1).toBe(true)
           } else {
-            expect(constraint.withinMinutes === undefined).toBe(true)
+            // Verify withinMinutes is not present for non-mustBeWithin constraints
+            expect('withinMinutes' in constraint && constraint.withinMinutes !== undefined).toBe(false)
           }
         })
       )
@@ -437,10 +483,10 @@ describe('constraint generators', () => {
     it('generates sets of non-conflicting constraints', () => {
       fc.assert(
         fc.property(solvableConstraintSetGen(), (constraints) => {
-          expect(constraints).toEqual(expect.any(Array))
-          // All constraints should be valid
+          // Verify all constraints have valid types and required fields
           constraints.forEach((c) => {
             expect(VALID_CONSTRAINT_TYPES).toContain(c.type)
+            expect(c.id).toMatch(/^constraint-/)
           })
         })
       )

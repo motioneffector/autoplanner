@@ -69,8 +69,8 @@ describe('Segment 09: Instance Exceptions', () => {
           range: { start: parseDate('2024-01-01'), end: parseDate('2024-01-31') },
         });
 
-        const cancelled = schedule.find(i => i.date === targetDate);
-        expect(cancelled === undefined).toBe(true);
+        // Verify cancelled instance is not in schedule
+        expect(schedule.map(i => i.date)).not.toContain(targetDate);
       });
 
       it('cancel doesnt affect pattern', async () => {
@@ -92,9 +92,10 @@ describe('Segment 09: Instance Exceptions', () => {
         await cancelInstance(adapter, testSeriesId, targetDate);
 
         const exception = await getException(adapter, testSeriesId, targetDate);
-        expect(exception !== null).toBe(true);
-        expect(exception!.type).toBe('cancelled');
-        expect(exception!.instanceDate).toBe(targetDate);
+        expect(exception).toEqual(expect.objectContaining({
+          type: 'cancelled',
+          instanceDate: targetDate,
+        }));
       });
 
       it('series continues after cancel', async () => {
@@ -197,10 +198,13 @@ describe('Segment 09: Instance Exceptions', () => {
         await cancelInstance(adapter, testSeriesId, targetDate);
 
         const exception = await getException(adapter, testSeriesId, targetDate);
-        expect(exception !== null).toBe(true);
-        expect(exception!.type).toBe('cancelled');
-        expect(exception!.instanceDate).toBe(targetDate);
-        expect(exception!.newTime === undefined).toBe(true);
+        expect(exception).toEqual(expect.objectContaining({
+          type: 'cancelled',
+          instanceDate: targetDate,
+          seriesId: testSeriesId,
+        }));
+        // Cancelled exceptions should not have newTime property
+        expect(Object.keys(exception!)).not.toContain('newTime');
       });
     });
   });
@@ -223,9 +227,10 @@ describe('Segment 09: Instance Exceptions', () => {
         });
 
         const instance = schedule.find(i => i.date === targetDate);
-        expect(instance !== undefined).toBe(true);
-        expect(instance!.date).toBe(targetDate);
-        expect(instance!.time).toBe(newTime);
+        expect(instance).toEqual(expect.objectContaining({
+          date: targetDate,
+          time: newTime,
+        }));
       });
 
       it('original slot freed', async () => {
@@ -240,10 +245,10 @@ describe('Segment 09: Instance Exceptions', () => {
         });
 
         // Should not be at original 9am time
-        const atOriginalTime = schedule.find(
-          i => i.date === targetDate && i.time === parseDateTime('2024-01-15T09:00:00')
-        );
-        expect(atOriginalTime === undefined).toBe(true);
+        const timesOnTargetDate = schedule
+          .filter(i => i.date === targetDate)
+          .map(i => i.time);
+        expect(timesOnTargetDate).not.toContain(parseDateTime('2024-01-15T09:00:00'));
       });
 
       it('exception record created', async () => {
@@ -253,10 +258,11 @@ describe('Segment 09: Instance Exceptions', () => {
         await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
 
         const exception = await getException(adapter, testSeriesId, targetDate);
-        expect(exception !== null).toBe(true);
-        expect(exception!.type).toBe('rescheduled');
-        expect(exception!.instanceDate).toBe(targetDate);
-        expect(exception!.newTime).toBe(newTime);
+        expect(exception).toEqual(expect.objectContaining({
+          type: 'rescheduled',
+          instanceDate: targetDate,
+          newTime: newTime,
+        }));
       });
     });
 
@@ -356,10 +362,10 @@ describe('Segment 09: Instance Exceptions', () => {
         });
 
         // Original 9am slot should still be free
-        const atOriginalTime = schedule.find(
-          i => i.date === targetDate && i.time === parseDateTime('2024-01-15T09:00:00')
-        );
-        expect(atOriginalTime === undefined).toBe(true);
+        const timesOnTargetDate = schedule
+          .filter(i => i.date === targetDate)
+          .map(i => i.time);
+        expect(timesOnTargetDate).not.toContain(parseDateTime('2024-01-15T09:00:00'));
       });
     });
   });
@@ -394,10 +400,11 @@ describe('Segment 09: Instance Exceptions', () => {
         });
 
         const instance = schedule.find(i => i.date === targetDate);
-        expect(instance !== undefined).toBe(true);
-        expect(instance!.date).toBe(targetDate);
         // Should be at original time (9am)
-        expect(instance!.time).toBe(parseDateTime('2024-01-15T09:00:00'));
+        expect(instance).toEqual(expect.objectContaining({
+          date: targetDate,
+          time: parseDateTime('2024-01-15T09:00:00'),
+        }));
       });
     });
 
@@ -413,10 +420,11 @@ describe('Segment 09: Instance Exceptions', () => {
         });
 
         const instance = schedule.find(i => i.date === targetDate);
-        expect(instance !== undefined).toBe(true);
-        expect(instance!.date).toBe(targetDate);
         // Should be back at original time
-        expect(instance!.time).toBe(parseDateTime('2024-01-15T09:00:00'));
+        expect(instance).toEqual(expect.objectContaining({
+          date: targetDate,
+          time: parseDateTime('2024-01-15T09:00:00'),
+        }));
       });
 
       it('exception deleted', async () => {
@@ -425,7 +433,7 @@ describe('Segment 09: Instance Exceptions', () => {
         await restoreInstance(adapter, testSeriesId, targetDate);
 
         const exception = await getException(adapter, testSeriesId, targetDate);
-        expect(exception === null).toBe(true);
+        expect(exception).toBeNull();
       });
     });
 
@@ -455,14 +463,15 @@ describe('Segment 09: Instance Exceptions', () => {
       await cancelInstance(adapter, testSeriesId, targetDate);
 
       const exception = await getException(adapter, testSeriesId, targetDate);
-      expect(exception !== null).toBe(true);
-      expect(exception!.instanceDate).toBe(targetDate);
-      expect(exception!.type).toBe('cancelled');
+      expect(exception).toEqual(expect.objectContaining({
+        instanceDate: targetDate,
+        type: 'cancelled',
+      }));
     });
 
     it('get non-excepted returns null', async () => {
       const exception = await getException(adapter, testSeriesId, parseDate('2024-01-15'));
-      expect(exception === null).toBe(true);
+      expect(exception).toBeNull();
     });
 
     it('get exceptions by series', async () => {
@@ -552,9 +561,10 @@ describe('Segment 09: Instance Exceptions', () => {
         });
 
         const instance = schedule.find(i => i.date === targetDate);
-        expect(instance !== undefined).toBe(true);
-        expect(instance!.date).toBe(targetDate);
-        expect(instance!.time).toBe(newTime);
+        expect(instance).toEqual(expect.objectContaining({
+          date: targetDate,
+          time: newTime,
+        }));
       });
 
       it('non-excepted unchanged', async () => {
@@ -782,9 +792,13 @@ describe('Segment 09: Instance Exceptions', () => {
       await cancelInstance(adapter, testSeriesId, targetDate);
 
       const exception = await getException(adapter, testSeriesId, targetDate);
-      expect(exception!.type).toBe('cancelled');
-      expect(exception!.instanceDate).toBe(targetDate);
-      expect(exception!.newTime === undefined).toBe(true);
+      expect(exception).toEqual(expect.objectContaining({
+        type: 'cancelled',
+        instanceDate: targetDate,
+        seriesId: testSeriesId,
+      }));
+      // Cancelled exceptions should not have newTime property
+      expect(Object.keys(exception!)).not.toContain('newTime');
     });
 
     it('INV 4: exception only for pattern dates', async () => {

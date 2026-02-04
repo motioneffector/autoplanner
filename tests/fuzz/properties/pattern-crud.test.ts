@@ -133,7 +133,7 @@ describe('Spec 4: Patterns - CRUD Operations', () => {
 
         expect(patternId).toMatch(/^pattern-/)
         const retrievedPattern = manager.getPattern(patternId)
-        expect(retrievedPattern !== undefined).toBe(true)
+        expect(retrievedPattern).toBeDefined()
         expect(retrievedPattern!.type).toBe(pattern.type)
         expect(manager.getPatternsForSeries(seriesId)).toContainEqual(pattern)
       })
@@ -151,8 +151,8 @@ describe('Spec 4: Patterns - CRUD Operations', () => {
 
         const deleted = manager.deletePattern(patternId)
         expect(deleted).toBe(true)
-        expect(manager.getPattern(patternId) === undefined).toBe(true)
-        expect(manager.getPatternsForSeries(seriesId).length).toBe(0)
+        expect(manager.getPattern(patternId)).toBeUndefined()
+        expect(manager.getPatternsForSeries(seriesId)).toEqual([])
       })
     )
   })
@@ -194,7 +194,7 @@ describe('Spec 7: Conditions - CRUD Operations', () => {
 
         expect(conditionId).toMatch(/^condition-/)
         const retrievedCondition = manager.getCondition(conditionId)
-        expect(retrievedCondition !== undefined).toBe(true)
+        expect(retrievedCondition).toBeDefined()
         expect(retrievedCondition!.type).toBe(condition.type)
         expect(manager.getConditionsForSeries(seriesId)).toContainEqual(condition)
       })
@@ -210,7 +210,9 @@ describe('Spec 7: Conditions - CRUD Operations', () => {
         // Delete the root condition
         const deleted = manager.deleteCondition(conditionId)
         expect(deleted).toBe(true)
-        expect(manager.getCondition(conditionId) === undefined).toBe(true)
+        expect(manager.getCondition(conditionId)).toBeUndefined()
+        // Verify the condition is no longer in the series
+        expect(manager.getConditionsForSeries(seriesId).map(c => c.type)).not.toContain(condition.type)
 
         // Note: In a real implementation, child conditions would also be deleted
         // Our mock just stores the whole tree as one condition

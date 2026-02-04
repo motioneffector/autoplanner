@@ -74,7 +74,14 @@ describe('Segment 10: Reminders', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-          expect(result.value.id).toEqual(expect.any(String));
+          // Verify the returned ID can be used to retrieve the complete reminder
+          const reminder = await getReminder(adapter, result.value.id);
+          expect(reminder).toEqual(expect.objectContaining({
+            id: result.value.id,
+            seriesId: testSeriesId,
+            minutesBefore: 15,
+            tag: 'notification',
+          }));
         }
       });
 
@@ -124,17 +131,17 @@ describe('Segment 10: Reminders', () => {
         if (!createResult.ok) throw new Error(`'get existing reminder' setup failed: ${createResult.error.type}`);
 
         const reminder = await getReminder(adapter, createResult.value.id);
-        expect(reminder !== null).toBe(true);
-        expect(reminder!.id).toBe(createResult.value.id);
-        expect(reminder!.seriesId).toBe(testSeriesId);
-        expect(reminder!.minutesBefore).toBe(15);
-        expect(reminder!.tag).toBe('test');
+        expect(reminder).toEqual(expect.objectContaining({
+          id: createResult.value.id,
+          seriesId: testSeriesId,
+          minutesBefore: 15,
+          tag: 'test',
+        }));
       });
 
       it('get non-existent reminder', async () => {
         const reminder = await getReminder(adapter, 'non-existent-id' as ReminderId);
-        // Verify absence - null is the expected value for non-existent reminder
-        expect(reminder === null).toBe(true);
+        expect(reminder).toBeNull();
       });
 
       it('get reminders by series', async () => {
@@ -193,9 +200,10 @@ describe('Segment 10: Reminders', () => {
         const deleteResult = await deleteReminder(adapter, createResult.value.id);
         expect(deleteResult.ok).toBe(true);
 
-        const reminder = await getReminder(adapter, createResult.value.id);
-        // Verify absence - null is the expected value after deletion
-        expect(reminder === null).toBe(true);
+        // Verify deletion via collection - deleted reminder should not appear
+        const reminders = await getRemindersBySeries(adapter, testSeriesId);
+        const deletedReminder = reminders.filter(r => r.id === createResult.value.id);
+        expect(deletedReminder).toEqual([]);
       });
 
       it('delete cascades acknowledgments', async () => {
@@ -213,10 +221,10 @@ describe('Segment 10: Reminders', () => {
         // Delete the reminder
         await deleteReminder(adapter, createResult.value.id);
 
-        // Acknowledgment should be gone (implicitly tested - no error when deleted)
-        const reminder = await getReminder(adapter, createResult.value.id);
-        // Verify absence - null is the expected value after deletion
-        expect(reminder === null).toBe(true);
+        // Verify deletion via collection - deleted reminder should not appear
+        const reminders = await getRemindersBySeries(adapter, testSeriesId);
+        const deletedReminder = reminders.filter(r => r.id === createResult.value.id);
+        expect(deletedReminder).toEqual([]);
       });
 
       it('series delete cascades reminders', async () => {
@@ -478,11 +486,10 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const acknowledged = pending.find(
+        const acknowledgedReminders = pending.filter(
           p => p.reminderId === createResult.value.id && p.instanceDate === parseDate('2024-01-15')
         );
-        // Verify absence - undefined is expected because acknowledged reminders should be excluded
-        expect(acknowledged === undefined).toBe(true);
+        expect(acknowledgedReminders).toEqual([]);
       });
 
       it('acknowledge is idempotent', async () => {
@@ -560,9 +567,10 @@ describe('Segment 10: Reminders', () => {
         });
 
         const bPending = pending.find(p => p.reminderId === reminderB.value.id);
-        expect(bPending !== undefined).toBe(true);
-        expect(bPending!.tag).toBe('b');
-        expect(bPending!.instanceDate).toBe(parseDate('2024-01-15'));
+        expect(bPending).toEqual(expect.objectContaining({
+          tag: 'b',
+          instanceDate: parseDate('2024-01-15'),
+        }));
       });
     });
   });
@@ -725,9 +733,10 @@ describe('Segment 10: Reminders', () => {
 
         // Fire time should be 09:45, which is when we're querying
         const forInstance = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forInstance !== undefined).toBe(true);
-        expect(forInstance!.tag).toBe('test');
-        expect(forInstance!.seriesId).toBe(testSeriesId);
+        expect(forInstance).toEqual(expect.objectContaining({
+          tag: 'test',
+          seriesId: testSeriesId,
+        }));
       });
 
       it('not original time', async () => {
@@ -747,9 +756,8 @@ describe('Segment 10: Reminders', () => {
         });
 
         // Should NOT be pending yet (new fire time is 09:45)
-        const forInstance = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-        // Verify absence - undefined is expected because rescheduled reminder's new fire time hasn't arrived
-        expect(forInstance === undefined).toBe(true);
+        const forInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(forInstance).toEqual([]);
       });
     });
 
@@ -780,9 +788,10 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forInstance = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forInstance !== undefined).toBe(true);
-        expect(forInstance!.tag).toBe('test');
-        expect(forInstance!.seriesId).toBe(allDaySeriesId);
+        expect(forInstance).toEqual(expect.objectContaining({
+          tag: 'test',
+          seriesId: allDaySeriesId,
+        }));
       });
 
       it('all-day 60 min before', async () => {
@@ -799,9 +808,10 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forInstance = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forInstance !== undefined).toBe(true);
-        expect(forInstance!.tag).toBe('test');
-        expect(forInstance!.seriesId).toBe(allDaySeriesId);
+        expect(forInstance).toEqual(expect.objectContaining({
+          tag: 'test',
+          seriesId: allDaySeriesId,
+        }));
       });
 
       it('all-day 1440 min before', async () => {
@@ -818,9 +828,10 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forInstance = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forInstance !== undefined).toBe(true);
-        expect(forInstance!.tag).toBe('test');
-        expect(forInstance!.seriesId).toBe(allDaySeriesId);
+        expect(forInstance).toEqual(expect.objectContaining({
+          tag: 'test',
+          seriesId: allDaySeriesId,
+        }));
       });
     });
   });
@@ -880,9 +891,8 @@ describe('Segment 10: Reminders', () => {
         range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
       });
 
-      const forCancelled = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-      // Verify absence - undefined is expected because cancelled instances should not have reminders
-      expect(forCancelled === undefined).toBe(true);
+      const forCancelled = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
+      expect(forCancelled).toEqual([]);
     });
 
     it('B6: all-day minutesBefore 0', async () => {
@@ -908,9 +918,10 @@ describe('Segment 10: Reminders', () => {
       });
 
       const forInstance = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-      expect(forInstance !== undefined).toBe(true);
-      expect(forInstance!.tag).toBe('test');
-      expect(forInstance!.seriesId).toBe(allDayResult.value.id);
+      expect(forInstance).toEqual(expect.objectContaining({
+        tag: 'test',
+        seriesId: allDayResult.value.id,
+      }));
     });
 
     it('B7: all-day 1440 min', async () => {
@@ -936,9 +947,10 @@ describe('Segment 10: Reminders', () => {
       });
 
       const forInstance = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-      expect(forInstance !== undefined).toBe(true);
-      expect(forInstance!.tag).toBe('day-before');
-      expect(forInstance!.seriesId).toBe(allDayResult.value.id);
+      expect(forInstance).toEqual(expect.objectContaining({
+        tag: 'day-before',
+        seriesId: allDayResult.value.id,
+      }));
     });
   });
 
@@ -1046,9 +1058,8 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const forInstance = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-        // Verify absence - undefined is expected because fire time (08:45) hasn't arrived yet
-        expect(forInstance === undefined).toBe(true);
+        const forInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(forInstance).toEqual([]);
       });
 
       it('acknowledge dismisses', async () => {
@@ -1069,11 +1080,10 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const forInstance = pending.find(
+        const forInstance = pending.filter(
           p => p.reminderId === createResult.value.id && p.instanceDate === parseDate('2024-01-15')
         );
-        // Verify absence - undefined is expected because acknowledged reminders are dismissed
-        expect(forInstance === undefined).toBe(true);
+        expect(forInstance).toEqual([]);
       });
     });
 
@@ -1110,9 +1120,10 @@ describe('Segment 10: Reminders', () => {
         });
 
         const urgent = pending.find(p => p.reminderId === reminder5.value.id);
-        expect(urgent !== undefined).toBe(true);
-        expect(urgent!.tag).toBe('urgent');
-        expect(urgent!.instanceDate).toBe(parseDate('2024-01-15'));
+        expect(urgent).toEqual(expect.objectContaining({
+          tag: 'urgent',
+          instanceDate: parseDate('2024-01-15'),
+        }));
       });
     });
 
@@ -1144,9 +1155,10 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forJan15 = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forJan15 !== undefined).toBe(true);
-        expect(forJan15!.tag).toBe('day-before');
-        expect(forJan15!.seriesId).toBe(allDaySeriesId);
+        expect(forJan15).toEqual(expect.objectContaining({
+          tag: 'day-before',
+          seriesId: allDaySeriesId,
+        }));
       });
 
       it('reminder evening before', async () => {
@@ -1163,9 +1175,10 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forJan15 = pending.find(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forJan15 !== undefined).toBe(true);
-        expect(forJan15!.tag).toBe('evening-before');
-        expect(forJan15!.seriesId).toBe(allDaySeriesId);
+        expect(forJan15).toEqual(expect.objectContaining({
+          tag: 'evening-before',
+          seriesId: allDaySeriesId,
+        }));
       });
     });
   });

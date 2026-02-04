@@ -184,8 +184,7 @@ describe('Spec 13: Transactions - Atomicity', () => {
           expect(manager.getAllSeries().length).toBe(seriesList.length)
           for (const id of ids) {
             const retrieved = manager.getSeries(id)
-            expect(retrieved !== undefined).toBe(true)
-            expect(retrieved!.id).toBe(id)
+            expect(retrieved).toEqual(expect.objectContaining({ id }))
           }
         }
       )
@@ -218,8 +217,7 @@ describe('Spec 13: Transactions - Atomicity', () => {
           const allSeries = manager.getAllSeries()
           expect(allSeries.length === 1 && allSeries[0].id === initialId).toBe(true)
           const initialSeries = manager.getSeries(initialId)
-          expect(initialSeries !== undefined).toBe(true)
-          expect(initialSeries!.id).toBe(initialId)
+          expect(initialSeries).toEqual(expect.objectContaining({ id: initialId }))
         }
       )
     )
@@ -268,8 +266,7 @@ describe('Spec 13: Transactions - Atomicity', () => {
 
         // Changes from inner transaction still pending
         const series2InTx = manager.getSeries(id2)
-        expect(series2InTx !== undefined).toBe(true)
-        expect(series2InTx!.id).toBe(id2)
+        expect(series2InTx).toEqual(expect.objectContaining({ id: id2 }))
 
         manager.commit() // Depth 0
 
@@ -277,10 +274,8 @@ describe('Spec 13: Transactions - Atomicity', () => {
         expect(manager.getTransactionDepth()).toBe(0)
         const series1Committed = manager.getSeries(id1)
         const series2Committed = manager.getSeries(id2)
-        expect(series1Committed !== undefined).toBe(true)
-        expect(series1Committed!.id).toBe(id1)
-        expect(series2Committed !== undefined).toBe(true)
-        expect(series2Committed!.id).toBe(id2)
+        expect(series1Committed).toEqual(expect.objectContaining({ id: id1 }))
+        expect(series2Committed).toEqual(expect.objectContaining({ id: id2 }))
       })
     )
   })
@@ -301,8 +296,7 @@ describe('Spec 13: Transactions - Error Handling', () => {
 
         expect(result).toBe(false)
         const error = manager.getLastError()
-        expect(error !== null).toBe(true)
-        expect(error!.message).toContain('not found')
+        expect(error).toEqual(expect.objectContaining({ message: expect.stringContaining('not found') }))
       })
     )
   })
@@ -322,8 +316,7 @@ describe('Spec 13: Transactions - Error Handling', () => {
         // State should be unchanged
         expect(manager.getAllSeries().length).toBe(stateBefore)
         const existingSeries = manager.getSeries(id)
-        expect(existingSeries !== undefined).toBe(true)
-        expect(existingSeries!.id).toBe(id)
+        expect(existingSeries).toEqual(expect.objectContaining({ id }))
       })
     )
   })
@@ -645,8 +638,7 @@ describe('Spec 13: Transactions - Rollback State Restoration', () => {
           // All initial series should still exist
           for (const id of initialIds) {
             const series = manager.getSeries(id)
-            expect(series !== undefined).toBe(true)
-            expect(series!.id).toBe(id)
+            expect(series).toEqual(expect.objectContaining({ id }))
           }
 
           // Transaction depth should be 0
@@ -696,21 +688,19 @@ describe('Spec 13: Transactions - Rollback State Restoration', () => {
         // Create and verify
         const id = manager.createSeries(series)
         const originalSeries = manager.getSeries(id)
-        expect(originalSeries !== undefined).toBe(true)
-        expect(originalSeries!.id).toBe(id)
+        expect(originalSeries).toEqual(expect.objectContaining({ id }))
 
         // Delete in transaction
         manager.beginTransaction()
         manager.deleteSeries(id)
 
         // Deleted in transaction view
-        expect(manager.getSeries(id) === undefined).toBe(true)
+        expect(manager.getAllSeries().every((s) => s.id !== id)).toBe(true)
 
         // Rollback restores it
         manager.rollback()
         const restoredSeries = manager.getSeries(id)
-        expect(restoredSeries !== undefined).toBe(true)
-        expect(restoredSeries!.id).toBe(id)
+        expect(restoredSeries).toEqual(expect.objectContaining({ id }))
         expect(restoredSeries).toEqual(originalSeries)
       })
     )
@@ -779,7 +769,7 @@ describe('Spec 13: Transactions - Rollback State Restoration', () => {
           ).toBe(true)
 
           for (const id of transactionIds) {
-            expect(manager.getSeries(id) === undefined).toBe(true)
+            expect(manager.getAllSeries().every((s) => s.id !== id)).toBe(true)
           }
         }
       )
@@ -829,12 +819,10 @@ describe('Spec 13: Transactions - Nested Transactions', () => {
 
           // All created IDs should be retrievable
           const outsideSeries = manager.getSeries(outsideId)
-          expect(outsideSeries !== undefined).toBe(true)
-          expect(outsideSeries!.id).toBe(outsideId)
+          expect(outsideSeries).toEqual(expect.objectContaining({ id: outsideId }))
           for (const id of idsAtDepth) {
             const depthSeries = manager.getSeries(id)
-            expect(depthSeries !== undefined).toBe(true)
-            expect(depthSeries!.id).toBe(id)
+            expect(depthSeries).toEqual(expect.objectContaining({ id }))
           }
         }
       )
@@ -947,8 +935,7 @@ describe('Spec 13: Transactions - Nested Transactions', () => {
           for (const levelIds of createdAtLevel) {
             for (const id of levelIds) {
               const levelSeries = manager.getSeries(id)
-              expect(levelSeries !== undefined).toBe(true)
-              expect(levelSeries!.id).toBe(id)
+              expect(levelSeries).toEqual(expect.objectContaining({ id }))
             }
           }
         }
@@ -1107,11 +1094,10 @@ describe('Spec 14: Events - State Mutation', () => {
 
         manager.createSeries(series)
 
-        // Data should be captured
-        expect(receivedData !== null).toBe(true)
+        // Data should be captured - verify it contains the series with correct id
         const seriesData = (receivedData as { series: Series }).series
-        expect(seriesData !== undefined).toBe(true)
-        expect(seriesData.id).toBe(manager.getAllSeries()[0]?.id)
+        const createdSeriesId = manager.getAllSeries()[0]?.id
+        expect(seriesData).toEqual(expect.objectContaining({ id: createdSeriesId }))
 
         // Modifying received data shouldn't affect manager state
         if (receivedData) {
@@ -1211,10 +1197,9 @@ describe('Spec 14: Events - State Mutation', () => {
 
           manager.updateSeries(id, { title: newTitle })
 
-          expect(receivedUpdates !== null).toBe(true)
+          // Verify the update event data contains the expected title
           const updates = (receivedUpdates as { updates: { title: string } }).updates
-          expect(updates !== undefined).toBe(true)
-          expect(updates.title).toBe(newTitle)
+          expect(updates).toEqual(expect.objectContaining({ title: newTitle }))
         }
       )
     )

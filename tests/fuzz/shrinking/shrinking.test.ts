@@ -29,15 +29,15 @@ import type { LocalDate, Duration, Series, SeriesId, Pattern, Condition, Relatio
 
 describe('Shrinker Registration', () => {
   it('all shrinkers are exported', () => {
-    // Verify shrinkers are functions that return iterables
-    expect(shrinkers.dateRange).toEqual(expect.any(Function))
-    expect(shrinkers.duration).toEqual(expect.any(Function))
-    expect(shrinkers.seriesArray).toEqual(expect.any(Function))
-    expect(shrinkers.pattern).toEqual(expect.any(Function))
-    expect(shrinkers.condition).toEqual(expect.any(Function))
-    expect(shrinkers.constraintSet).toEqual(expect.any(Function))
-    expect(shrinkers.linkChain).toEqual(expect.any(Function))
-    expect(shrinkers.operationSequence).toEqual(expect.any(Function))
+    // Verify shrinkers are the actual shrink functions
+    expect(shrinkers.dateRange).toBe(shrinkDateRange)
+    expect(shrinkers.duration).toBe(shrinkDuration)
+    expect(shrinkers.seriesArray).toBe(shrinkSeriesArray)
+    expect(shrinkers.pattern).toBe(shrinkPattern)
+    expect(shrinkers.condition).toBe(shrinkCondition)
+    expect(shrinkers.constraintSet).toBe(shrinkConstraintSet)
+    expect(shrinkers.linkChain).toBe(shrinkLinkChain)
+    expect(shrinkers.operationSequence).toBe(shrinkOperationSequence)
   })
 
   it('dateRangeArb integrates with fast-check', () => {
@@ -66,28 +66,30 @@ describe('Shrinkers - DateRange', () => {
 
     const shrinks = Array.from(shrinkDateRange(range))
 
-    // Should have at least 2 shrinks (halved and decremented) with valid date structures
+    // Original range is 30 days (Jan 1 to Jan 31)
+    // Shrinker should produce halved (15 days) and decremented (29 days) variants
     expect(shrinks.length).toBeGreaterThanOrEqual(2)
-    for (const shrunk of shrinks) {
-      expect(shrunk).toEqual(expect.objectContaining({ start: expect.any(String), end: expect.any(String) }))
-    }
 
-    // All shrinks should have valid dates in YYYY-MM-DD format
-    for (const shrunk of shrinks) {
-      expect(shrunk.start).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-      expect(shrunk.end).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-      expect(shrunk.end >= shrunk.start).toBe(true)
-    }
-
-    // At least one should be smaller (halved or decremented)
-    const smallerShrinks = shrinks.filter(s => {
-      const origDays = daysBetween(range.start, range.end)
-      const shrunkDays = daysBetween(s.start, s.end)
-      return shrunkDays < origDays
+    // Find halved shrink (approximately 15 days from start)
+    const halvedShrink = shrinks.find(s => daysBetween(s.start, s.end) === 15)
+    expect(halvedShrink).toEqual({
+      start: makeLocalDate(2024, 1, 1),
+      end: makeLocalDate(2024, 1, 16),
     })
-    expect(smallerShrinks).toEqual(expect.arrayContaining([
-      expect.objectContaining({ start: expect.any(String), end: expect.any(String) })
-    ]))
+
+    // Find decremented shrink (29 days - end moved back by 1)
+    const decrementedShrink = shrinks.find(s => daysBetween(s.start, s.end) === 29)
+    expect(decrementedShrink).toEqual({
+      start: makeLocalDate(2024, 1, 1),
+      end: makeLocalDate(2024, 1, 30),
+    })
+
+    // All shrinks should be smaller than the original 30 days
+    for (const shrunk of shrinks) {
+      const shrunkDays = daysBetween(shrunk.start, shrunk.end)
+      expect(shrunkDays).toBeLessThan(30)
+      expect(shrunkDays).toBeGreaterThanOrEqual(0)
+    }
   })
 
   it('empty range produces no shrinks', () => {
@@ -140,45 +142,28 @@ describe('Shrinkers - Duration', () => {
 
 describe('Shrinkers - SeriesArray', () => {
   it('shrinks by removing elements', () => {
-    const series: Series[] = [
-      { id: 's1' as SeriesId, title: 'Series 1' } as Series,
-      { id: 's2' as SeriesId, title: 'Series 2' } as Series,
-      { id: 's3' as SeriesId, title: 'Series 3' } as Series,
-      { id: 's4' as SeriesId, title: 'Series 4' } as Series,
-    ]
+    const s1 = { id: 's1' as SeriesId, title: 'Series 1' } as Series
+    const s2 = { id: 's2' as SeriesId, title: 'Series 2' } as Series
+    const s3 = { id: 's3' as SeriesId, title: 'Series 3' } as Series
+    const s4 = { id: 's4' as SeriesId, title: 'Series 4' } as Series
+    const series: Series[] = [s1, s2, s3, s4]
 
     const shrinks = Array.from(shrinkSeriesArray(series))
 
-    // Should have at least 4 shrinks (one for each element removal from 4-element array)
-    // Each shrink should be smaller than original and contain valid series IDs
-    expect(shrinks).toEqual(expect.arrayContaining([
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), title: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), title: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), title: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), title: expect.any(String) })])
-    ]))
-    for (const shrunk of shrinks) {
-      for (const s of shrunk) {
-        expect(['s1', 's2', 's3', 's4']).toContain(s.id)
-      }
-    }
+    // Verify the exact shrinks of length 3 - all 4 possible single-element removals
+    expect(shrinks).toContainEqual([s2, s3, s4]) // Without s1
+    expect(shrinks).toContainEqual([s1, s3, s4]) // Without s2
+    expect(shrinks).toContainEqual([s1, s2, s4]) // Without s3
+    expect(shrinks).toContainEqual([s1, s2, s3]) // Without s4
 
-    // Verify shrinks with 3 elements represent each possible single-element removal
-    const threeElementShrinks = shrinks.filter(s => s.length === 3)
-    expect(threeElementShrinks.length).toBeGreaterThanOrEqual(4)
-    // Each 3-element shrink should be missing exactly one ID from the original set
-    const missingIds = threeElementShrinks.map(shrunk => {
-      const ids = shrunk.map(s => s.id)
-      return ['s1', 's2', 's3', 's4'].find(id => !ids.includes(id as SeriesId))
-    })
-    // Should have all 4 possible single-element removals
-    expect(new Set(missingIds)).toEqual(new Set(['s1', 's2', 's3', 's4']))
+    // Halved shrink (length 2) should contain first two elements
+    expect(shrinks).toContainEqual([s1, s2])
   })
 
   it('single element produces no shrinks', () => {
     const series: Series[] = [{ id: 's1' as SeriesId, title: 'Series 1' } as Series]
     const shrinks = Array.from(shrinkSeriesArray(series))
-    expect(shrinks.length).toBe(0)
+    expect(shrinks).toEqual([])
   })
 })
 
@@ -223,14 +208,15 @@ describe('Shrinkers - Pattern', () => {
     const shrinks = Array.from(shrinkPattern(pattern))
 
     // Should try to simplify to daily
-    expect(shrinks.some(p => p.type === 'daily')).toBe(true)
+    expect(shrinks).toContainEqual({ type: 'daily' })
 
-    // Should try reducing days to single day variants (at least one of: mon, wed, fri)
+    // Should try reducing days to single day variants
     const reducedDays = shrinks.filter(p => p.type === 'weekly' && p.days.length === 1)
-    expect(reducedDays).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: 'weekly', days: expect.arrayContaining([expect.any(String)]) })
-    ]))
-    // Verify single-day shrinks contain valid days from original
+
+    // Should have at least one single-day shrink with valid day
+    expect(reducedDays.some(p => ['mon', 'wed', 'fri'].includes(p.days[0]))).toBe(true)
+
+    // All single-day shrinks should be one of the original days
     for (const shrunk of reducedDays) {
       expect(['mon', 'wed', 'fri']).toContain(shrunk.days[0])
     }
@@ -307,38 +293,25 @@ describe('Shrinkers - Condition', () => {
 
 describe('Shrinkers - ConstraintSet', () => {
   it('removes constraints one at a time', () => {
-    const constraints: RelationalConstraint[] = [
-      { id: 'c1' as ConstraintId, type: 'mustBeBefore', sourceTarget: {}, destTarget: {} },
-      { id: 'c2' as ConstraintId, type: 'mustBeAfter', sourceTarget: {}, destTarget: {} },
-      { id: 'c3' as ConstraintId, type: 'mustBeOnSameDay', sourceTarget: {}, destTarget: {} },
-    ]
+    const c1 = { id: 'c1' as ConstraintId, type: 'mustBeBefore', sourceTarget: {}, destTarget: {} } as RelationalConstraint
+    const c2 = { id: 'c2' as ConstraintId, type: 'mustBeAfter', sourceTarget: {}, destTarget: {} } as RelationalConstraint
+    const c3 = { id: 'c3' as ConstraintId, type: 'mustBeOnSameDay', sourceTarget: {}, destTarget: {} } as RelationalConstraint
+    const constraints: RelationalConstraint[] = [c1, c2, c3]
 
     const shrinks = Array.from(shrinkConstraintSet(constraints))
 
-    // Should have exactly 3 shrinks with 2 elements each (one removed from 3)
-    // Verify structure: each shrink has valid constraints and is missing exactly one
-    expect(shrinks).toEqual([
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), type: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), type: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), type: expect.any(String) })])
-    ])
-    const missingIds = shrinks.map(shrunk => {
-      const ids = shrunk.map(c => c.id)
-      return ['c1', 'c2', 'c3'].find(id => !ids.includes(id as ConstraintId))
-    })
-    expect(missingIds.sort()).toEqual(['c1', 'c2', 'c3'])
+    // Should have exactly 3 shrinks, each with one constraint removed
+    // Verify all three expected shrinks exist
+    expect(shrinks).toContainEqual([c2, c3]) // Without c1
+    expect(shrinks).toContainEqual([c1, c3]) // Without c2
+    expect(shrinks).toContainEqual([c1, c2]) // Without c3
 
-    // All shrinks should have exactly 2 valid constraints with proper structure
-    for (const shrunk of shrinks) {
-      expect(shrunk).toEqual([
-        expect.objectContaining({ id: expect.any(String), type: expect.any(String) }),
-        expect.objectContaining({ id: expect.any(String), type: expect.any(String) })
-      ])
-      for (const c of shrunk) {
-        expect(['c1', 'c2', 'c3']).toContain(c.id)
-        expect(['mustBeBefore', 'mustBeAfter', 'mustBeOnSameDay']).toContain(c.type)
-      }
-    }
+    // Verify exact shrink set - exactly these 3 shrinks and nothing else
+    expect(shrinks).toEqual([
+      [c2, c3],
+      [c1, c3],
+      [c1, c2],
+    ])
   })
 
   it('single constraint produces no shrinks', () => {
@@ -356,44 +329,33 @@ describe('Shrinkers - ConstraintSet', () => {
 
 describe('Shrinkers - LinkChain', () => {
   it('shortens chain from the end', () => {
-    const links: Link[] = [
-      { parentSeriesId: 's0' as SeriesId, childSeriesId: 's1' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
-      { parentSeriesId: 's1' as SeriesId, childSeriesId: 's2' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
-      { parentSeriesId: 's2' as SeriesId, childSeriesId: 's3' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
-      { parentSeriesId: 's3' as SeriesId, childSeriesId: 's4' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
-    ]
+    const link0 = { parentSeriesId: 's0' as SeriesId, childSeriesId: 's1' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 }
+    const link1 = { parentSeriesId: 's1' as SeriesId, childSeriesId: 's2' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 }
+    const link2 = { parentSeriesId: 's2' as SeriesId, childSeriesId: 's3' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 }
+    const link3 = { parentSeriesId: 's3' as SeriesId, childSeriesId: 's4' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 }
+    const links: Link[] = [link0, link1, link2, link3]
 
     const shrinks = Array.from(shrinkLinkChain(links))
 
-    // Should have at least 2 shrinks with valid chain structure
-    expect(shrinks).toEqual(expect.arrayContaining([
-      expect.arrayContaining([expect.objectContaining({ parentSeriesId: expect.any(String), childSeriesId: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ parentSeriesId: expect.any(String), childSeriesId: expect.any(String) })])
-    ]))
-    for (const shrunk of shrinks) {
-      for (const link of shrunk) {
-        expect(link).toEqual(expect.objectContaining({
-          parentSeriesId: expect.any(String),
-          childSeriesId: expect.any(String),
-          targetDistance: expect.any(Number)
-        }))
-      }
-    }
+    // Should have at least 2 shrinks (halved and decremented)
+    expect(shrinks.length).toBeGreaterThanOrEqual(2)
 
-    // Verify halved chain (2 links) exists with correct structure
+    // Verify halved chain (2 links) - first half of the chain
     const halved = shrinks.find(s => s.length === 2)
-    expect(halved).toEqual([
-      expect.objectContaining({ parentSeriesId: 's0', childSeriesId: 's1' }),
-      expect.objectContaining({ parentSeriesId: 's1', childSeriesId: 's2' })
-    ])
+    expect(halved).toEqual([link0, link1])
 
-    // Verify shorter chain (3 links - last removed) exists with correct structure
+    // Verify shorter chain (3 links - last removed)
     const shorterChain = shrinks.find(s => s.length === 3)
-    expect(shorterChain).toEqual([
-      expect.objectContaining({ parentSeriesId: 's0', childSeriesId: 's1' }),
-      expect.objectContaining({ parentSeriesId: 's1', childSeriesId: 's2' }),
-      expect.objectContaining({ parentSeriesId: 's2', childSeriesId: 's3' })
-    ])
+    expect(shorterChain).toEqual([link0, link1, link2])
+
+    // Verify exact shrink structure - should have halved (2) and decremented (3)
+    expect(shrinks).toContainEqual([link0, link1])
+    expect(shrinks).toContainEqual([link0, link1, link2])
+
+    // Collect shrink lengths to verify coverage
+    const shrinkLengths = shrinks.map(s => s.length)
+    expect(shrinkLengths).toContain(2) // Halved
+    expect(shrinkLengths).toContain(3) // Decremented
   })
 
   it('single link produces no shrinks', () => {
@@ -401,7 +363,7 @@ describe('Shrinkers - LinkChain', () => {
       { parentSeriesId: 's0' as SeriesId, childSeriesId: 's1' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
     ]
     const shrinks = Array.from(shrinkLinkChain(links))
-    expect(shrinks.length).toBe(0)
+    expect(shrinks).toEqual([])
   })
 })
 
@@ -428,24 +390,24 @@ describe('Shrinkers - OperationSequence', () => {
   })
 
   it('preserves last operation', () => {
-    const ops = [
-      { type: 'createSeries', series: { id: 's1' } },
-      { type: 'updateSeries', seriesId: 's1', updates: {} },
-      { type: 'lockSeries', seriesId: 's1' },
-      { type: 'deleteSeries', seriesId: 's1' },
-    ]
+    const createOp = { type: 'createSeries', series: { id: 's1' } }
+    const updateOp = { type: 'updateSeries', seriesId: 's1', updates: {} }
+    const lockOp = { type: 'lockSeries', seriesId: 's1' }
+    const deleteOp = { type: 'deleteSeries', seriesId: 's1' }
+    const ops = [createOp, updateOp, lockOp, deleteOp]
 
     const shrinks = Array.from(shrinkOperationSequence(ops))
 
-    // Most shrinks should preserve the last operation (deleteSeries)
+    // Filter shrinks that preserve the last operation (deleteSeries)
     const withLast = shrinks.filter(s => s[s.length - 1]?.type === 'deleteSeries')
-    expect(withLast).toEqual(expect.arrayContaining([
-      expect.arrayContaining([expect.objectContaining({ type: expect.any(String) })])
-    ]))
+
+    // Should include minimal [create, delete] sequence
+    expect(withLast).toContainEqual([createOp, deleteOp])
+
     // Verify shrinks preserve first (create) and last (delete) operations
     for (const shrunk of withLast) {
-      expect(shrunk[0]).toEqual(expect.objectContaining({ type: 'createSeries' }))
-      expect(shrunk[shrunk.length - 1]).toEqual(expect.objectContaining({ type: 'deleteSeries' }))
+      expect(shrunk[0]).toEqual(createOp)
+      expect(shrunk[shrunk.length - 1]).toEqual(deleteOp)
     }
   })
 
@@ -562,15 +524,14 @@ describe('Shrinking - Minimal Failing Cases', () => {
       iterations++
     }
 
-    // Should have shrunk to 3 (minimal failing) with valid series structure
-    expect(current).toEqual([
-      expect.objectContaining({ id: expect.any(String), title: expect.any(String) }),
-      expect.objectContaining({ id: expect.any(String), title: expect.any(String) }),
-      expect.objectContaining({ id: expect.any(String), title: expect.any(String) })
-    ])
-    // Verify IDs are from original set
-    const ids = current.map(s => s.id as string)
-    expect(ids.every(id => id.startsWith('s'))).toBe(true)
+    // Should have shrunk to 3 (minimal failing)
+    // Verify all items are from original set (s0-s9) and maintain structure
+    expect(current.length).toBe(3)
+    expect(current.every(s => /^s\d$/.test(s.id as string))).toBe(true)
+    expect(current.every(s => {
+      const idx = parseInt((s.id as string).slice(1))
+      return s.title === `Series ${idx}`
+    })).toBe(true)
   })
 
   it('finds minimal operation sequence that causes failure', () => {
@@ -672,10 +633,14 @@ describe('Shrinking - Complex Generators', () => {
       // Should be shrinkable if > 0 days
       if (days > 0) {
         const shrinks = Array.from(shrinkDateRange(range))
-        // Expect at least 2 shrinks (halved and decremented) with valid structure
+        // Expect at least 2 shrinks (halved and decremented)
         expect(shrinks.length).toBeGreaterThanOrEqual(2)
+
+        // Verify all shrinks are smaller than original and valid
         for (const shrunk of shrinks) {
-          expect(shrunk).toEqual(expect.objectContaining({ start: expect.any(String), end: expect.any(String) }))
+          const shrunkDays = daysBetween(shrunk.start, shrunk.end)
+          expect(shrunkDays).toBeLessThan(days)
+          expect(shrunkDays).toBeGreaterThanOrEqual(0)
         }
       }
     }
@@ -699,183 +664,142 @@ describe('Shrinking - Complex Generators', () => {
 
       // Daily is minimal, others should shrink
       if (pattern.type !== 'daily') {
-        // Non-daily patterns should have at least 1 shrink
-        expect(shrinks).toEqual(expect.arrayContaining([
-          expect.objectContaining({ type: expect.any(String) })
-        ]))
+        // All shrinks should include daily as the simplest option
+        expect(shrinks).toContainEqual({ type: 'daily' })
 
-        // All shrinks should include daily as one option
-        const daily = shrinks.find(p => p.type === 'daily')
-        expect(daily).toEqual({ type: 'daily' })
+        // All shrinks should be valid pattern types
+        const validTypes = ['daily', 'everyNDays', 'weekly', 'everyNWeeks', 'monthly', 'yearly', 'weekdays', 'oneOff', 'custom']
+        for (const shrunk of shrinks) {
+          expect(validTypes).toContain(shrunk.type)
+        }
       }
     }
   })
 
   it('condition shrinker handles nested conditions', () => {
+    const countCondition = { type: 'count', target: {}, comparison: '>=', threshold: 5, windowDays: 7 } as Condition
+    const daysSinceCondition = { type: 'daysSince', target: {}, comparison: '<=', threshold: 14 } as Condition
+    const andChild1 = { type: 'count', target: {}, comparison: '>=', threshold: 3, windowDays: 7 } as Condition
+    const andChild2 = { type: 'daysSince', target: {}, comparison: '<=', threshold: 7 } as Condition
+    const orChild1 = { type: 'count', target: {}, comparison: '=', threshold: 0, windowDays: 1 } as Condition
+    const orChild2 = { type: 'daysSince', target: {}, comparison: '>', threshold: 30 } as Condition
+    const notInner = { type: 'count', target: {}, comparison: '>=', threshold: 10, windowDays: 30 } as Condition
+
     const conditions: Condition[] = [
-      { type: 'count', target: {}, comparison: '>=', threshold: 5, windowDays: 7 },
-      { type: 'daysSince', target: {}, comparison: '<=', threshold: 14 },
-      {
-        type: 'and',
-        conditions: [
-          { type: 'count', target: {}, comparison: '>=', threshold: 3, windowDays: 7 },
-          { type: 'daysSince', target: {}, comparison: '<=', threshold: 7 },
-        ],
-      },
-      {
-        type: 'or',
-        conditions: [
-          { type: 'count', target: {}, comparison: '=', threshold: 0, windowDays: 1 },
-          { type: 'daysSince', target: {}, comparison: '>', threshold: 30 },
-        ],
-      },
-      {
-        type: 'not',
-        condition: { type: 'count', target: {}, comparison: '>=', threshold: 10, windowDays: 30 },
-      },
+      countCondition,
+      daysSinceCondition,
+      { type: 'and', conditions: [andChild1, andChild2] },
+      { type: 'or', conditions: [orChild1, orChild2] },
+      { type: 'not', condition: notInner },
     ]
 
-    for (const condition of conditions) {
-      const shrinks = Array.from(shrinkCondition(condition))
+    // Test count condition (threshold 5 -> halved=2, decremented=4)
+    const countShrinks = Array.from(shrinkCondition(countCondition))
+    // Should contain halved (threshold 2) and decremented (threshold 4) shrinks
+    expect(countShrinks).toContainEqual({
+      type: 'count', target: {}, comparison: '>=', threshold: 2, windowDays: 7
+    })
+    expect(countShrinks).toContainEqual({
+      type: 'count', target: {}, comparison: '>=', threshold: 4, windowDays: 7
+    })
 
-      // Leaf conditions with threshold > 1 should shrink
-      if (condition.type === 'count' || condition.type === 'daysSince') {
-        if (condition.threshold > 1) {
-          // Expect at least 2 shrinks (halved and decremented threshold)
-          expect(shrinks.length).toBeGreaterThanOrEqual(2)
-          for (const shrunk of shrinks) {
-            expect(shrunk).toEqual(expect.objectContaining({ type: condition.type, threshold: expect.any(Number) }))
-          }
-        }
-      }
+    // Test daysSince condition (threshold 14 -> halved=7, decremented=13)
+    const daysSinceShrinks = Array.from(shrinkCondition(daysSinceCondition))
+    // Should contain halved (threshold 7) and decremented (threshold 13) shrinks
+    expect(daysSinceShrinks).toContainEqual({
+      type: 'daysSince', target: {}, comparison: '<=', threshold: 7
+    })
+    expect(daysSinceShrinks).toContainEqual({
+      type: 'daysSince', target: {}, comparison: '<=', threshold: 13
+    })
 
-      // Compound conditions should always shrink
-      if (condition.type === 'and' || condition.type === 'or' || condition.type === 'not') {
-        // Compound conditions flatten to their children
-        expect(shrinks).toEqual(expect.arrayContaining([
-          expect.objectContaining({ type: expect.any(String) })
-        ]))
-      }
-    }
+    // Test AND condition - should flatten to children
+    const andShrinks = Array.from(shrinkCondition(conditions[2]))
+    expect(andShrinks).toContainEqual(andChild1)
+    expect(andShrinks).toContainEqual(andChild2)
+
+    // Test OR condition - should flatten to children
+    const orShrinks = Array.from(shrinkCondition(conditions[3]))
+    expect(orShrinks).toContainEqual(orChild1)
+    expect(orShrinks).toContainEqual(orChild2)
+
+    // Test NOT condition - should unwrap to inner
+    const notShrinks = Array.from(shrinkCondition(conditions[4]))
+    expect(notShrinks).toContainEqual(notInner)
   })
 
   it('constraint set shrinker preserves constraint validity', () => {
-    const constraints: RelationalConstraint[] = [
-      { id: 'c1' as ConstraintId, type: 'mustBeBefore', sourceTarget: { tag: 'work' }, destTarget: { tag: 'leisure' } },
-      { id: 'c2' as ConstraintId, type: 'mustBeAfter', sourceTarget: { tag: 'breakfast' }, destTarget: { tag: 'sleep' } },
-      { id: 'c3' as ConstraintId, type: 'mustBeOnSameDay', sourceTarget: { tag: 'meeting' }, destTarget: { tag: 'prep' } },
-      { id: 'c4' as ConstraintId, type: 'cantBeOnSameDay', sourceTarget: { tag: 'gym' }, destTarget: { tag: 'rest' } },
-    ]
+    const c1 = { id: 'c1' as ConstraintId, type: 'mustBeBefore', sourceTarget: { tag: 'work' }, destTarget: { tag: 'leisure' } } as RelationalConstraint
+    const c2 = { id: 'c2' as ConstraintId, type: 'mustBeAfter', sourceTarget: { tag: 'breakfast' }, destTarget: { tag: 'sleep' } } as RelationalConstraint
+    const c3 = { id: 'c3' as ConstraintId, type: 'mustBeOnSameDay', sourceTarget: { tag: 'meeting' }, destTarget: { tag: 'prep' } } as RelationalConstraint
+    const c4 = { id: 'c4' as ConstraintId, type: 'cantBeOnSameDay', sourceTarget: { tag: 'gym' }, destTarget: { tag: 'rest' } } as RelationalConstraint
+    const constraints: RelationalConstraint[] = [c1, c2, c3, c4]
 
     const shrinks = Array.from(shrinkConstraintSet(constraints))
 
-    // Should have at least 4 shrinks (one for each element removal from 4-element array)
-    // Verify structure: each shrink is smaller than original and has valid constraints
-    expect(shrinks).toEqual(expect.arrayContaining([
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), type: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), type: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), type: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ id: expect.any(String), type: expect.any(String) })])
-    ]))
+    // Verify shrinks with 3 elements (single removal) - all 4 possible removals
+    expect(shrinks).toContainEqual([c2, c3, c4]) // Without c1
+    expect(shrinks).toContainEqual([c1, c3, c4]) // Without c2
+    expect(shrinks).toContainEqual([c1, c2, c4]) // Without c3
+    expect(shrinks).toContainEqual([c1, c2, c3]) // Without c4
+
+    // Verify halved shrink (2 elements) exists
+    expect(shrinks).toContainEqual([c1, c2])
+
+    // Verify all constraints in shrinks are from original set
     for (const shrunk of shrinks) {
       for (const c of shrunk) {
-        expect(c).toEqual(expect.objectContaining({ id: expect.any(String), type: expect.any(String) }))
-      }
-    }
-
-    // Verify shrinks with 3 elements (single removal) have all possible removals
-    const threeElementShrinks = shrinks.filter(s => s.length === 3)
-    expect(threeElementShrinks.length).toBeGreaterThanOrEqual(4)
-    const missingIds = threeElementShrinks.map(shrunk => {
-      const ids = shrunk.map(c => c.id)
-      return ['c1', 'c2', 'c3', 'c4'].find(id => !ids.includes(id as ConstraintId))
-    })
-    expect(new Set(missingIds)).toEqual(new Set(['c1', 'c2', 'c3', 'c4']))
-
-    // All shrinks should have valid constraints with proper structure
-    for (const shrunk of shrinks) {
-      for (const c of shrunk) {
-        expect(['mustBeBefore', 'mustBeAfter', 'mustBeOnSameDay', 'cantBeOnSameDay']).toContain(c.type)
-        expect(c.sourceTarget).toEqual(expect.objectContaining({ tag: expect.any(String) }))
-        expect(c.destTarget).toEqual(expect.objectContaining({ tag: expect.any(String) }))
+        expect([c1, c2, c3, c4]).toContainEqual(c)
       }
     }
   })
 
   it('link chain shrinker preserves chain structure', () => {
-    const links: Link[] = [
-      { parentSeriesId: 's0' as SeriesId, childSeriesId: 's1' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
-      { parentSeriesId: 's1' as SeriesId, childSeriesId: 's2' as SeriesId, targetDistance: 45, earlyWobble: 10, lateWobble: 10 },
-      { parentSeriesId: 's2' as SeriesId, childSeriesId: 's3' as SeriesId, targetDistance: 60, earlyWobble: 15, lateWobble: 15 },
-      { parentSeriesId: 's3' as SeriesId, childSeriesId: 's4' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
-      { parentSeriesId: 's4' as SeriesId, childSeriesId: 's5' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
-    ]
+    const link0 = { parentSeriesId: 's0' as SeriesId, childSeriesId: 's1' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 }
+    const link1 = { parentSeriesId: 's1' as SeriesId, childSeriesId: 's2' as SeriesId, targetDistance: 45, earlyWobble: 10, lateWobble: 10 }
+    const link2 = { parentSeriesId: 's2' as SeriesId, childSeriesId: 's3' as SeriesId, targetDistance: 60, earlyWobble: 15, lateWobble: 15 }
+    const link3 = { parentSeriesId: 's3' as SeriesId, childSeriesId: 's4' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 }
+    const link4 = { parentSeriesId: 's4' as SeriesId, childSeriesId: 's5' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 }
+    const links: Link[] = [link0, link1, link2, link3, link4]
 
     const shrinks = Array.from(shrinkLinkChain(links))
 
-    // Should have at least 2 shrinks with valid structure
-    expect(shrinks).toEqual(expect.arrayContaining([
-      expect.arrayContaining([expect.objectContaining({ parentSeriesId: expect.any(String), childSeriesId: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ parentSeriesId: expect.any(String), childSeriesId: expect.any(String) })])
-    ]))
+    // Verify halved chain (2 links) - first half of the chain
+    expect(shrinks).toContainEqual([link0, link1])
+
+    // Verify shorter chain (4 links - last removed)
+    expect(shrinks).toContainEqual([link0, link1, link2, link3])
+
+    // All shrinks should contain links from the original chain
     for (const shrunk of shrinks) {
       for (const link of shrunk) {
-        expect(link).toEqual(expect.objectContaining({
-          parentSeriesId: expect.any(String),
-          childSeriesId: expect.any(String),
-          targetDistance: expect.any(Number)
-        }))
-        expect(link.targetDistance).toBeGreaterThan(0)
-        expect(link.earlyWobble).toBeGreaterThanOrEqual(0)
-        expect(link.lateWobble).toBeGreaterThanOrEqual(0)
+        expect(links).toContainEqual(link)
       }
     }
-
-    // Verify halved chain (2 links) exists
-    const halved = shrinks.find(s => s.length === 2)
-    expect(halved).toEqual(expect.arrayContaining([
-      expect.objectContaining({ parentSeriesId: expect.any(String) })
-    ]))
   })
 
   it('operation sequence shrinker handles mixed operations', () => {
-    const ops = [
-      { type: 'createSeries', series: { id: 's1', title: 'First' } },
-      { type: 'createSeries', series: { id: 's2', title: 'Second' } },
-      { type: 'updateSeries', seriesId: 's1', updates: { title: 'Updated' } },
-      { type: 'linkSeries', parentSeriesId: 's1', childSeriesId: 's2' },
-      { type: 'lockSeries', seriesId: 's1' },
-      { type: 'addTag', seriesId: 's1', tag: 'important' },
-      { type: 'unlockSeries', seriesId: 's1' },
-      { type: 'deleteSeries', seriesId: 's2' },
-    ]
+    const create1 = { type: 'createSeries', series: { id: 's1', title: 'First' } }
+    const create2 = { type: 'createSeries', series: { id: 's2', title: 'Second' } }
+    const update = { type: 'updateSeries', seriesId: 's1', updates: { title: 'Updated' } }
+    const link = { type: 'linkSeries', parentSeriesId: 's1', childSeriesId: 's2' }
+    const lock = { type: 'lockSeries', seriesId: 's1' }
+    const addTag = { type: 'addTag', seriesId: 's1', tag: 'important' }
+    const unlock = { type: 'unlockSeries', seriesId: 's1' }
+    const deleteOp = { type: 'deleteSeries', seriesId: 's2' }
+    const ops = [create1, create2, update, link, lock, addTag, unlock, deleteOp]
 
     const shrinks = Array.from(shrinkOperationSequence(ops))
 
-    // Should have at least 2 shrinks with valid structure
-    expect(shrinks).toEqual(expect.arrayContaining([
-      expect.arrayContaining([expect.objectContaining({ type: expect.any(String) })]),
-      expect.arrayContaining([expect.objectContaining({ type: expect.any(String) })])
-    ]))
-    for (const shrunk of shrinks) {
-      for (const op of shrunk) {
-        expect(op).toEqual(expect.objectContaining({ type: expect.any(String) }))
-      }
-    }
-
-    // All shrinks should preserve at least one create operation
+    // All shrinks should preserve at least one create operation from original set
     for (const shrunk of shrinks) {
       const creates = shrunk.filter(op => op.type === 'createSeries')
-      expect(creates).toEqual(expect.arrayContaining([
-        expect.objectContaining({ type: 'createSeries' })
-      ]))
+      expect(creates.some(c => c.type === 'createSeries' && [create1, create2].some(orig => orig.series.id === c.series.id))).toBe(true)
     }
 
-    // Verify there's a shrink smaller than original
+    // Verify smallest shrink still has at least one create from original set
     const smallest = shrinks.reduce((min, s) => s.length < min.length ? s : min, shrinks[0])
-    expect(smallest).toEqual(expect.arrayContaining([
-      expect.objectContaining({ type: expect.any(String) })
-    ]))
+    expect(smallest.some(op => op.type === 'createSeries')).toBe(true)
   })
 })
 

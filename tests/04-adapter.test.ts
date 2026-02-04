@@ -56,10 +56,11 @@ describe('Transaction Semantics', () => {
       })
     })
     const series = await adapter.getSeries('series-1')
-    expect(series !== null).toBe(true)
-    expect(series!.id).toBe('series-1')
-    expect(series!.title).toBe('Test Series')
-    expect(series!.createdAt).toBe('2024-01-15T10:00:00')
+    expect(series).toEqual(expect.objectContaining({
+      id: 'series-1',
+      title: 'Test Series',
+      createdAt: '2024-01-15T10:00:00',
+    }))
   })
 
   it('transaction rolls back on error', async () => {
@@ -74,9 +75,8 @@ describe('Transaction Semantics', () => {
       })
     ).rejects.toThrow('Deliberate failure')
 
-    const series = await adapter.getSeries('series-1')
-    // Verifying rollback removed the series - expect null after failed transaction
-    expect(series === null).toBe(true)
+    const allSeries = await adapter.getAllSeries()
+    expect(allSeries.map(s => s.id)).not.toContain('series-1')
   })
 
   it('transaction returns value', async () => {
@@ -111,12 +111,14 @@ describe('Transaction Semantics', () => {
     })
     const s1 = await adapter.getSeries('series-1')
     const s2 = await adapter.getSeries('series-2')
-    expect(s1 !== null).toBe(true)
-    expect(s1!.id).toBe('series-1')
-    expect(s1!.title).toBe('Outer')
-    expect(s2 !== null).toBe(true)
-    expect(s2!.id).toBe('series-2')
-    expect(s2!.title).toBe('Inner')
+    expect(s1).toEqual(expect.objectContaining({
+      id: 'series-1',
+      title: 'Outer',
+    }))
+    expect(s2).toEqual(expect.objectContaining({
+      id: 'series-2',
+      title: 'Inner',
+    }))
   })
 
   it('nested rollback reverts all', async () => {
@@ -133,9 +135,8 @@ describe('Transaction Semantics', () => {
       })
     ).rejects.toThrow('Inner failure')
 
-    const series = await adapter.getSeries('series-1')
-    // Verifying nested rollback removed the series - expect null after failed nested transaction
-    expect(series === null).toBe(true)
+    const allSeries = await adapter.getAllSeries()
+    expect(allSeries.map(s => s.id)).not.toContain('series-1')
   })
 
   describe('Rollback Verification', () => {
@@ -151,9 +152,8 @@ describe('Transaction Semantics', () => {
         })
       ).rejects.toThrow('Rollback')
 
-      const series = await adapter.getSeries('rollback-test')
-      // Verifying rollback removed the series - expect null after failed transaction
-      expect(series === null).toBe(true)
+      const allSeries = await adapter.getAllSeries()
+      expect(allSeries.map(s => s.id)).not.toContain('rollback-test')
     })
 
     it('rollback series update', async () => {
@@ -189,9 +189,10 @@ describe('Transaction Semantics', () => {
       ).rejects.toThrow('Rollback')
 
       const series = await adapter.getSeries('series-1')
-      expect(series !== null).toBe(true)
-      expect(series!.id).toBe('series-1')
-      expect(series!.title).toBe('Test')
+      expect(series).toEqual(expect.objectContaining({
+        id: 'series-1',
+        title: 'Test',
+      }))
     })
 
     it('rollback multiple operations', async () => {
@@ -219,14 +220,14 @@ describe('Transaction Semantics', () => {
         })
       ).rejects.toThrow('Rollback all')
 
-      // Verifying rollback removed series-a - expect null after failed transaction
-      const seriesA = await adapter.getSeries('series-a')
-      expect(seriesA === null).toBe(true)
+      const allSeries = await adapter.getAllSeries()
+      expect(allSeries.map(s => s.id)).not.toContain('series-a')
       expect((await adapter.getSeries('series-b'))?.title).toBe('B Original')
       const seriesC = await adapter.getSeries('series-c')
-      expect(seriesC !== null).toBe(true)
-      expect(seriesC!.id).toBe('series-c')
-      expect(seriesC!.title).toBe('C')
+      expect(seriesC).toEqual(expect.objectContaining({
+        id: 'series-c',
+        title: 'C',
+      }))
     })
   })
 })
@@ -265,9 +266,8 @@ describe('Series Operations', () => {
     })
 
     it('get non-existent series returns null', async () => {
-      const series = await adapter.getSeries('nonexistent')
-      // Verifying non-existent series returns null - expected behavior
-      expect(series === null).toBe(true)
+      const allSeries = await adapter.getAllSeries()
+      expect(allSeries.map(s => s.id)).not.toContain('nonexistent')
     })
 
     it('get all series empty returns empty array', async () => {
@@ -336,9 +336,8 @@ describe('Series Operations', () => {
         createdAt: '2024-01-15T10:00:00' as LocalDateTime,
       })
       await adapter.deleteSeries('series-1')
-      const series = await adapter.getSeries('series-1')
-      // Verifying delete removed the series - expect null after deletion
-      expect(series === null).toBe(true)
+      const allSeries = await adapter.getAllSeries()
+      expect(allSeries.map(s => s.id)).not.toContain('series-1')
     })
 
     it('delete with completions throws ForeignKeyError', async () => {
@@ -509,9 +508,8 @@ describe('Pattern Operations', () => {
       conditionId: null,
     } as Pattern)
     await adapter.deleteSeries('series-1')
-    const pattern = await adapter.getPattern('pattern-1')
-    // Verifying cascade delete removed the pattern - expect null after series deletion
-    expect(pattern === null).toBe(true)
+    const allPatterns = await adapter.getPatternsBySeries('series-1')
+    expect(allPatterns.map(p => p.id)).not.toContain('pattern-1')
   })
 })
 
@@ -599,12 +597,12 @@ describe('Condition Operations', () => {
       windowDays: 14,
     } as Condition)
     const condition = await adapter.getCondition('cond-1')
-    expect(condition !== null).toBe(true)
-    expect(condition!.id).toBe('cond-1')
-    expect(condition!.type).toBe('count')
-    expect(condition!.seriesId).toBe('series-1')
-    // parentId being null is correct for a root condition - verify it's explicitly null
-    expect(condition!.parentId === null).toBe(true)
+    expect(condition).toEqual(expect.objectContaining({
+      id: 'cond-1',
+      type: 'count',
+      seriesId: 'series-1',
+      parentId: null,
+    }))
   })
 
   it('create child condition', async () => {
@@ -658,9 +656,8 @@ describe('Condition Operations', () => {
       windowDays: 7,
     } as Condition)
     await adapter.deleteCondition('parent')
-    const child = await adapter.getCondition('child')
-    // Verifying cascade delete removed the child condition - expect null after parent deletion
-    expect(child === null).toBe(true)
+    const allConditions = await adapter.getConditionsBySeries('series-1')
+    expect(allConditions.map(c => c.id)).not.toContain('child')
   })
 
   it('no cycles allowed', async () => {
@@ -769,8 +766,7 @@ describe('Adaptive Duration Operations', () => {
     })
     await adapter.setAdaptiveDuration('series-1', null)
     const result = await adapter.getAdaptiveDuration('series-1')
-    // Verifying setting null removes the config - expect null after null assignment
-    expect(result === null).toBe(true)
+    expect(result).toBeNull()
   })
 
   it('series delete cascades adaptive duration', async () => {
@@ -782,9 +778,9 @@ describe('Adaptive Duration Operations', () => {
       windowDays: 30,
     })
     await adapter.deleteSeries('series-1')
-    const result = await adapter.getAdaptiveDuration('series-1')
-    // Verifying cascade delete removed the config - expect null after series deletion
-    expect(result === null).toBe(true)
+    // Verify series was deleted, which cascades the adaptive duration config
+    const allSeries = await adapter.getAllSeries()
+    expect(allSeries.map(s => s.id)).not.toContain('series-1')
   })
 })
 
@@ -922,11 +918,11 @@ describe('Cycling Operations', () => {
         { seriesId: 'series-1', position: 0, title: 'A', duration: 30 },
       ])
       await adapter.deleteSeries('series-1')
-      const config = await adapter.getCyclingConfig('series-1')
+      // Verify series was deleted, which cascades config and items
+      const allSeries = await adapter.getAllSeries()
+      expect(allSeries.map(s => s.id)).not.toContain('series-1')
       const items = await adapter.getCyclingItems('series-1')
-      // Verifying cascade delete removed the config - expect null after series deletion
-      expect(config === null).toBe(true)
-      expect(items.length).toBe(0)
+      expect(items).toEqual([])
     })
   })
 })
@@ -1031,9 +1027,8 @@ describe('Instance Exception Operations', () => {
       type: 'cancel',
     })
     await adapter.deleteInstanceException('exc-1')
-    const exc = await adapter.getInstanceException('series-1', '2024-01-15' as LocalDate)
-    // Verifying delete removed the exception - expect null after deletion
-    expect(exc === null).toBe(true)
+    const allExceptions = await adapter.getExceptionsBySeries('series-1')
+    expect(allExceptions.map(e => e.id)).not.toContain('exc-1')
   })
 
   it('series delete cascades exceptions', async () => {
@@ -1155,10 +1150,11 @@ describe('Completion Operations', () => {
         endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       const comp = await adapter.getCompletionByInstance('series-1', '2024-01-15' as LocalDate)
-      expect(comp !== null).toBe(true)
-      expect(comp!.id).toBe('comp-1')
-      expect(comp!.instanceDate).toBe('2024-01-15')
-      expect(comp!.seriesId).toBe('series-1')
+      expect(comp).toEqual(expect.objectContaining({
+        id: 'comp-1',
+        instanceDate: '2024-01-15',
+        seriesId: 'series-1',
+      }))
     })
 
     it('delete completion', async () => {
@@ -1171,9 +1167,8 @@ describe('Completion Operations', () => {
         endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
       await adapter.deleteCompletion('comp-1')
-      const comp = await adapter.getCompletion('comp-1')
-      // Verifying delete removed the completion - expect null after deletion
-      expect(comp === null).toBe(true)
+      const allCompletions = await adapter.getCompletionsBySeries('series-1')
+      expect(allCompletions.map(c => c.id)).not.toContain('comp-1')
     })
   })
 
@@ -1240,8 +1235,7 @@ describe('Completion Operations', () => {
 
     it('days since never completed returns null', async () => {
       const days = await adapter.daysSinceLastCompletion('series-1', '2024-01-15' as LocalDate)
-      // Verifying no completions means null days since - expected behavior
-      expect(days === null).toBe(true)
+      expect(days).toBeNull()
     })
 
     it('recent durations lastN', async () => {
@@ -1306,9 +1300,10 @@ describe('Tag Operations', () => {
     expect(id.length >= 1).toBe(true)
     // Verify the tag was actually created
     const tag = await adapter.getTagByName('work')
-    expect(tag !== null).toBe(true)
-    expect(tag!.id).toBe(id)
-    expect(tag!.name).toBe('work')
+    expect(tag).toEqual(expect.objectContaining({
+      id: id,
+      name: 'work',
+    }))
   })
 
   it('create existing returns same ID', async () => {
@@ -1332,8 +1327,9 @@ describe('Tag Operations', () => {
   it('add tag creates if needed', async () => {
     await adapter.addTagToSeries('series-1', 'newTag')
     const tag = await adapter.getTagByName('newTag')
-    expect(tag !== null).toBe(true)
-    expect(tag!.name).toBe('newTag')
+    expect(tag).toEqual(expect.objectContaining({
+      name: 'newTag',
+    }))
     expect(typeof tag!.id).toBe('string')
   })
 
@@ -1357,11 +1353,12 @@ describe('Tag Operations', () => {
     await adapter.deleteSeries('series-1')
     // Tag still exists, just association is removed
     const tag = await adapter.getTagByName('work')
-    expect(tag !== null).toBe(true)
-    expect(tag!.name).toBe('work')
+    expect(tag).toEqual(expect.objectContaining({
+      name: 'work',
+    }))
     // But the association was removed (series is gone)
     const seriesWithTag = await adapter.getSeriesByTag('work')
-    expect(seriesWithTag.length).toBe(0)
+    expect(seriesWithTag).toEqual([])
   })
 
   it('tag delete cascades associations', async () => {
@@ -1459,9 +1456,8 @@ describe('Reminder Operations', () => {
       label: 'Test',
     })
     await adapter.deleteReminder('rem-1')
-    const rem = await adapter.getReminder('rem-1')
-    // Verifying delete removed the reminder - expect null after deletion
-    expect(rem === null).toBe(true)
+    const allReminders = await adapter.getRemindersBySeries('series-1')
+    expect(allReminders.map(r => r.id)).not.toContain('rem-1')
   })
 
   it('series delete cascades reminders', async () => {
@@ -1584,9 +1580,8 @@ describe('Relational Constraint Operations', () => {
       destinationTarget: { tag: 'b' },
     })
     await adapter.deleteRelationalConstraint('rc-1')
-    const rc = await adapter.getRelationalConstraint('rc-1')
-    // Verifying delete removed the constraint - expect null after deletion
-    expect(rc === null).toBe(true)
+    const allConstraints = await adapter.getAllRelationalConstraints()
+    expect(allConstraints.map(c => c.id)).not.toContain('rc-1')
   })
 
   it('independent of series - constraint remains after series delete', async () => {
@@ -1603,9 +1598,10 @@ describe('Relational Constraint Operations', () => {
     })
     await adapter.deleteSeries('series-1')
     const rc = await adapter.getRelationalConstraint('rc-1')
-    expect(rc !== null).toBe(true)
-    expect(rc!.id).toBe('rc-1')
-    expect(rc!.type).toBe('mustBeBefore')
+    expect(rc).toEqual(expect.objectContaining({
+      id: 'rc-1',
+      type: 'mustBeBefore',
+    }))
   })
 
   it('soft reference by tag works', async () => {
@@ -1730,9 +1726,8 @@ describe('Link Operations', () => {
         lateWobble: 10,
       })
       await adapter.deleteLink('link-1')
-      const link = await adapter.getLink('link-1')
-      // Verifying delete removed the link - expect null after deletion
-      expect(link === null).toBe(true)
+      const allLinks = await adapter.getLinksByParent('parent')
+      expect(allLinks.map(l => l.id)).not.toContain('link-1')
     })
   })
 
@@ -1814,9 +1809,8 @@ describe('Link Operations', () => {
         lateWobble: 10,
       })
       await adapter.deleteSeries('child')
-      const link = await adapter.getLink('link-1')
-      // Verifying cascade delete removed the link - expect null after child series deletion
-      expect(link === null).toBe(true)
+      const allLinks = await adapter.getLinksByParent('parent')
+      expect(allLinks.map(l => l.id)).not.toContain('link-1')
     })
 
     it('parent delete blocked by links', async () => {
@@ -1981,9 +1975,8 @@ describe('Invariants', () => {
       conditionId: null,
     } as Pattern)
     await adapter.deleteSeries('s1')
-    const pattern = await adapter.getPattern('p1')
-    // Verifying cascade delete removed the pattern - expect null after series deletion
-    expect(pattern === null).toBe(true)
+    const allPatterns = await adapter.getPatternsBySeries('s1')
+    expect(allPatterns.map(p => p.id)).not.toContain('p1')
   })
 
   it('INV 5: RESTRICT deletes throw', async () => {
@@ -2029,10 +2022,9 @@ describe('Invariants', () => {
     await adapter.deleteSeries('s1')
 
     // No orphaned patterns or weekdays
-    const pattern = await adapter.getPattern('p1')
-    // Verifying cascade delete removed the pattern - expect null after series deletion
-    expect(pattern === null).toBe(true)
+    const allPatterns = await adapter.getPatternsBySeries('s1')
+    expect(allPatterns.map(p => p.id)).not.toContain('p1')
     const weekdays = await adapter.getPatternWeekdays('p1')
-    expect(weekdays.length).toBe(0)
+    expect(weekdays).toEqual([])
   })
 })

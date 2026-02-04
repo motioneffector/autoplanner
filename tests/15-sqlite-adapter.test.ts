@@ -599,7 +599,7 @@ describe('Segment 15: SQLite Adapter', () => {
         );
 
         // Verify null returned for no completions
-        expect(days === null).toBe(true);
+        expect(days).toBeNull();
         // Verify the series exists but has no completions
         const completions = await adapter.countCompletionsInWindow(
           seriesId('test-1'),
@@ -678,7 +678,7 @@ describe('Segment 15: SQLite Adapter', () => {
         await adapter.deleteSeries(testSeriesId);
 
         const config = await adapter.getAdaptiveDuration(testSeriesId);
-        expect(config === null).toBe(true);
+        expect(config).toBeNull();
         // Verify the series itself is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
         expect(allSeries.every(s => s.id !== testSeriesId)).toBe(true);
@@ -694,7 +694,7 @@ describe('Segment 15: SQLite Adapter', () => {
         await adapter.deleteSeries(testSeriesId);
 
         const config = await adapter.getCyclingConfig(testSeriesId);
-        expect(config === null).toBe(true);
+        expect(config).toBeNull();
         // Verify the series itself is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
         expect(allSeries.every(s => s.id !== testSeriesId)).toBe(true);
@@ -782,7 +782,7 @@ describe('Segment 15: SQLite Adapter', () => {
         await adapter.deleteSeries(testSeriesId);
 
         const exception = await adapter.getException(testSeriesId, date('2025-01-15'));
-        expect(exception === null).toBe(true);
+        expect(exception).toBeNull();
         // Verify the series itself is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
         expect(allSeries.every(s => s.id !== testSeriesId)).toBe(true);
@@ -811,7 +811,7 @@ describe('Segment 15: SQLite Adapter', () => {
         await adapter.deleteSeries(testSeriesId);
 
         const reminder = await adapter.getReminder(reminderId('r1'));
-        expect(reminder === null).toBe(true);
+        expect(reminder).toBeNull();
         // Verify the series itself is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
         expect(allSeries.every(s => s.id !== testSeriesId)).toBe(true);
@@ -852,7 +852,7 @@ describe('Segment 15: SQLite Adapter', () => {
         await adapter.deleteSeries(testSeriesId);
 
         const link = await adapter.getLink(linkId('l1'));
-        expect(link === null).toBe(true);
+        expect(link).toBeNull();
         // Verify the child series is deleted but parent still exists
         const allSeries = await adapter.getAllSeries();
         expect(allSeries.some(s => s.id === testSeriesId)).toBe(false);
@@ -911,11 +911,11 @@ describe('Segment 15: SQLite Adapter', () => {
         const seriesAfter = await adapter.getSeries(seriesId('test-1'));
         const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
 
-        expect(seriesAfter === null).toBe(true);
+        expect(seriesAfter).toBeNull();
         expect(patterns).toEqual([]);
-        // Verify both series and patterns are completely gone
+        // Verify series and patterns are completely gone
         const allSeries = await adapter.getAllSeries();
-        expect(allSeries.every(s => s.id !== seriesId('test-1'))).toBe(true);
+        expect(allSeries.map(s => s.id)).not.toContain(seriesId('test-1'));
       });
 
       it('respects FK order - complex cascade correct order', async () => {
@@ -939,8 +939,10 @@ describe('Segment 15: SQLite Adapter', () => {
         await adapter.deleteSeries(seriesId('test-1'));
 
         const seriesAfter = await adapter.getSeries(seriesId('test-1'));
-        expect(seriesAfter === null).toBe(true);
+        expect(seriesAfter).toBeNull();
         // Verify all related entities are deleted
+        const allSeries = await adapter.getAllSeries();
+        expect(allSeries.map(s => s.id)).not.toContain(seriesId('test-1'));
         const conditions = await adapter.getConditionsBySeries(seriesId('test-1'));
         expect(conditions).toEqual([]);
         const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
@@ -1172,7 +1174,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
     it('version tracked - apply migration updates version', async () => {
       const version = await adapter.getSchemaVersion();
-      expect(version).toEqual(expect.any(Number));
+      expect(typeof version).toBe('number');
       expect(version).toBeGreaterThanOrEqual(1);
     });
 
@@ -1243,7 +1245,10 @@ describe('Segment 15: SQLite Adapter', () => {
       // Verify deleteSeries works
       await adapter.deleteSeries(seriesId('interface-test'));
       const deleted = await adapter.getSeries(seriesId('interface-test'));
-      expect(deleted === null).toBe(true);
+      expect(deleted).toBeNull();
+      // Verify series is completely gone
+      const allSeries = await adapter.getAllSeries();
+      expect(allSeries.map(s => s.id)).not.toContain(seriesId('interface-test'));
     });
 
     it('transaction semantics match - same behavior as mock', async () => {
@@ -1277,10 +1282,10 @@ describe('Segment 15: SQLite Adapter', () => {
       // Delete
       await adapter.deleteSeries(seriesId('test-1'));
       retrieved = await adapter.getSeries(seriesId('test-1'));
-      expect(retrieved === null).toBe(true);
+      expect(retrieved).toBeNull();
       // Verify series is completely gone
       const allSeries = await adapter.getAllSeries();
-      expect(allSeries.every(s => s.id !== seriesId('test-1'))).toBe(true);
+      expect(allSeries.map(s => s.id)).not.toContain(seriesId('test-1'));
     });
 
     it('cascade behavior matches - same behavior as mock', async () => {

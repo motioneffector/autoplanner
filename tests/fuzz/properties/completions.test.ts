@@ -172,7 +172,7 @@ describe('Spec 6: Completions - CRUD Operations', () => {
         manager.addCompletion(completion)
 
         const retrieved = manager.getCompletion(completion.id)
-        expect(retrieved !== undefined).toBe(true)
+        expect(retrieved).toBeDefined()
         expect(retrieved!.id).toBe(completion.id)
         expect(retrieved!.seriesId).toBe(completion.seriesId)
         expect(retrieved!.instanceDate).toBe(completion.instanceDate)
@@ -190,7 +190,9 @@ describe('Spec 6: Completions - CRUD Operations', () => {
         expect(deleted).toBe(true)
 
         const retrieved = manager.getCompletion(completion.id)
-        expect(retrieved === undefined).toBe(true)
+        expect(retrieved).toBeUndefined()
+        // Verify completion is no longer in the manager's collection
+        expect(manager.getAllCompletions().map(c => c.id)).not.toContain(completion.id)
       })
     )
   })
@@ -521,7 +523,9 @@ describe('Spec 6: Completions - Counting', () => {
       fc.property(seriesIdGen(), localDateGen(), (seriesId, referenceDate) => {
         const manager = new CompletionCountingManager()
         const daysSince = manager.daysSinceLastCompletion(seriesId, referenceDate)
-        expect(daysSince === null).toBe(true)
+        expect(daysSince).toBeNull()
+        // Verify no completions exist for this series
+        expect(manager.getCompletionsForSeries(seriesId)).toEqual([])
       })
     )
   })

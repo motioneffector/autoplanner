@@ -277,7 +277,10 @@ describe('Segment 06: Completions', () => {
 
       it('get non-existent completion', async () => {
         const completion = await getCompletion(adapter, 'non-existent-id' as CompletionId);
-        expect(completion === null).toBe(true);
+        // Verify the collection has no completions for non-existent ID
+        const allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
+        expect(allCompletions).toEqual([]);
+        expect(completion).toBeNull();
       });
 
       it('get deleted completion', async () => {
@@ -292,7 +295,10 @@ describe('Segment 06: Completions', () => {
 
         await deleteCompletion(adapter, logResult.value.id);
         const completion = await getCompletion(adapter, logResult.value.id);
-        expect(completion === null).toBe(true);
+        // Verify the completion was actually removed from the collection
+        const allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
+        expect(allCompletions).toEqual([]);
+        expect(completion).toBeNull();
       });
     });
 
@@ -309,14 +315,14 @@ describe('Segment 06: Completions', () => {
         }
 
         const completions = await getCompletionsBySeries(adapter, testSeriesId);
-        // Verify all 3 completions with their dates (descending order)
+        // Verify exactly 3 completions with their dates (descending order)
+        expect(completions).toHaveLength(3);
         expect(completions[0].date).toBe(parseDate('2024-01-13'));
         expect(completions[0].seriesId).toBe(testSeriesId);
         expect(completions[1].date).toBe(parseDate('2024-01-12'));
         expect(completions[1].seriesId).toBe(testSeriesId);
         expect(completions[2].date).toBe(parseDate('2024-01-11'));
         expect(completions[2].seriesId).toBe(testSeriesId);
-        expect(completions[3] === undefined).toBe(true); // No 4th completion
       });
 
       it('excludes other series', async () => {
@@ -345,9 +351,9 @@ describe('Segment 06: Completions', () => {
 
         // Query first series - should only have 1 completion
         const completions = await getCompletionsBySeries(adapter, testSeriesId);
+        expect(completions).toHaveLength(1);
         expect(completions[0].seriesId).toBe(testSeriesId);
         expect(completions[0].date).toBe(parseDate('2024-01-15'));
-        expect(completions[1] === undefined).toBe(true); // No 2nd completion
       });
 
       it('ordered by date descending', async () => {
@@ -372,12 +378,12 @@ describe('Segment 06: Completions', () => {
         });
 
         const completions = await getCompletionsBySeries(adapter, testSeriesId);
-        // Should be in descending order: 12, 11, 10
+        // Should be exactly 3 completions in descending order: 12, 11, 10
+        expect(completions).toHaveLength(3);
         expect(completions[0].date).toBe(parseDate('2024-01-12'));
         expect(completions[0].seriesId).toBe(testSeriesId);
         expect(completions[1].date).toBe(parseDate('2024-01-11'));
         expect(completions[2].date).toBe(parseDate('2024-01-10'));
-        expect(completions[3] === undefined).toBe(true); // No 4th completion
       });
 
       it('empty if no completions', async () => {
@@ -408,7 +414,10 @@ describe('Segment 06: Completions', () => {
           testSeriesId,
           parseDate('2024-01-15')
         );
-        expect(completion === null).toBe(true);
+        // Verify no completions exist in the series
+        const allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
+        expect(allCompletions).toEqual([]);
+        expect(completion).toBeNull();
       });
 
       it('unique per instance', async () => {
@@ -427,9 +436,9 @@ describe('Segment 06: Completions', () => {
         // There can only be one completion per instance
         const allForSeries = await getCompletionsBySeries(adapter, testSeriesId);
         const matchingInstance = allForSeries.filter(c => c.date === instanceDate);
+        expect(matchingInstance).toHaveLength(1);
         expect(matchingInstance[0].seriesId).toBe(testSeriesId);
         expect(matchingInstance[0].date).toBe(instanceDate);
-        expect(matchingInstance[1] === undefined).toBe(true); // Only one match
       });
     });
 
@@ -449,9 +458,9 @@ describe('Segment 06: Completions', () => {
           windowDays: 7,
           asOf,
         });
+        expect(completions).toHaveLength(1);
         expect(completions[0].seriesId).toBe(testSeriesId);
         expect(completions[0].date).toBe(addDays(asOf, -3));
-        expect(completions[1] === undefined).toBe(true); // Only 1 completion
       });
 
       it('completions outside window', async () => {
@@ -494,9 +503,9 @@ describe('Segment 06: Completions', () => {
           windowDays: 30,
           asOf: parseDate('2024-01-20'),
         });
+        expect(completions).toHaveLength(1);
         expect(completions[0].seriesId).toBe(seriesWithTag.value.id);
         expect(completions[0].date).toBe(parseDate('2024-01-15'));
-        expect(completions[1] === undefined).toBe(true); // Only 1 completion
       });
 
       it('target by tag multiple series', async () => {
@@ -533,11 +542,16 @@ describe('Segment 06: Completions', () => {
           windowDays: 30,
           asOf: parseDate('2024-01-20'),
         });
-        // Verify we have exactly 2 completions from 2 different series
-        const seriesIds = completions.map(c => c.seriesId);
-        expect(seriesIds).toContain(series1.value.id);
-        expect(seriesIds).toContain(series2.value.id);
-        expect(completions[2] === undefined).toBe(true); // Only 2 completions
+        // Verify we have exactly 2 completions from 2 different series (order by date desc: series2 then series1)
+        expect(completions).toHaveLength(2);
+        expect(completions[0]).toEqual(expect.objectContaining({
+          seriesId: series2.value.id,
+          date: parseDate('2024-01-16'),
+        }));
+        expect(completions[1]).toEqual(expect.objectContaining({
+          seriesId: series1.value.id,
+          date: parseDate('2024-01-15'),
+        }));
       });
 
       it('target by seriesId', async () => {
@@ -553,9 +567,9 @@ describe('Segment 06: Completions', () => {
           windowDays: 30,
           asOf: parseDate('2024-01-20'),
         });
+        expect(completions).toHaveLength(1);
         expect(completions[0].seriesId).toBe(testSeriesId);
         expect(completions[0].date).toBe(parseDate('2024-01-15'));
-        expect(completions[1] === undefined).toBe(true); // Only 1 completion
       });
 
       it('target by seriesId excludes others', async () => {
@@ -585,9 +599,9 @@ describe('Segment 06: Completions', () => {
           windowDays: 30,
           asOf: parseDate('2024-01-20'),
         });
+        expect(completions).toHaveLength(1);
         expect(completions[0].seriesId).toBe(testSeriesId);
         expect(completions[0].date).toBe(parseDate('2024-01-15'));
-        expect(completions[1] === undefined).toBe(true); // Other series excluded
       });
     });
   });
@@ -623,7 +637,10 @@ describe('Segment 06: Completions', () => {
 
       await deleteCompletion(adapter, logResult.value.id);
       const completion = await getCompletion(adapter, logResult.value.id);
-      expect(completion === null).toBe(true);
+      // Verify the completion was actually removed from the collection
+      const allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
+      expect(allCompletions).toEqual([]);
+      expect(completion).toBeNull();
     });
 
     it('getByInstance after delete', async () => {
@@ -637,9 +654,19 @@ describe('Segment 06: Completions', () => {
       expect(logResult.ok).toBe(true);
       if (!logResult.ok) throw new Error(`'getByInstance after delete' setup failed: ${logResult.error.type}`);
 
+      // Verify completion exists before deletion
+      const beforeDelete = await getCompletionByInstance(adapter, testSeriesId, instanceDate);
+      expect(beforeDelete).toEqual(expect.objectContaining({
+        seriesId: testSeriesId,
+        date: instanceDate,
+        durationMinutes: 30,
+      }));
+
       await deleteCompletion(adapter, logResult.value.id);
-      const completion = await getCompletionByInstance(adapter, testSeriesId, instanceDate);
-      expect(completion === null).toBe(true);
+
+      // Verify the completion was actually removed from the collection
+      const allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
+      expect(allCompletions).toEqual([]);
     });
 
     it('delete non-existent', async () => {
@@ -925,11 +952,15 @@ describe('Segment 06: Completions', () => {
   describe('5. Days Since Last Completion', () => {
     describe('5.1 Basic Days Since Tests', () => {
       it('no completions returns null', async () => {
+        // Verify no completions exist
+        const allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
+        expect(allCompletions).toEqual([]);
+
         const daysSince = await daysSinceLastCompletion(adapter, {
           target: { type: 'seriesId', seriesId: testSeriesId },
           asOf: parseDate('2024-01-20'),
         });
-        expect(daysSince === null).toBe(true);
+        expect(daysSince).toBeNull();
       });
 
       it('completion today returns 0', async () => {
@@ -1139,12 +1170,7 @@ describe('Segment 06: Completions', () => {
           asOf: parseDate('2024-01-15'),
         });
         // Verify exactly 5 durations, all 30 minutes
-        expect(durations[0]).toBe(30);
-        expect(durations[1]).toBe(30);
-        expect(durations[2]).toBe(30);
-        expect(durations[3]).toBe(30);
-        expect(durations[4]).toBe(30);
-        expect(durations[5] === undefined).toBe(true); // Only 5 returned
+        expect(durations).toEqual([30, 30, 30, 30, 30]);
       });
 
       it('returns fewer if fewer exist', async () => {
@@ -1164,10 +1190,7 @@ describe('Segment 06: Completions', () => {
           asOf: parseDate('2024-01-15'),
         });
         // Verify exactly 3 durations, all 30 minutes
-        expect(durations[0]).toBe(30);
-        expect(durations[1]).toBe(30);
-        expect(durations[2]).toBe(30);
-        expect(durations[3] === undefined).toBe(true); // Only 3 exist
+        expect(durations).toEqual([30, 30, 30]);
       });
 
       it('most recent first', async () => {
@@ -1231,10 +1254,7 @@ describe('Segment 06: Completions', () => {
           asOf,
         });
         // Verify exactly 3 durations, all 30 minutes each
-        expect(durations[0]).toBe(30);
-        expect(durations[1]).toBe(30);
-        expect(durations[2]).toBe(30);
-        expect(durations[3] === undefined).toBe(true); // Only 3 in window
+        expect(durations).toEqual([30, 30, 30]);
       });
 
       it('excludes outside window', async () => {
@@ -1259,8 +1279,7 @@ describe('Segment 06: Completions', () => {
           asOf,
         });
         // Only 1 completion within window (the one 3 days ago)
-        expect(durations[0]).toBe(30);
-        expect(durations[1] === undefined).toBe(true); // Outside window excluded
+        expect(durations).toEqual([30]);
       });
 
       it('empty if none in window', async () => {
@@ -1297,8 +1316,7 @@ describe('Segment 06: Completions', () => {
           asOf,
         });
         // Completion on window start is included
-        expect(durations[0]).toBe(30);
-        expect(durations[1] === undefined).toBe(true); // Only 1 in window
+        expect(durations).toEqual([30]);
       });
     });
 
@@ -1611,12 +1629,7 @@ describe('Segment 06: Completions', () => {
         });
 
         // Verify exactly 5 durations, all 30 minutes each
-        expect(durations[0]).toBe(30);
-        expect(durations[1]).toBe(30);
-        expect(durations[2]).toBe(30);
-        expect(durations[3]).toBe(30);
-        expect(durations[4]).toBe(30);
-        expect(durations[5] === undefined).toBe(true); // Only 5 in window
+        expect(durations).toEqual([30, 30, 30, 30, 30]);
       });
     });
   });

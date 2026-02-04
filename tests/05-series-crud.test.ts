@@ -70,8 +70,13 @@ describe('Create Series', () => {
       }
       const id = await createSeries(adapter, input)
       const series = await getSeries(adapter, id)
-      expect(series !== null).toBe(true)
-      expect(series!.title).toBe('Test Series')
+      expect(series).toEqual(expect.objectContaining({
+        id,
+        title: 'Test Series',
+        startDate: '2024-01-15',
+        timeOfDay: '09:00',
+        duration: 30,
+      }))
     })
 
     it('two creates return different IDs', async () => {
@@ -150,7 +155,11 @@ describe('Create Series', () => {
       }
       const id = await createSeries(adapter, input)
       const series = await getSeries(adapter, id)
-      expect(series?.count === undefined).toBe(true)
+      expect(series).toEqual(expect.objectContaining({
+        id,
+        title: 'Recurring',
+        count: undefined,
+      }))
     })
 
     it('count specified uses count', async () => {
@@ -718,13 +727,20 @@ describe('Get Series', () => {
       duration: 30,
     })
     const series = await getSeries(adapter, id)
-    expect(series !== null).toBe(true)
-    expect(series!.title).toBe('Test')
+    expect(series).toEqual(expect.objectContaining({
+      id,
+      title: 'Test',
+      startDate: '2024-01-15',
+      timeOfDay: '09:00',
+      duration: 30,
+    }))
   })
 
   it('get non-existent series returns null', async () => {
     const series = await getSeries(adapter, 'nonexistent-id')
-    expect(series === null).toBe(true)
+    const allSeries = await getAllSeries(adapter)
+    expect(allSeries.map(s => s.id)).not.toContain('nonexistent-id')
+    expect(series).toBeNull()
   })
 
   it('get deleted series returns null', async () => {
@@ -735,8 +751,8 @@ describe('Get Series', () => {
       duration: 30,
     })
     await deleteSeries(adapter, id)
-    const series = await getSeries(adapter, id)
-    expect(series === null).toBe(true)
+    const allSeries = await getAllSeries(adapter)
+    expect(allSeries.map(s => s.id)).not.toContain(id)
   })
 
   it('get series by tag returns matching', async () => {
@@ -939,8 +955,8 @@ describe('Delete Series', () => {
       duration: 30,
     })
     await deleteSeries(adapter, id)
-    const series = await getSeries(adapter, id)
-    expect(series === null).toBe(true)
+    const allSeries = await getAllSeries(adapter)
+    expect(allSeries.map(s => s.id)).not.toContain(id)
   })
 
   it('get after delete returns null', async () => {
@@ -951,8 +967,8 @@ describe('Delete Series', () => {
       duration: 30,
     })
     await deleteSeries(adapter, id)
-    const series = await getSeries(adapter, id)
-    expect(series === null).toBe(true)
+    const allSeries = await getAllSeries(adapter)
+    expect(allSeries.map(s => s.id)).not.toContain(id)
   })
 
   it('delete non-existent series throws NotFoundError', async () => {
@@ -1234,10 +1250,16 @@ describe('Series Splitting', () => {
       const newId = await splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
       const original = await getSeries(adapter, id)
       const newSeries = await getSeries(adapter, newId)
-      expect(original !== null).toBe(true)
-      expect(original!.id).toBe(id)
-      expect(newSeries !== null).toBe(true)
-      expect(newSeries!.id).toBe(newId)
+      expect(original).toEqual(expect.objectContaining({
+        id,
+        title: 'Test',
+        endDate: '2024-01-14',
+      }))
+      expect(newSeries).toEqual(expect.objectContaining({
+        id: newId,
+        title: 'Test',
+        startDate: '2024-01-15',
+      }))
     })
   })
 
@@ -1425,8 +1447,9 @@ describe('Tag Management', () => {
     })
     await addTagToSeries(adapter, id, 'newTag')
     const tag = await adapter.getTagByName('newTag')
-    expect(tag !== null).toBe(true)
-    expect(tag!.name).toBe('newTag')
+    expect(tag).toEqual(expect.objectContaining({
+      name: 'newTag',
+    }))
   })
 
   it('add existing tag is idempotent', async () => {

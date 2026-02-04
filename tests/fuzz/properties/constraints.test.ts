@@ -374,7 +374,9 @@ describe('Spec 10: Constraints - withinMinutes Validation', () => {
           expect(typeof constraint.withinMinutes).toBe('number')
           expect(constraint.withinMinutes).toBeGreaterThanOrEqual(1)
         } else {
-          expect(constraint.withinMinutes === undefined).toBe(true)
+          // Verify withinMinutes is not present for non-mustBeWithin types
+          // by ensuring it's not in the object's keys
+          expect(Object.keys(constraint)).not.toContain('withinMinutes')
         }
       })
     )
@@ -451,8 +453,7 @@ describe('Spec 10: Constraints - CRUD Operations', () => {
 
         expect(newId).toMatch(/^constraint-/)
         const retrieved = manager.getConstraint(newId)
-        expect(retrieved !== undefined).toBe(true)
-        expect(retrieved!.id).toBe(newId)
+        expect(retrieved).toEqual(expect.objectContaining({ id: newId }))
       })
     )
   })
@@ -465,12 +466,11 @@ describe('Spec 10: Constraints - CRUD Operations', () => {
         const newId = manager.createConstraint(rest)
 
         const retrieved = manager.getConstraint(newId)
-        expect(retrieved !== undefined).toBe(true)
-        expect(retrieved!.id).toBe(newId)
+        expect(retrieved).toEqual(expect.objectContaining({ id: newId }))
 
         const deleted = manager.deleteConstraint(newId)
         expect(deleted).toBe(true)
-        expect(manager.getConstraint(newId) === undefined).toBe(true)
+        expect(manager.getAllConstraints().every((c) => c.id !== newId)).toBe(true)
       })
     )
   })
@@ -493,8 +493,7 @@ describe('Spec 10: Constraints - CRUD Operations', () => {
 
           for (const id of ids) {
             const found = allConstraints.find((c) => c.id === id)
-            expect(found !== undefined).toBe(true)
-            expect(found!.id).toBe(id)
+            expect(found).toEqual(expect.objectContaining({ id }))
           }
         }
       )
@@ -541,8 +540,7 @@ describe('Spec 10: Constraints - Edge Cases', () => {
 
     // Constraint still exists
     const retrieved = manager.getConstraint(id)
-    expect(retrieved !== undefined).toBe(true)
-    expect(retrieved!.id).toBe(id)
+    expect(retrieved).toEqual(expect.objectContaining({ id }))
 
     // But when evaluated with empty instances, it's trivially satisfied
     const constraint = manager.getConstraint(id)!

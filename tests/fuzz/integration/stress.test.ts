@@ -2185,7 +2185,7 @@ describe('SQLite Data Type Tests', () => {
           // Retrieve and verify
           const stored = validator.get('completions', 'c1')
           expect(stored?.instanceDate).toBe(dateStr)
-          expect(stored?.instanceDate).toEqual(expect.any(String))
+          expect(typeof stored?.instanceDate).toBe('string')
         }
       ),
       { numRuns: 50 }
@@ -2259,7 +2259,7 @@ describe('SQLite Data Type Tests', () => {
 
         const stored = validator.get('series', 's1')
         expect(stored?.isFixed).toBe(intValue)
-        expect(stored?.isFixed).toEqual(expect.any(Number))
+        expect(typeof stored?.isFixed).toBe('number')
         expect(Number.isInteger(stored?.isFixed)).toBe(true)
       }),
       { numRuns: 20 }
@@ -2577,13 +2577,13 @@ describe('SQLite Window Calculation Tests', () => {
     // No completions returns null - this is expected behavior for absence
     const emptyResult = daysSinceLastCompletion([], 's1', '2024-01-15')
     // Test absence: verify null is returned - this tests the "no data" code path
-    expect(emptyResult === null).toBe(true)
+    expect(emptyResult).toBeNull();
 
     // Completions for other series returns null for our series - expected absence
     const otherCompletions = [{ date: '2024-01-10', seriesId: 's2' }]
     const otherSeriesResult = daysSinceLastCompletion(otherCompletions, 's1', '2024-01-15')
     // Test absence: verify null is returned - this tests the "no matching series" code path
-    expect(otherSeriesResult === null).toBe(true)
+    expect(otherSeriesResult).toBeNull();
 
     // With matching completion, returns days
     const withCompletion = [{ date: '2024-01-10', seriesId: 's1' }]
@@ -3129,7 +3129,7 @@ describe('Cycling Advancement Tests', () => {
           if (gapLeap) {
             // gapLeap: inactive returns null, index not advanced - expected absence
             // This tests the "inactive date with gapLeap" code path
-            expect(itemOnInactive === null).toBe(true)
+            expect(itemOnInactive).toBeNull();
           } else {
             // No gapLeap: returns item, index would advance on completion
             expect(itemOnInactive).toBe(items[1 % items.length])

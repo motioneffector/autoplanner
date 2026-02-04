@@ -806,8 +806,8 @@ describe('Spec 1: Temporal Types - Timezone Configuration', () => {
           // The configured timezone should be used
           expect(result.timezone).toBe(timezone)
 
-          // UTC offset should be a valid number
-          expect(result.utcOffset).toEqual(expect.any(Number))
+          // UTC offset should be a valid number within range
+          expect(typeof result.utcOffset).toBe('number')
           expect(result.utcOffset).toBeGreaterThanOrEqual(-12)
           expect(result.utcOffset).toBeLessThanOrEqual(14)
         }

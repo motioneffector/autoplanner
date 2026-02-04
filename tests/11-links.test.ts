@@ -80,7 +80,12 @@ describe('Segment 11: Links (Chains)', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-          expect(result.value.id).toEqual(expect.any(String));
+          expect(result.value).toEqual(expect.objectContaining({
+            id: result.value.id,
+            parentSeriesId: parentId,
+            childSeriesId: childId,
+            targetDistance: 15,
+          }));
         }
       });
 
@@ -95,10 +100,11 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         const link = await getLinkByChild(adapter, childId);
-        expect(link !== null).toBe(true);
-        if (link === null) throw new Error('Expected link to exist');
-        expect(link.parentSeriesId).toBe(parentId);
-        expect(link.childSeriesId).toBe(childId);
+        expect(link).toEqual(expect.objectContaining({
+          parentSeriesId: parentId,
+          childSeriesId: childId,
+          targetDistance: 15,
+        }));
       });
 
       it('child scheduling relative to parent', async () => {
@@ -275,8 +281,9 @@ describe('Segment 11: Links (Chains)', () => {
 
       await unlinkSeries(adapter, childId);
 
-      const link = await getLinkByChild(adapter, childId);
-      expect(link === null).toBe(true);
+      const allLinks = await getAllLinks(adapter);
+      const childLinks = allLinks.filter(l => l.childSeriesId === childId);
+      expect(childLinks).toEqual([]);
     });
 
     it('unlinked child independent', async () => {
@@ -292,8 +299,9 @@ describe('Segment 11: Links (Chains)', () => {
       await unlinkSeries(adapter, childId);
 
       // Child should schedule independently now
-      const link = await getLinkByChild(adapter, childId);
-      expect(link === null).toBe(true);
+      const allLinks = await getAllLinks(adapter);
+      const childLinks = allLinks.filter(l => l.childSeriesId === childId);
+      expect(childLinks).toEqual([]);
     });
 
     it('unlink non-linked child', async () => {
@@ -324,16 +332,19 @@ describe('Segment 11: Links (Chains)', () => {
       });
 
       const link = await getLinkByChild(adapter, childId);
-      expect(link !== null).toBe(true);
-      if (link === null) throw new Error('Expected link to exist');
-      expect(link.childSeriesId).toBe(childId);
+      expect(link).toEqual(expect.objectContaining({
+        parentSeriesId: parentId,
+        childSeriesId: childId,
+        targetDistance: 15,
+      }));
     });
 
     it('get link by child none', async () => {
       const childId = await createTestSeries('Child');
 
-      const link = await getLinkByChild(adapter, childId);
-      expect(link === null).toBe(true);
+      const allLinks = await getAllLinks(adapter);
+      const childLinks = allLinks.filter(l => l.childSeriesId === childId);
+      expect(childLinks).toEqual([]);
     });
 
     it('get links by parent', async () => {
@@ -807,8 +818,9 @@ describe('Segment 11: Links (Chains)', () => {
 
       await deleteSeries(adapter, childId);
 
-      const link = await getLinkByChild(adapter, childId);
-      expect(link === null).toBe(true);
+      const allLinks = await getAllLinks(adapter);
+      const childLinks = allLinks.filter(l => l.childSeriesId === childId);
+      expect(childLinks).toEqual([]);
     });
 
     it('delete parent blocked', async () => {

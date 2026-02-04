@@ -223,8 +223,10 @@ describe('Spec 12: Reflow - Determinism', () => {
           // Each item should have the same scheduled time
           for (const item1 of result1.items) {
             const item2 = result2.items.find((i) => i.seriesId === item1.seriesId)
-            expect(item2 !== undefined).toBe(true)
-            expect(item1.scheduledTime).toBe(item2!.scheduledTime)
+            expect(item2).toEqual(expect.objectContaining({
+              seriesId: item1.seriesId,
+              scheduledTime: item1.scheduledTime
+            }))
           }
         }
       )
@@ -254,8 +256,7 @@ describe('Spec 12: Reflow - Determinism', () => {
         expect(countAfter).toBe(countBefore + 1)
         // Verify result has proper structure with items array containing the added item
         const foundItem = result.items.find(i => i.seriesId === seriesId)
-        expect(foundItem !== undefined).toBe(true)
-        expect(foundItem!.seriesId).toBe(seriesId)
+        expect(foundItem).toEqual(expect.objectContaining({ seriesId }))
         // Conflicts should be empty for a single item
         expect(result.conflicts).toStrictEqual([])
       })
@@ -351,10 +352,8 @@ describe('Spec 12: Reflow - Fixed Items', () => {
           // Both items remain at their positions
           const item1 = engine.getItem(id1, date)
           const item2 = engine.getItem(id2, date)
-          expect(item1 !== undefined).toBe(true)
-          expect(item1!.isFixed).toBe(true)
-          expect(item2 !== undefined).toBe(true)
-          expect(item2!.isFixed).toBe(true)
+          expect(item1).toEqual(expect.objectContaining({ seriesId: id1, isFixed: true }))
+          expect(item2).toEqual(expect.objectContaining({ seriesId: id2, isFixed: true }))
 
           // Conflict should be reported (exactly 1 for two overlapping fixed items)
           expect(result.conflicts[0]).toMatchObject({
@@ -447,9 +446,7 @@ describe('Spec 12: Reflow - Flexible Items', () => {
 
           // Flexible item should be moved to avoid conflict
           const flex = engine.getItem(flexId, date)
-          expect(flex !== undefined).toBe(true)
-          expect(flex!.seriesId).toBe(flexId)
-          expect(flex!.isFixed).toBe(false)
+          expect(flex).toEqual(expect.objectContaining({ seriesId: flexId, isFixed: false }))
 
           // Should not overlap with fixed
           const fixed = engine.getItem(fixedId, date)
@@ -516,8 +513,7 @@ describe('Spec 12: Reflow - All-Day Items', () => {
 
           // Timed item should be placed normally
           const timed = result.items.find((i) => i.seriesId === timedId)
-          expect(timed !== undefined).toBe(true)
-          expect(timed!.isAllDay).toBe(false)
+          expect(timed).toEqual(expect.objectContaining({ seriesId: timedId, isAllDay: false }))
         }
       )
     )
@@ -819,9 +815,7 @@ describe('Spec 12: Reflow - Schedule Queries', () => {
 
           // Flexible item should have been moved
           const flexItem = result.items.find((i) => i.seriesId === flexId)
-          expect(flexItem !== undefined).toBe(true)
-          expect(flexItem!.seriesId).toBe(flexId)
-          expect(flexItem!.isFixed).toBe(false)
+          expect(flexItem).toEqual(expect.objectContaining({ seriesId: flexId, isFixed: false }))
 
           // The scheduled time should reflect post-reflow position
           const fixedItem = result.items.find((i) => i.seriesId === fixedId)
@@ -1100,15 +1094,11 @@ describe('Spec 12: Reflow - Domain Computation', () => {
 
           // Fixed items have exactly one slot - verify slot content
           const slot = domain.slots[0]
-          expect(slot).toMatchObject({
-            start: expect.any(Number),
-            end: expect.any(Number),
-          })
           expect(slot.start).toBeGreaterThanOrEqual(0)
           expect(slot.end).toBeGreaterThan(slot.start)
           expect(slot.end - slot.start).toBe(duration as number)
-          // Verify exactly one slot by checking no second slot exists
-          expect(domain.slots[1] === undefined).toBe(true)
+          // Verify exactly one slot by checking the array has only this slot
+          expect(domain.slots).toStrictEqual([slot])
         }
       )
     )
@@ -1517,7 +1507,9 @@ describe('Spec 12: Reflow - Completeness', () => {
     // Should fail with one unassigned - verify exact content
     expect(result.success).toBe(false)
     expect(result.unassigned).toStrictEqual(['series-2' as SeriesId])
-    expect(result.assignments[0].seriesId).toBe('series-1' as SeriesId)
-    expect(result.assignments[1] === undefined).toBe(true)
+    // Verify the single assignment has the correct series ID and slot
+    expect(result.assignments).toStrictEqual([
+      { seriesId: 'series-1' as SeriesId, slot: { start: 9 * 60, end: 10 * 60 } }
+    ])
   })
 })

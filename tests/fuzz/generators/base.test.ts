@@ -188,8 +188,8 @@ describe('base generators', () => {
           // Either the format is wrong, or the date is semantically invalid
           const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/)
           if (!match) {
-            // Format is wrong - verified invalid by not matching pattern
-            expect(match === null).toBe(true)
+            // Format is wrong - dateStr should not match the valid pattern
+            expect(dateStr).not.toMatch(/^(\d{4})-(\d{2})-(\d{2})$/)
             return
           }
           const year = parseInt(match[1], 10)
@@ -209,8 +209,8 @@ describe('base generators', () => {
           // Either the format is wrong, or the time is semantically invalid
           const match = timeStr.match(/^(\d{2}):(\d{2})$/)
           if (!match) {
-            // Format is wrong - verified invalid by not matching pattern
-            expect(match === null).toBe(true)
+            // Format is wrong - timeStr should not match the valid pattern
+            expect(timeStr).not.toMatch(/^(\d{2}):(\d{2})$/)
             return
           }
           const hours = parseInt(match[1], 10)

@@ -146,12 +146,13 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         const seriesAInstances = result.filter((i) => i.seriesId === seriesId('A'));
-        expect(seriesAInstances).toEqual(
-          Array.from({ length: 5 }, () => expect.objectContaining({
-            seriesId: seriesId('A'),
-            idealTime: expect.any(String),
-          }))
-        );
+        expect(seriesAInstances).toHaveLength(5);
+        seriesAInstances.forEach((inst, index) => {
+          expect(inst.seriesId).toBe(seriesId('A'));
+          expect(inst.idealTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
+          // Verify each instance is at index position in the array
+          expect(seriesAInstances[index]).toBe(inst);
+        });
       });
 
       it('cancelled excluded - cancelled instance not generated', () => {
@@ -181,12 +182,9 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         const result = generateInstances(input);
 
-        expect(result).toEqual([
-          expect.objectContaining({
-            seriesId: seriesId('A'),
-            idealTime: expect.any(String),
-          }),
-        ]);
+        expect(result.length).toBe(1);
+        expect(result[0].seriesId).toBe(seriesId('A'));
+        expect(result[0].idealTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
       });
 
       it('duration calculated once - single calculation per instance', () => {
@@ -197,7 +195,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         // Duration should be fixed at generation time, not recalculated
-        expect(result[0].duration).toEqual(expect.any(Number));
+        expect(typeof result[0].duration).toBe('number');
         expect(result[0].duration).toBeGreaterThan(0);
 
         // Verify duration is deterministic - same input produces same duration
@@ -642,8 +640,10 @@ describe('Segment 13: Reflow Algorithm', () => {
         const constraints = [{ type: 'noOverlap', instances }];
         const result = backtrackSearch(instances, domains, constraints);
 
-        // No solution exists when both fixed instances overlap
-        expect(result === null).toBe(true);
+        // No solution exists when both fixed instances overlap - result must be null
+        expect(result).toBeNull();
+        // Verify no assignments were made
+        expect(result).not.toBeInstanceOf(Map);
       });
 
       it('always terminates - eventually returns', () => {
@@ -663,7 +663,8 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         // This should terminate (may return null if unsolvable, but must terminate)
         const result = backtrackSearch(instances, domains, []);
-        expect(result !== undefined).toBe(true);
+        // Result is either a Map with assignments or null for no solution
+        expect(result === null || result instanceof Map).toBe(true);
       });
     });
 
@@ -1325,8 +1326,9 @@ describe('Segment 13: Reflow Algorithm', () => {
       const constraints = [{ type: 'chain', parent, child }];
       const result = backtrackSearch([parent, child], domains, constraints);
 
-      // Should not find solution because child is outside bounds
-      expect(result === null).toBe(true);
+      // Should not find solution because child is outside bounds - result must be null
+      expect(result).toBeNull();
+      expect(result).not.toBeInstanceOf(Map);
     });
 
     it('INV 4: deterministic output - same inputs same output', () => {
@@ -1434,12 +1436,9 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         const result = reflow(input);
 
-        expect(result.assignments).toEqual([
-          expect.objectContaining({
-            seriesId: seriesId('A'),
-            time: expect.any(String),
-          }),
-        ]);
+        expect(result.assignments).toHaveLength(1);
+        expect(result.assignments[0].seriesId).toBe(seriesId('A'));
+        expect(result.assignments[0].time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
       });
 
       it('with conditions - only active patterns in schedule', () => {
@@ -1807,7 +1806,8 @@ describe('Segment 13: Reflow Algorithm', () => {
       const elapsed = Date.now() - start;
 
       // No solution exists when all items must be at the same time with no-overlap constraints
-      expect(result === null).toBe(true);
+      expect(result).toBeNull();
+      expect(result).not.toBeInstanceOf(Map);
       expect(elapsed).toBeLessThan(100); // Should fail fast
     });
 
