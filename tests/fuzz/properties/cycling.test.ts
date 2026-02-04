@@ -249,7 +249,7 @@ describe('Spec 9: Cycling - Random Mode', () => {
           // Use multiple series IDs to get different random sequences
           const manager = new CyclingManager()
           const uniqueItems = [...new Set(items)]
-          if (uniqueItems.length < 2) return // Need at least 2 unique items
+          fc.pre(uniqueItems.length >= 2) // Need at least 2 unique items
 
           const config: CyclingConfig = {
             mode: 'random',

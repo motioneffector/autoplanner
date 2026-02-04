@@ -382,7 +382,7 @@ describe('Segment 11: Links (Chains)', () => {
         targetDistance: 15,
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'update targetDistance' setup failed: ${createResult.error.type}`);
 
       await updateLink(adapter, createResult.value.id, { targetDistance: 30 });
 
@@ -401,7 +401,7 @@ describe('Segment 11: Links (Chains)', () => {
         earlyWobble: 5,
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'update earlyWobble' setup failed: ${createResult.error.type}`);
 
       await updateLink(adapter, createResult.value.id, { earlyWobble: 10 });
 
@@ -420,7 +420,7 @@ describe('Segment 11: Links (Chains)', () => {
         lateWobble: 10,
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'update lateWobble' setup failed: ${createResult.error.type}`);
 
       await updateLink(adapter, createResult.value.id, { lateWobble: 15 });
 
@@ -448,7 +448,7 @@ describe('Segment 11: Links (Chains)', () => {
         targetDistance: 15,
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'cannot change child ID' setup failed: ${createResult.error.type}`);
 
       const result = await updateLink(adapter, createResult.value.id, {
         childSeriesId: child2Id,
@@ -468,7 +468,7 @@ describe('Segment 11: Links (Chains)', () => {
         targetDistance: 15,
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'cannot change parent ID' setup failed: ${createResult.error.type}`);
 
       const result = await updateLink(adapter, createResult.value.id, {
         parentSeriesId: parent2Id,

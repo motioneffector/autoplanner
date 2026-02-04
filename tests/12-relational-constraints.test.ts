@@ -89,7 +89,7 @@ describe('Segment 12: Relational Constraints', () => {
         });
 
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) throw new Error(`'constraints are global' setup failed: ${result.error.type}`);
 
         // Constraint is not tied to a specific series
         const constraint = await getConstraint(adapter, result.value.id);
@@ -109,7 +109,7 @@ describe('Segment 12: Relational Constraints', () => {
         });
 
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) throw new Error(`'constraints reference targets' setup failed: ${result.error.type}`);
 
         const constraint = await getConstraint(adapter, result.value.id);
         expect(constraint!.source.type).toBe('tag');
@@ -128,7 +128,7 @@ describe('Segment 12: Relational Constraints', () => {
           dest: { type: 'seriesId', seriesId: seriesB },
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'get existing constraint' setup failed: ${createResult.error.type}`);
 
         const constraint = await getConstraint(adapter, createResult.value.id);
         expect(constraint).not.toBeNull();
@@ -177,7 +177,7 @@ describe('Segment 12: Relational Constraints', () => {
           dest: { type: 'seriesId', seriesId: seriesB },
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'delete constraint' setup failed: ${createResult.error.type}`);
 
         await deleteConstraint(adapter, createResult.value.id);
 
@@ -195,7 +195,7 @@ describe('Segment 12: Relational Constraints', () => {
           dest: { type: 'seriesId', seriesId: seriesB },
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'series delete doesnt delete constraint' setup failed: ${createResult.error.type}`);
 
         await deleteSeries(adapter, seriesA);
 
@@ -214,7 +214,7 @@ describe('Segment 12: Relational Constraints', () => {
           dest: { type: 'seriesId', seriesId: seriesB },
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'constraint with non-existent target' setup failed: ${createResult.error.type}`);
 
         await deleteSeries(adapter, seriesA);
 
@@ -1125,7 +1125,7 @@ describe('Segment 12: Relational Constraints', () => {
         dest: { type: 'seriesId', seriesId: seriesB },
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'INV 3: constraints independent of series' setup failed: ${createResult.error.type}`);
 
       await deleteSeries(adapter, seriesA);
 

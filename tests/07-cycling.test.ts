@@ -185,7 +185,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'index advances on completion' setup failed: ${seriesResult.error.type}`);
 
         const seriesId = seriesResult.value.id;
 
@@ -200,7 +200,7 @@ describe('Segment 07: Cycling', () => {
         // Advance the cycling
         const result = await advanceCycling(adapter, seriesId);
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) throw new Error(`'index advances on completion' advance failed: ${result.error.type}`);
         expect(result.value.currentIndex).toBe(1);
       });
 
@@ -216,7 +216,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'skipped instance no advance' setup failed: ${seriesResult.error.type}`);
 
         const seriesId = seriesResult.value.id;
 
@@ -241,14 +241,14 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'index wraps at end' setup failed: ${seriesResult.error.type}`);
 
         const seriesId = seriesResult.value.id;
 
         // Advance from index 2
         const result = await advanceCycling(adapter, seriesId);
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) throw new Error(`'index wraps at end' advance failed: ${result.error.type}`);
         expect(result.value.currentIndex).toBe(0);
       });
 
@@ -264,7 +264,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'continuous wrap' setup failed: ${seriesResult.error.type}`);
 
         const seriesId = seriesResult.value.id;
 
@@ -295,7 +295,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'gap-leap full sequence' setup failed: ${seriesResult.error.type}`);
 
         const seriesId = seriesResult.value.id;
 
@@ -434,7 +434,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'advance increments index' setup failed: ${seriesResult.error.type}`);
 
         const result = await advanceCycling(adapter, seriesResult.value.id);
         expect(result.ok).toBe(true);
@@ -455,7 +455,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'advance wraps around' setup failed: ${seriesResult.error.type}`);
 
         const result = await advanceCycling(adapter, seriesResult.value.id);
         expect(result.ok).toBe(true);
@@ -475,7 +475,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'advance requires gapLeap=true' setup failed: ${seriesResult.error.type}`);
 
         const result = await advanceCycling(adapter, seriesResult.value.id);
         // Should either error or be a no-op
@@ -496,7 +496,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'advance on gapLeap=true series' setup failed: ${seriesResult.error.type}`);
 
         const result = await advanceCycling(adapter, seriesResult.value.id);
         expect(result.ok).toBe(true);
@@ -513,7 +513,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'advance on gapLeap=false series' setup failed: ${seriesResult.error.type}`);
 
         const result = await advanceCycling(adapter, seriesResult.value.id);
         expect(result.ok).toBe(false);
@@ -539,7 +539,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'reset sets index to 0' setup failed: ${seriesResult.error.type}`);
 
         const result = await resetCycling(adapter, seriesResult.value.id);
         expect(result.ok).toBe(true);
@@ -560,7 +560,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'reset from index 0' setup failed: ${seriesResult.error.type}`);
 
         const result = await resetCycling(adapter, seriesResult.value.id);
         expect(result.ok).toBe(true);
@@ -583,7 +583,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'no auto-reset on deactivation' setup failed: ${seriesResult.error.type}`);
 
         // Simulate pattern deactivation by checking series state
         // Index should be preserved
@@ -603,7 +603,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'consumer must explicitly reset' setup failed: ${seriesResult.error.type}`);
 
         // Without explicit reset, index should remain unchanged
         const series = await adapter.getSeries(seriesResult.value.id);
@@ -622,7 +622,7 @@ describe('Segment 07: Cycling', () => {
           },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'deactivation preserves index' setup failed: ${seriesResult.error.type}`);
 
         // Advance cycling to verify state changes
         await advanceCycling(adapter, seriesResult.value.id);
@@ -647,7 +647,7 @@ describe('Segment 07: Cycling', () => {
         startDate: parseDate('2024-01-01'),
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'no cycling uses series title' setup failed: ${seriesResult.error.type}`);
 
       const series = await adapter.getSeries(seriesResult.value.id);
       const title = resolveInstanceTitle(series!, { instanceNumber: 0 });
@@ -665,7 +665,7 @@ describe('Segment 07: Cycling', () => {
         },
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'with cycling uses item title' setup failed: ${seriesResult.error.type}`);
 
       const series = await adapter.getSeries(seriesResult.value.id);
       const title = resolveInstanceTitle(series!, { instanceNumber: 1 });
@@ -722,7 +722,7 @@ describe('Segment 07: Cycling', () => {
         },
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'completions determine index' setup failed: ${seriesResult.error.type}`);
 
       // In gapLeap=true, index is based on completions, not instance numbers
       // Start at index 0
@@ -764,7 +764,7 @@ describe('Segment 07: Cycling', () => {
         },
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'index at last wraps to 0' setup failed: ${seriesResult.error.type}`);
 
       const result = await advanceCycling(adapter, seriesResult.value.id);
       expect(result.ok).toBe(true);
@@ -794,7 +794,7 @@ describe('Segment 07: Cycling', () => {
         },
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'no completions first item' setup failed: ${seriesResult.error.type}`);
 
       // With no completions, should be at first item
       const series = await adapter.getSeries(seriesResult.value.id);
@@ -833,7 +833,7 @@ describe('Segment 07: Cycling', () => {
         },
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'currentIndex in bounds' setup failed: ${seriesResult.error.type}`);
 
       // Advance multiple times and verify index stays in bounds
       for (let i = 0; i < 10; i++) {
@@ -852,7 +852,7 @@ describe('Segment 07: Cycling', () => {
         startDate: parseDate('2024-01-01'),
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'cycling optional' setup failed: ${seriesResult.error.type}`);
 
       const series = await adapter.getSeries(seriesResult.value.id);
       expect(series!.cycling).toBeUndefined();
@@ -870,7 +870,7 @@ describe('Segment 07: Cycling', () => {
         },
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'gapLeap state persisted' setup failed: ${seriesResult.error.type}`);
 
       // Advance
       await advanceCycling(adapter, seriesResult.value.id);

@@ -258,7 +258,7 @@ describe('Spec 5: Instances - Exception Persistence', () => {
         localDateTimeGen(),
         (seriesId, dates, time) => {
           const uniqueDates = [...new Set(dates)]
-          if (uniqueDates.length < 2) return
+          fc.pre(uniqueDates.length >= 2)
 
           const manager = new InstanceManager()
 

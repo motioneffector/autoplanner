@@ -134,7 +134,7 @@ describe('Segment 09: Instance Exceptions', () => {
           pattern: { type: 'weekly', daysOfWeek: ['monday'] },
         });
         expect(weeklyResult.ok).toBe(true);
-        if (!weeklyResult.ok) return;
+        if (!weeklyResult.ok) throw new Error(`'instance must exist' setup failed: ${weeklyResult.error.type}`);
 
         // Try to cancel a Tuesday (not in pattern)
         const result = await cancelInstance(
@@ -270,7 +270,7 @@ describe('Segment 09: Instance Exceptions', () => {
           pattern: { type: 'weekly', daysOfWeek: ['monday'] },
         });
         expect(weeklyResult.ok).toBe(true);
-        if (!weeklyResult.ok) return;
+        if (!weeklyResult.ok) throw new Error(`'instance must exist' setup failed: ${weeklyResult.error.type}`);
 
         // Try to reschedule a Tuesday
         const result = await rescheduleInstance(
@@ -613,7 +613,7 @@ describe('Segment 09: Instance Exceptions', () => {
         pattern: { type: 'daily' },
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'B2: cancel last instance' setup failed: ${seriesResult.error.type}`);
 
       await cancelInstance(adapter, seriesResult.value.id, parseDate('2024-01-10'));
 
@@ -663,7 +663,7 @@ describe('Segment 09: Instance Exceptions', () => {
         pattern: { type: 'daily' },
       });
       expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) return;
+      if (!seriesResult.ok) throw new Error(`'B5: reschedule across year boundary' setup failed: ${seriesResult.error.type}`);
 
       const targetDate = parseDate('2023-12-31');
       const newTime = parseDateTime('2024-01-01T09:00:00');
@@ -695,7 +695,7 @@ describe('Segment 09: Instance Exceptions', () => {
         pattern: { type: 'weekly', daysOfWeek: ['monday'] },
       });
       expect(weeklyResult.ok).toBe(true);
-      if (!weeklyResult.ok) return;
+      if (!weeklyResult.ok) throw new Error(`'B7: exception on non-pattern date' setup failed: ${weeklyResult.error.type}`);
 
       // Try to cancel Tuesday (not in pattern)
       const result = await cancelInstance(
@@ -754,7 +754,7 @@ describe('Segment 09: Instance Exceptions', () => {
         pattern: { type: 'weekly', daysOfWeek: ['monday'] },
       });
       expect(weeklyResult.ok).toBe(true);
-      if (!weeklyResult.ok) return;
+      if (!weeklyResult.ok) throw new Error(`'INV 4: exception only for pattern dates' setup failed: ${weeklyResult.error.type}`);
 
       const result = await cancelInstance(
         adapter,
@@ -794,7 +794,7 @@ describe('Segment 09: Instance Exceptions', () => {
         pattern: { type: 'weekly', daysOfWeek: ['monday'] },
       });
       expect(weeklyResult.ok).toBe(true);
-      if (!weeklyResult.ok) return;
+      if (!weeklyResult.ok) throw new Error(`'NonExistentInstanceError: cancel instance not in pattern' setup failed: ${weeklyResult.error.type}`);
 
       const result = await cancelInstance(
         adapter,
@@ -876,7 +876,7 @@ describe('Segment 09: Instance Exceptions', () => {
           pattern: { type: 'daily' },
         });
         expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) return;
+        if (!seriesResult.ok) throw new Error(`'skip workout one day' setup failed: ${seriesResult.error.type}`);
 
         // Skip Wednesday Jan 10
         await cancelInstance(adapter, seriesResult.value.id, parseDate('2024-01-10'));
@@ -922,7 +922,7 @@ describe('Segment 09: Instance Exceptions', () => {
           time: parseDateTime('2024-01-01T14:00:00'),
         });
         expect(meetingResult.ok).toBe(true);
-        if (!meetingResult.ok) return;
+        if (!meetingResult.ok) throw new Error(`'move meeting earlier' setup failed: ${meetingResult.error.type}`);
 
         // Move to 10am
         await rescheduleInstance(

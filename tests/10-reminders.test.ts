@@ -120,7 +120,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'get existing reminder' setup failed: ${createResult.error.type}`);
 
         const reminder = await getReminder(adapter, createResult.value.id);
         expect(reminder).not.toBeNull();
@@ -151,7 +151,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'update minutesBefore' setup failed: ${createResult.error.type}`);
 
         await updateReminder(adapter, createResult.value.id, { minutesBefore: 15 });
 
@@ -166,7 +166,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'normal',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'update tag' setup failed: ${createResult.error.type}`);
 
         await updateReminder(adapter, createResult.value.id, { tag: 'urgent' });
 
@@ -183,7 +183,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'delete existing reminder' setup failed: ${createResult.error.type}`);
 
         const deleteResult = await deleteReminder(adapter, createResult.value.id);
         expect(deleteResult.ok).toBe(true);
@@ -199,7 +199,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'delete cascades acknowledgments' setup failed: ${createResult.error.type}`);
 
         // Acknowledge the reminder
         await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
@@ -296,7 +296,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'acknowledged not in pending' setup failed: ${createResult.error.type}`);
 
         await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
 
@@ -440,7 +440,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'acknowledge records timestamp' setup failed: ${createResult.error.type}`);
 
         const before = Date.now();
         const result = await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
@@ -461,7 +461,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'acknowledged removed from pending' setup failed: ${createResult.error.type}`);
 
         await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
 
@@ -483,7 +483,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'acknowledge is idempotent' setup failed: ${createResult.error.type}`);
 
         const first = await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
         const second = await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
@@ -516,7 +516,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'test',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'doesnt affect other instances' setup failed: ${createResult.error.type}`);
 
         // Acknowledge day 1
         await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
@@ -538,7 +538,8 @@ describe('Segment 10: Reminders', () => {
           tag: 'b',
         });
         expect(reminderA.ok && reminderB.ok).toBe(true);
-        if (!reminderA.ok || !reminderB.ok) return;
+        if (!reminderA.ok) throw new Error(`'doesnt affect other reminders' setup failed: ${reminderA.error.type}`);
+        if (!reminderB.ok) throw new Error(`'doesnt affect other reminders' setup failed: ${reminderB.error.type}`);
 
         // Acknowledge A
         await acknowledgeReminder(adapter, reminderA.value.id, parseDate('2024-01-15'));
@@ -567,7 +568,7 @@ describe('Segment 10: Reminders', () => {
         tag: 'test',
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'false if never acknowledged' setup failed: ${createResult.error.type}`);
 
       const isAcked = await isReminderAcknowledged(adapter, createResult.value.id, parseDate('2024-01-15'));
       expect(isAcked).toBe(false);
@@ -580,7 +581,7 @@ describe('Segment 10: Reminders', () => {
         tag: 'test',
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'true after acknowledgment' setup failed: ${createResult.error.type}`);
 
       await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
 
@@ -601,7 +602,7 @@ describe('Segment 10: Reminders', () => {
         tag: 'test',
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'removes old acknowledgments' setup failed: ${createResult.error.type}`);
 
       // Acknowledge 3 days ago
       await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-12'));
@@ -624,7 +625,7 @@ describe('Segment 10: Reminders', () => {
         tag: 'test',
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'keeps recent acknowledgments' setup failed: ${createResult.error.type}`);
 
       // Acknowledge 1 day ago
       await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-14'));
@@ -647,7 +648,7 @@ describe('Segment 10: Reminders', () => {
         tag: 'test',
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'purged may re-appear pending' setup failed: ${createResult.error.type}`);
 
       // Acknowledge old instance
       await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-10'));
@@ -871,7 +872,7 @@ describe('Segment 10: Reminders', () => {
         allDay: true,
       });
       expect(allDayResult.ok).toBe(true);
-      if (!allDayResult.ok) return;
+      if (!allDayResult.ok) throw new Error(`'B6: all-day minutesBefore 0' setup failed: ${allDayResult.error.type}`);
 
       await createReminder(adapter, {
         seriesId: allDayResult.value.id,
@@ -897,7 +898,7 @@ describe('Segment 10: Reminders', () => {
         allDay: true,
       });
       expect(allDayResult.ok).toBe(true);
-      if (!allDayResult.ok) return;
+      if (!allDayResult.ok) throw new Error(`'B7: all-day 1440 min' setup failed: ${allDayResult.error.type}`);
 
       await createReminder(adapter, {
         seriesId: allDayResult.value.id,
@@ -968,7 +969,7 @@ describe('Segment 10: Reminders', () => {
         tag: 'test',
       });
       expect(createResult.ok).toBe(true);
-      if (!createResult.ok) return;
+      if (!createResult.ok) throw new Error(`'INV 5: auto-purge old acks' setup failed: ${createResult.error.type}`);
 
       // Acknowledge old instances
       await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-01'));
@@ -1030,7 +1031,7 @@ describe('Segment 10: Reminders', () => {
           tag: 'meeting',
         });
         expect(createResult.ok).toBe(true);
-        if (!createResult.ok) return;
+        if (!createResult.ok) throw new Error(`'acknowledge dismisses' setup failed: ${createResult.error.type}`);
 
         // Acknowledge at 08:46
         await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
@@ -1067,7 +1068,8 @@ describe('Segment 10: Reminders', () => {
         const reminder30 = await createReminder(adapter, { seriesId: testSeriesId, minutesBefore: 30, tag: 'early' });
         const reminder5 = await createReminder(adapter, { seriesId: testSeriesId, minutesBefore: 5, tag: 'urgent' });
         expect(reminder30.ok && reminder5.ok).toBe(true);
-        if (!reminder30.ok || !reminder5.ok) return;
+        if (!reminder30.ok) throw new Error(`'acknowledge each separately' setup failed: ${reminder30.error.type}`);
+        if (!reminder5.ok) throw new Error(`'acknowledge each separately' setup failed: ${reminder5.error.type}`);
 
         // Acknowledge 30min reminder
         await acknowledgeReminder(adapter, reminder30.value.id, parseDate('2024-01-15'));
