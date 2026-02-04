@@ -14,6 +14,8 @@ import {
   type Autoplanner,
   type Adapter,
   LockedSeriesError,
+  ValidationError,
+  ChainDepthExceededError,
 } from '../src/public-api';
 import {
   type LocalDate,
@@ -462,7 +464,7 @@ describe('Segment 16: Integration Tests', () => {
       // Try to reschedule transfer before chain target
       await expect(
         planner.rescheduleInstance(transferId, date('2025-01-19'), datetime('2025-01-19T09:30:00'))
-      ).rejects.toThrow();
+      ).rejects.toThrow(ValidationError);
     });
 
     it('chain bounds enforced - instances within wobble limits', async () => {
@@ -1332,7 +1334,7 @@ describe('Segment 16: Integration Tests', () => {
       }
 
       // 33rd link should fail
-      await expect(planner.linkSeries(ids[32], ids[33], { distance: 0 })).rejects.toThrow();
+      await expect(planner.linkSeries(ids[32], ids[33], { distance: 0 })).rejects.toThrow(ChainDepthExceededError);
     });
   });
 

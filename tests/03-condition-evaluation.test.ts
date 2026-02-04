@@ -19,6 +19,8 @@ import {
   // Target constructors
   byTag,
   bySeriesId,
+  // Errors
+  InvalidConditionError,
   // Types
   type Condition,
   type CompletionStore,
@@ -1150,19 +1152,19 @@ describe('Invariants', () => {
 
 describe('Error Handling', () => {
   it('empty and conditions throws InvalidConditionError', () => {
-    expect(() => andCondition([])).toThrow()
+    expect(() => andCondition([])).toThrow(InvalidConditionError)
   })
 
   it('empty or conditions throws InvalidConditionError', () => {
-    expect(() => orCondition([])).toThrow()
+    expect(() => orCondition([])).toThrow(InvalidConditionError)
   })
 
   it('negative windowDays throws InvalidConditionError', () => {
-    expect(() => countCondition(byTag('walk'), '>=', 1, -1)).toThrow()
+    expect(() => countCondition(byTag('walk'), '>=', 1, -1)).toThrow(InvalidConditionError)
   })
 
   it('negative value throws InvalidConditionError', () => {
-    expect(() => countCondition(byTag('walk'), '>=', -1, 14)).toThrow()
+    expect(() => countCondition(byTag('walk'), '>=', -1, 14)).toThrow(InvalidConditionError)
   })
 })
 

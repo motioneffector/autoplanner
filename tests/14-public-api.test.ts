@@ -149,13 +149,13 @@ describe('Segment 14: Public API', () => {
       it('adapter must implement interface - invalid adapter throws error', () => {
         expect(() => {
           createAutoplanner({ adapter: {} as Adapter, timezone: 'UTC' });
-        }).toThrow();
+        }).toThrow(ValidationError);
       });
 
       it('timezone must be valid IANA - Invalid/Zone throws error', () => {
         expect(() => {
           createAutoplanner(createValidConfig({ timezone: 'Invalid/Zone' }));
-        }).toThrow();
+        }).toThrow(ValidationError);
       });
 
       it('valid IANA timezone - America/New_York succeeds', () => {
@@ -802,7 +802,7 @@ describe('Segment 14: Public API', () => {
         });
 
         await planner.logCompletion(id, date('2025-01-15'));
-        await expect(planner.logCompletion(id, date('2025-01-15'))).rejects.toThrow();
+        await expect(planner.logCompletion(id, date('2025-01-15'))).rejects.toThrow(DuplicateCompletionError);
       });
     });
   });

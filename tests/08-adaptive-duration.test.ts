@@ -14,6 +14,7 @@ import {
 } from '../src/adaptive-duration';
 import {
   createSeries,
+  ValidationError,
 } from '../src/series-crud';
 import {
   logCompletion,
@@ -779,7 +780,7 @@ describe('Segment 08: Adaptive Duration', () => {
       // Should either throw or clamp fallback to 1
       await expect(async () => {
         await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
-      }).rejects.toThrow();
+      }).rejects.toThrow(ValidationError);
     });
 
     it('INV 2: minimum <= maximum', async () => {
@@ -793,7 +794,7 @@ describe('Segment 08: Adaptive Duration', () => {
 
       await expect(async () => {
         await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
-      }).rejects.toThrow();
+      }).rejects.toThrow(ValidationError);
     });
 
     it('INV 3: multiplier > 0', async () => {
@@ -805,7 +806,7 @@ describe('Segment 08: Adaptive Duration', () => {
 
       await expect(async () => {
         await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
-      }).rejects.toThrow();
+      }).rejects.toThrow(ValidationError);
     });
 
     it('INV 4: value >= 1', async () => {

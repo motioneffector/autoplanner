@@ -141,7 +141,7 @@ describe('Transaction Semantics', () => {
           })
           throw new Error('Rollback')
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(Error)
 
       const series = await adapter.getSeries('rollback-test')
       expect(series).toBeNull()
@@ -159,7 +159,7 @@ describe('Transaction Semantics', () => {
           await adapter.updateSeries('series-1', { title: 'Updated' })
           throw new Error('Rollback')
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(Error)
 
       const series = await adapter.getSeries('series-1')
       expect(series?.title).toBe('Original')
@@ -177,7 +177,7 @@ describe('Transaction Semantics', () => {
           await adapter.deleteSeries('series-1')
           throw new Error('Rollback')
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(Error)
 
       const series = await adapter.getSeries('series-1')
       expect(series).not.toBeNull()
@@ -206,7 +206,7 @@ describe('Transaction Semantics', () => {
           await adapter.deleteSeries('series-c')
           throw new Error('Rollback all')
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(Error)
 
       expect(await adapter.getSeries('series-a')).toBeNull()
       expect((await adapter.getSeries('series-b'))?.title).toBe('B Original')
@@ -648,7 +648,7 @@ describe('Condition Operations', () => {
     // Attempt to create cycle: c → a
     await expect(
       adapter.updateCondition('a', { parentId: 'c' })
-    ).rejects.toThrow()
+    ).rejects.toThrow(InvalidDataError)
   })
 
   it('get conditions by series', async () => {
@@ -1062,7 +1062,7 @@ describe('Completion Operations', () => {
           startTime: '2024-01-15T14:30:00' as LocalDateTime,
           endTime: '2024-01-15T15:00:00' as LocalDateTime,
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(DuplicateKeyError)
     })
 
     it('get completions by series', async () => {
@@ -1661,7 +1661,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 20,
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(DuplicateKeyError)
     })
 
     it('parent can have many children', async () => {
@@ -1700,7 +1700,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 10,
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(InvalidDataError)
     })
 
     it('child delete cascades link', async () => {
@@ -1761,7 +1761,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 10,
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(InvalidDataError)
     })
 
     it('parent must exist', async () => {
@@ -1830,7 +1830,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 10,
         })
-      ).rejects.toThrow()
+      ).rejects.toThrow(InvalidDataError)
     })
   })
 })

@@ -29,6 +29,9 @@ import {
   exceptPatterns,
   // Core function
   expandPattern,
+  // Errors
+  InvalidPatternError,
+  InvalidRangeError,
   // Types
   type Pattern,
   type DateRange,
@@ -1170,39 +1173,39 @@ describe('Invariants', () => {
 describe('Error Handling', () => {
   it('invalid range start > end throws InvalidRangeError', () => {
     const range: DateRange = { start: '2024-02-01' as LocalDate, end: '2024-01-01' as LocalDate }
-    expect(() => expandPattern(daily(), range, '2024-01-01' as LocalDate)).toThrow()
+    expect(() => expandPattern(daily(), range, '2024-01-01' as LocalDate)).toThrow(InvalidRangeError)
   })
 
   it('everyNDays n=0 throws InvalidPatternError', () => {
-    expect(() => everyNDays(0)).toThrow()
+    expect(() => everyNDays(0)).toThrow(InvalidPatternError)
   })
 
   it('everyNDays n=-1 throws InvalidPatternError', () => {
-    expect(() => everyNDays(-1)).toThrow()
+    expect(() => everyNDays(-1)).toThrow(InvalidPatternError)
   })
 
   it('everyNWeeks n=0 throws InvalidPatternError', () => {
-    expect(() => everyNWeeks(0)).toThrow()
+    expect(() => everyNWeeks(0)).toThrow(InvalidPatternError)
   })
 
   it('monthly day=0 throws InvalidPatternError', () => {
-    expect(() => monthly(0)).toThrow()
+    expect(() => monthly(0)).toThrow(InvalidPatternError)
   })
 
   it('monthly day=32 throws InvalidPatternError', () => {
-    expect(() => monthly(32)).toThrow()
+    expect(() => monthly(32)).toThrow(InvalidPatternError)
   })
 
   it('yearly month=0 throws InvalidPatternError', () => {
-    expect(() => yearly(0, 15)).toThrow()
+    expect(() => yearly(0, 15)).toThrow(InvalidPatternError)
   })
 
   it('yearly month=13 throws InvalidPatternError', () => {
-    expect(() => yearly(13, 15)).toThrow()
+    expect(() => yearly(13, 15)).toThrow(InvalidPatternError)
   })
 
   it('weekdays empty array throws InvalidPatternError', () => {
-    expect(() => weekdays([])).toThrow()
+    expect(() => weekdays([])).toThrow(InvalidPatternError)
   })
 })
 

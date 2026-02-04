@@ -193,7 +193,7 @@ describe('Segment 15: SQLite Adapter', () => {
           adapter.execute(
             "INSERT INTO pattern (id, series_id, type, time) VALUES ('p1', 'test-1', 'invalid_type', '09:00')"
           )
-        ).rejects.toThrow();
+        ).rejects.toThrow(InvalidDataError);
       });
 
       it('UNIQUE constraints active - insert duplicate rejected', async () => {
@@ -201,7 +201,7 @@ describe('Segment 15: SQLite Adapter', () => {
         await adapter.saveSeries(series);
 
         // Try to insert duplicate series ID
-        await expect(adapter.saveSeries(series)).rejects.toThrow();
+        await expect(adapter.saveSeries(series)).rejects.toThrow(DuplicateKeyError);
       });
     });
   });
@@ -297,7 +297,7 @@ describe('Segment 15: SQLite Adapter', () => {
       });
 
       // Deletion should fail due to RESTRICT
-      await expect(adapter.deleteSeries(seriesId('test-1'))).rejects.toThrow();
+      await expect(adapter.deleteSeries(seriesId('test-1'))).rejects.toThrow(ForeignKeyError);
     });
 
     it('CASCADE deletes dependents - delete parent removes children', async () => {
@@ -826,7 +826,7 @@ describe('Segment 15: SQLite Adapter', () => {
           endTime: datetime('2025-01-15T09:30:00'),
         });
 
-        await expect(adapter.deleteSeries(seriesId('test-1'))).rejects.toThrow();
+        await expect(adapter.deleteSeries(seriesId('test-1'))).rejects.toThrow(ForeignKeyError);
       });
 
       it('blocked by parent link - series is parent error', async () => {
@@ -841,7 +841,7 @@ describe('Segment 15: SQLite Adapter', () => {
           distance: 0,
         });
 
-        await expect(adapter.deleteSeries(seriesId('parent'))).rejects.toThrow();
+        await expect(adapter.deleteSeries(seriesId('parent'))).rejects.toThrow(ForeignKeyError);
       });
     });
 
@@ -913,7 +913,7 @@ describe('Segment 15: SQLite Adapter', () => {
         });
 
         // RESTRICT should block, even though pattern would cascade
-        await expect(adapter.deleteSeries(seriesId('test-1'))).rejects.toThrow();
+        await expect(adapter.deleteSeries(seriesId('test-1'))).rejects.toThrow(ForeignKeyError);
 
         // Pattern should still exist (cascade didn't run)
         const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
@@ -1234,7 +1234,7 @@ describe('Segment 15: SQLite Adapter', () => {
       // UNIQUE constraint
       const series = createTestSeries('test-1');
       await adapter.saveSeries(series);
-      await expect(adapter.saveSeries(series)).rejects.toThrow();
+      await expect(adapter.saveSeries(series)).rejects.toThrow(DuplicateKeyError);
 
       // FK constraint
       await expect(
@@ -1244,7 +1244,7 @@ describe('Segment 15: SQLite Adapter', () => {
           type: 'daily',
           time: time('09:00'),
         })
-      ).rejects.toThrow();
+      ).rejects.toThrow(ForeignKeyError);
     });
 
     it('INV 3: transactions are ACID - verify atomicity isolation', async () => {

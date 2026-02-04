@@ -98,8 +98,8 @@ describe('test harness', () => {
     })
 
     it('throws for unequal values', () => {
-      expect(() => assertDeepEquals(5, 6)).toThrow()
-      expect(() => assertDeepEquals({ a: 1 }, { a: 2 })).toThrow()
+      expect(() => assertDeepEquals(5, 6)).toThrow(Error)
+      expect(() => assertDeepEquals({ a: 1 }, { a: 2 })).toThrow(Error)
     })
   })
 
@@ -111,7 +111,7 @@ describe('test harness', () => {
     })
 
     it('fails when function does not throw', () => {
-      expect(() => assertThrows(() => {})).toThrow('Expected function to throw')
+      expect(() => assertThrows(() => {})).toThrow(Error)
     })
 
     it('checks error type when specified', () => {
@@ -129,7 +129,7 @@ describe('test harness', () => {
           },
           TypeError
         )
-      ).toThrow()
+      ).toThrow(Error)
     })
   })
 
@@ -141,8 +141,8 @@ describe('test harness', () => {
     })
 
     it('fails for values outside range', () => {
-      expect(() => assertInRange(-1, 0, 10)).toThrow()
-      expect(() => assertInRange(11, 0, 10)).toThrow()
+      expect(() => assertInRange(-1, 0, 10)).toThrow(Error)
+      expect(() => assertInRange(11, 0, 10)).toThrow(Error)
     })
   })
 

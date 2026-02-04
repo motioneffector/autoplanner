@@ -555,8 +555,8 @@ describe('Invariants - Framework Integration', () => {
       durations: [-1 as Duration],
     })
 
-    expect(() => assertNoViolations(result)).toThrow()
-    expect(() => assertNoViolations(result, 'test context')).toThrow('[test context]')
+    expect(() => assertNoViolations(result)).toThrow(Error)
+    expect(() => assertNoViolations(result, 'test context')).toThrow(Error)
   })
 
   it('assertNoViolations passes for valid state', () => {

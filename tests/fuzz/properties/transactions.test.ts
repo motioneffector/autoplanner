@@ -715,7 +715,7 @@ describe('Spec 13: Transactions - Rollback State Restoration', () => {
     expect(manager.getTransactionDepth()).toBe(0)
 
     // Second rollback should throw (no transaction)
-    expect(() => manager.rollback()).toThrow()
+    expect(() => manager.rollback()).toThrow(Error)
   })
 
   it('rollback mid-operations reverts all changes', () => {
