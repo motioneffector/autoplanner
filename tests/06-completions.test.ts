@@ -79,7 +79,7 @@ describe('Segment 06: Completions', () => {
         });
 
         expect(logResult.ok).toBe(true);
-        if (!logResult.ok) return;
+        if (!logResult.ok) throw new Error(`'logged completion is retrievable' setup failed: ${logResult.error.type}`);
 
         const completion = await getCompletion(adapter, logResult.value.id);
         expect(completion).not.toBeNull();
@@ -96,7 +96,7 @@ describe('Segment 06: Completions', () => {
         });
 
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) throw new Error(`'date derived from startTime' setup failed: ${result.error.type}`);
 
         const completion = await getCompletion(adapter, result.value.id);
         expect(completion).not.toBeNull();
@@ -115,7 +115,7 @@ describe('Segment 06: Completions', () => {
         const after = Date.now();
 
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) throw new Error(`'createdAt set on log' setup failed: ${result.error.type}`);
 
         const completion = await getCompletion(adapter, result.value.id);
         expect(completion).not.toBeNull();
@@ -134,7 +134,7 @@ describe('Segment 06: Completions', () => {
         });
 
         expect(result.ok).toBe(true);
-        if (!result.ok) return;
+        if (!result.ok) throw new Error(`'duration calculated correctly' setup failed: ${result.error.type}`);
 
         const completion = await getCompletion(adapter, result.value.id);
         expect(completion).not.toBeNull();
@@ -268,7 +268,7 @@ describe('Segment 06: Completions', () => {
           endTime: parseDateTime('2024-01-15T09:30:00'),
         });
         expect(logResult.ok).toBe(true);
-        if (!logResult.ok) return;
+        if (!logResult.ok) throw new Error(`'get existing completion' setup failed: ${logResult.error.type}`);
 
         const completion = await getCompletion(adapter, logResult.value.id);
         expect(completion).not.toBeNull();
@@ -288,7 +288,7 @@ describe('Segment 06: Completions', () => {
           endTime: parseDateTime('2024-01-15T09:30:00'),
         });
         expect(logResult.ok).toBe(true);
-        if (!logResult.ok) return;
+        if (!logResult.ok) throw new Error(`'get deleted completion' setup failed: ${logResult.error.type}`);
 
         await deleteCompletion(adapter, logResult.value.id);
         const completion = await getCompletion(adapter, logResult.value.id);
@@ -322,7 +322,7 @@ describe('Segment 06: Completions', () => {
           startDate: parseDate('2024-01-01'),
         });
         expect(series2Result.ok).toBe(true);
-        if (!series2Result.ok) return;
+        if (!series2Result.ok) throw new Error(`'excludes other series' setup failed: ${series2Result.error.type}`);
         const series2Id = series2Result.value.id;
 
         // Add completions to both series
@@ -469,7 +469,7 @@ describe('Segment 06: Completions', () => {
           tags: ['exercise'],
         });
         expect(seriesWithTag.ok).toBe(true);
-        if (!seriesWithTag.ok) return;
+        if (!seriesWithTag.ok) throw new Error(`'target by tag' setup failed: ${seriesWithTag.error.type}`);
 
         await logCompletion(adapter, {
           seriesId: seriesWithTag.value.id,
@@ -500,7 +500,7 @@ describe('Segment 06: Completions', () => {
         });
         expect(series1.ok).toBe(true);
         expect(series2.ok).toBe(true);
-        if (!series1.ok || !series2.ok) return;
+        if (!series1.ok || !series2.ok) throw new Error(`'target by tag multiple series' setup failed`);
 
         await logCompletion(adapter, {
           seriesId: series1.value.id,
@@ -547,7 +547,7 @@ describe('Segment 06: Completions', () => {
           startDate: parseDate('2024-01-01'),
         });
         expect(other.ok).toBe(true);
-        if (!other.ok) return;
+        if (!other.ok) throw new Error(`'target by seriesId excludes others' setup failed: ${other.error.type}`);
 
         await logCompletion(adapter, {
           seriesId: testSeriesId,
@@ -586,7 +586,7 @@ describe('Segment 06: Completions', () => {
         endTime: parseDateTime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
-      if (!logResult.ok) return;
+      if (!logResult.ok) throw new Error(`'delete existing completion' setup failed: ${logResult.error.type}`);
 
       const result = await deleteCompletion(adapter, logResult.value.id);
       expect(result.ok).toBe(true);
@@ -600,7 +600,7 @@ describe('Segment 06: Completions', () => {
         endTime: parseDateTime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
-      if (!logResult.ok) return;
+      if (!logResult.ok) throw new Error(`'get after delete returns null' setup failed: ${logResult.error.type}`);
 
       await deleteCompletion(adapter, logResult.value.id);
       const completion = await getCompletion(adapter, logResult.value.id);
@@ -616,7 +616,7 @@ describe('Segment 06: Completions', () => {
         endTime: parseDateTime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
-      if (!logResult.ok) return;
+      if (!logResult.ok) throw new Error(`'getByInstance after delete' setup failed: ${logResult.error.type}`);
 
       await deleteCompletion(adapter, logResult.value.id);
       const completion = await getCompletionByInstance(adapter, testSeriesId, instanceDate);
@@ -639,7 +639,7 @@ describe('Segment 06: Completions', () => {
         endTime: parseDateTime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
-      if (!logResult.ok) return;
+      if (!logResult.ok) throw new Error(`'delete already deleted' setup failed: ${logResult.error.type}`);
 
       await deleteCompletion(adapter, logResult.value.id);
       const result = await deleteCompletion(adapter, logResult.value.id);
@@ -820,7 +820,7 @@ describe('Segment 06: Completions', () => {
           tags: ['walk'],
         });
         expect(series1.ok && series2.ok).toBe(true);
-        if (!series1.ok || !series2.ok) return;
+        if (!series1.ok || !series2.ok) throw new Error(`'count by tag' setup failed`);
 
         // Log 2 completions for series1, 1 for series2
         await logCompletion(adapter, {
@@ -880,7 +880,7 @@ describe('Segment 06: Completions', () => {
           tags: ['running'],
         });
         expect(seriesWithDifferentTag.ok).toBe(true);
-        if (!seriesWithDifferentTag.ok) return;
+        if (!seriesWithDifferentTag.ok) throw new Error(`'count excludes wrong tag' setup failed: ${seriesWithDifferentTag.error.type}`);
 
         await logCompletion(adapter, {
           seriesId: seriesWithDifferentTag.value.id,
@@ -1025,7 +1025,7 @@ describe('Segment 06: Completions', () => {
           tags: ['meditation'],
         });
         expect(series.ok).toBe(true);
-        if (!series.ok) return;
+        if (!series.ok) throw new Error(`'days since by tag' setup failed: ${series.error.type}`);
 
         const asOf = parseDate('2024-01-20');
         await logCompletion(adapter, {
@@ -1070,7 +1070,7 @@ describe('Segment 06: Completions', () => {
           tags: ['yoga'],
         });
         expect(series1.ok && series2.ok).toBe(true);
-        if (!series1.ok || !series2.ok) return;
+        if (!series1.ok || !series2.ok) throw new Error(`'tag finds most recent across series' setup failed`);
 
         const asOf = parseDate('2024-01-20');
         // Series 1: completion 3 days ago
@@ -1370,7 +1370,7 @@ describe('Segment 06: Completions', () => {
         endTime: parseDateTime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
-      if (!logResult.ok) return;
+      if (!logResult.ok) throw new Error(`'completion ID immutable' setup failed: ${logResult.error.type}`);
 
       const originalId = logResult.value.id;
 
@@ -1388,7 +1388,7 @@ describe('Segment 06: Completions', () => {
         endTime: parseDateTime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
-      if (!logResult.ok) return;
+      if (!logResult.ok) throw new Error(`'completions never modified' setup failed: ${logResult.error.type}`);
 
       const original = await getCompletion(adapter, logResult.value.id);
 
@@ -1474,7 +1474,7 @@ describe('Segment 06: Completions', () => {
           tags: ['walk'],
         });
         expect(walkSeries.ok).toBe(true);
-        if (!walkSeries.ok) return;
+        if (!walkSeries.ok) throw new Error(`'condition count query' setup failed: ${walkSeries.error.type}`);
 
         const asOf = parseDate('2024-01-20');
         // Log 5 walks in the past 14 days
@@ -1502,7 +1502,7 @@ describe('Segment 06: Completions', () => {
           tags: ['walk'],
         });
         expect(walkSeries.ok).toBe(true);
-        if (!walkSeries.ok) return;
+        if (!walkSeries.ok) throw new Error(`'condition days since query' setup failed: ${walkSeries.error.type}`);
 
         const asOf = parseDate('2024-01-20');
         // Last walk 3 days ago

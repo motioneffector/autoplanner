@@ -13,6 +13,7 @@ import {
   createSqliteAdapter,
   type Autoplanner,
   type Adapter,
+  LockedSeriesError,
 } from '../src/public-api';
 import {
   type LocalDate,
@@ -1482,8 +1483,9 @@ describe('Segment 16: Integration Tests', () => {
 
       try {
         await planner.updateSeries(id, { title: 'Should Fail' });
-      } catch {
-        // Expected
+        expect.fail('Should have thrown LockedSeriesError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LockedSeriesError);
       }
 
       const seriesAfter = await planner.getSeries(id);

@@ -1440,9 +1440,12 @@ describe('Tag Management', () => {
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
       duration: 30,
+      tags: ['existing'],
     })
+    const tagsBefore = await getTagsForSeries(adapter, id)
     await removeTagFromSeries(adapter, id, 'nonexistent')
-    // No error expected
+    const tagsAfter = await getTagsForSeries(adapter, id)
+    expect(tagsAfter).toEqual(tagsBefore)
   })
 
   it('tag on non-existent series throws NotFoundError', async () => {

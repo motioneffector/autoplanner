@@ -245,8 +245,10 @@ describe('Segment 15: SQLite Adapter', () => {
           await adapter.updateSeries({ ...series, title: 'Modified' });
           throw new Error('Intentional failure');
         });
-      } catch {
-        // Expected
+        expect.fail('Should have thrown Error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('Intentional failure');
       }
 
       const retrieved = await adapter.getSeries(seriesId('test-1'));
@@ -1127,8 +1129,10 @@ describe('Segment 15: SQLite Adapter', () => {
             await adapter.execute("DROP TABLE test_migration");
           },
         });
-      } catch {
-        // Expected
+        expect.fail('Should have thrown Error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('Intentional failure');
       }
 
       const versionAfter = await adapter.getSchemaVersion();
@@ -1253,8 +1257,10 @@ describe('Segment 15: SQLite Adapter', () => {
           await adapter.updateSeries({ ...series, title: 'Should Not Persist' });
           throw new Error('Rollback');
         });
-      } catch {
-        // Expected
+        expect.fail('Should have thrown Error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('Rollback');
       }
 
       const retrieved = await adapter.getSeries(seriesId('test-1'));
@@ -1283,8 +1289,10 @@ describe('Segment 15: SQLite Adapter', () => {
           });
           throw new Error('Rollback');
         });
-      } catch {
-        // Expected
+        expect.fail('Should have thrown Error');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toBe('Rollback');
       }
 
       const patternsAfter = await adapter.getPatternsBySeries(seriesId('test-1'));

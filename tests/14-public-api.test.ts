@@ -696,8 +696,9 @@ describe('Segment 14: Public API', () => {
 
         try {
           await planner.updateSeries(id, { title: 'Updated' });
-        } catch {
-          // Expected
+          expect.fail('Should have thrown LockedSeriesError');
+        } catch (error) {
+          expect(error).toBeInstanceOf(LockedSeriesError);
         }
 
         const seriesAfter = await planner.getSeries(id);
@@ -1520,8 +1521,9 @@ describe('Segment 14: Public API', () => {
 
       try {
         await planner.updateSeries(id, { title: 'Updated' });
-      } catch {
-        // Expected to fail
+        expect.fail('Should have thrown LockedSeriesError');
+      } catch (error) {
+        expect(error).toBeInstanceOf(LockedSeriesError);
       }
 
       const seriesAfter = await planner.getSeries(id);

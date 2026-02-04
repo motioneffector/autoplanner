@@ -52,11 +52,13 @@ describe('test harness', () => {
 
   describe('checkProp', () => {
     it('runs property tests with boolean predicates', () => {
-      checkProp(
-        [fc.integer(), fc.integer()],
-        (a, b) => a + b === b + a,
-        { numRuns: 50 }
-      )
+      expect(() =>
+        checkProp(
+          [fc.integer(), fc.integer()],
+          (a, b) => a + b === b + a,
+          { numRuns: 50 }
+        )
+      ).not.toThrow()
     })
   })
 
@@ -82,17 +84,17 @@ describe('test harness', () => {
 
   describe('assertDeepEquals', () => {
     it('passes for equal primitives', () => {
-      assertDeepEquals(5, 5)
-      assertDeepEquals('hello', 'hello')
-      assertDeepEquals(true, true)
+      expect(() => assertDeepEquals(5, 5)).not.toThrow()
+      expect(() => assertDeepEquals('hello', 'hello')).not.toThrow()
+      expect(() => assertDeepEquals(true, true)).not.toThrow()
     })
 
     it('passes for equal objects', () => {
-      assertDeepEquals({ a: 1, b: 2 }, { a: 1, b: 2 })
+      expect(() => assertDeepEquals({ a: 1, b: 2 }, { a: 1, b: 2 })).not.toThrow()
     })
 
     it('passes for equal arrays', () => {
-      assertDeepEquals([1, 2, 3], [1, 2, 3])
+      expect(() => assertDeepEquals([1, 2, 3], [1, 2, 3])).not.toThrow()
     })
 
     it('throws for unequal values', () => {
@@ -133,9 +135,9 @@ describe('test harness', () => {
 
   describe('assertInRange', () => {
     it('passes for values in range', () => {
-      assertInRange(5, 0, 10)
-      assertInRange(0, 0, 10)
-      assertInRange(10, 0, 10)
+      expect(() => assertInRange(5, 0, 10)).not.toThrow()
+      expect(() => assertInRange(0, 0, 10)).not.toThrow()
+      expect(() => assertInRange(10, 0, 10)).not.toThrow()
     })
 
     it('fails for values outside range', () => {
