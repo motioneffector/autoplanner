@@ -105,9 +105,11 @@ describe('test harness', () => {
 
   describe('assertThrows', () => {
     it('passes when function throws', () => {
-      assertThrows(() => {
-        throw new Error('test')
-      })
+      expect(() =>
+        assertThrows(() => {
+          throw new Error('test')
+        })
+      ).not.toThrow()
     })
 
     it('fails when function does not throw', () => {

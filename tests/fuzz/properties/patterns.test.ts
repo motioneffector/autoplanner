@@ -787,7 +787,7 @@ describe('Spec 4: Patterns - EveryNWeeks', () => {
         const endDate = d1 < d2 ? d2 : d1
 
         const expansion = expandPattern(pattern, startDate, endDate)
-        if (expansion.length < 2) return
+        fc.pre(expansion.length >= 2)
 
         // Group dates by week number (relative to anchor)
         const anchorParsed = parseLocalDate(pattern.anchor)

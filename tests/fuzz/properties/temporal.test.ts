@@ -1282,10 +1282,8 @@ describe('Spec 1: Temporal Types - DST Transitions per Spec', () => {
           const handler = new Spec1DSTHandler()
           const parsed = parseLocalDate(date)
 
-          // Skip actual DST transition dates
-          if (parsed.month === 3 || parsed.month === 11) {
-            return true // Skip these for this property
-          }
+          // Skip actual DST transition dates (March/November in US)
+          fc.pre(parsed.month !== 3 && parsed.month !== 11)
 
           // Non-transition dates should not have gaps or ambiguity
           const gapResult = handler.resolveGapTime(date, time, 'America/New_York')
