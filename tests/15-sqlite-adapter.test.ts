@@ -265,7 +265,8 @@ describe('Segment 15: SQLite Adapter', () => {
       });
 
       const retrieved = await adapter.getSeries(seriesId('test-1'));
-      expect(retrieved).toBeDefined();
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.id).toBe(seriesId('test-1'));
     });
   });
 
@@ -971,7 +972,7 @@ describe('Segment 15: SQLite Adapter', () => {
           await adapter.saveSeries(series);
           expect.fail('Should have thrown');
         } catch (e: any) {
-          expect(e.cause).toBeDefined();
+          expect(e.cause).toBeInstanceOf(Error);
         }
       });
 
@@ -1166,7 +1167,8 @@ describe('Segment 15: SQLite Adapter', () => {
       });
 
       const retrieved = await adapter.getSeries(seriesId('test-1'));
-      expect(retrieved).toBeDefined();
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.title).toBe('Test Series test-1');
     });
 
     it('CRUD operations match - same behavior as mock', async () => {

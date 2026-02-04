@@ -277,6 +277,7 @@ describe('Series Operations', () => {
 
       const all = await adapter.getAllSeries()
       expect(all.length).toBe(3)
+      expect(all.map((s) => s.id).sort()).toEqual(['s1', 's2', 's3'])
     })
 
     it('update series', async () => {
@@ -461,6 +462,7 @@ describe('Pattern Operations', () => {
 
     const patterns = await adapter.getPatternsBySeries('series-1')
     expect(patterns.length).toBe(2)
+    expect(patterns.map((p) => p.type).sort()).toEqual(['daily', 'weekly'])
   })
 
   it('delete pattern cascades weekdays', async () => {
@@ -540,6 +542,7 @@ describe('Pattern Weekday Operations', () => {
 
     const all = await adapter.getAllPatternWeekdays()
     expect(all.length).toBe(4)
+    expect(all.map((w) => w.weekday).sort()).toEqual(['mon', 'thu', 'tue', 'wed'])
   })
 })
 
@@ -670,6 +673,7 @@ describe('Condition Operations', () => {
 
     const conditions = await adapter.getConditionsBySeries('series-1')
     expect(conditions.length).toBe(2)
+    expect(conditions.map((c) => c.id).sort()).toEqual(['c1', 'c2'])
   })
 })
 
@@ -811,6 +815,7 @@ describe('Cycling Operations', () => {
       await adapter.setCyclingItems('series-1', items)
       const result = await adapter.getCyclingItems('series-1')
       expect(result.length).toBe(2)
+      expect(result.map((i) => i.title)).toEqual(['A', 'B'])
     })
 
     it('set replaces all items', async () => {
@@ -937,6 +942,7 @@ describe('Instance Exception Operations', () => {
     })
     const exceptions = await adapter.getExceptionsBySeries('series-1')
     expect(exceptions.length).toBe(2)
+    expect(exceptions.map((e) => e.originalDate).sort()).toEqual(['2024-01-15', '2024-01-16'])
   })
 
   it('get exceptions in range', async () => {
@@ -1084,6 +1090,7 @@ describe('Completion Operations', () => {
       })
       const completions = await adapter.getCompletionsBySeries('series-1')
       expect(completions.length).toBe(2)
+      expect(completions.map((c) => c.instanceDate).sort()).toEqual(['2024-01-15', '2024-01-16'])
     })
 
     it('get completion by instance', async () => {
@@ -1235,7 +1242,8 @@ describe('Tag Operations', () => {
 
   it('create tag returns ID', async () => {
     const id = await adapter.createTag('work')
-    expect(id).toBeDefined()
+    expect(typeof id).toBe('string')
+    expect(id.length).toBeGreaterThan(0)
   })
 
   it('create existing returns same ID', async () => {
@@ -1339,6 +1347,7 @@ describe('Reminder Operations', () => {
     })
     const reminders = await adapter.getRemindersBySeries('series-1')
     expect(reminders.length).toBe(3)
+    expect(reminders.map((r) => r.minutesBefore).sort((a, b) => a - b)).toEqual([5, 15, 60])
   })
 
   it('get reminders by series', async () => {
@@ -1350,6 +1359,7 @@ describe('Reminder Operations', () => {
     })
     const reminders = await adapter.getRemindersBySeries('series-1')
     expect(reminders.length).toBe(1)
+    expect(reminders[0].id).toBe('rem-1')
   })
 
   it('update reminder', async () => {
@@ -1483,6 +1493,7 @@ describe('Relational Constraint Operations', () => {
     })
     const all = await adapter.getAllRelationalConstraints()
     expect(all.length).toBe(2)
+    expect(all.map((c) => c.type).sort()).toEqual(['cantBeNextTo', 'mustBeBefore'])
   })
 
   it('delete constraint', async () => {
@@ -1606,6 +1617,7 @@ describe('Link Operations', () => {
       })
       const links = await adapter.getLinksByParent('parent')
       expect(links.length).toBe(2)
+      expect(links.map((l) => l.childSeriesId).sort()).toEqual(['child', 'child2'])
     })
 
     it('update link', async () => {
@@ -1688,6 +1700,7 @@ describe('Link Operations', () => {
       })
       const links = await adapter.getLinksByParent('parent')
       expect(links.length).toBe(2)
+      expect(links.map((l) => l.childSeriesId).sort()).toEqual(['child', 'child2'])
     })
 
     it('no self-links throws error', async () => {

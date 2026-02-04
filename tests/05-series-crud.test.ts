@@ -782,6 +782,7 @@ describe('Get Series', () => {
     })
     const all = await getAllSeries(adapter)
     expect(all.length).toBe(3)
+    expect(all.map((s) => s.title).sort()).toEqual(['A', 'B', 'C'])
   })
 
   it('get all series empty returns empty array', async () => {

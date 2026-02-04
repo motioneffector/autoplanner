@@ -115,7 +115,7 @@ describe('Segment 14: Public API', () => {
         const config = createValidConfig();
         const planner = createAutoplanner(config);
 
-        expect(planner).toBeDefined();
+        expect(planner).not.toBeNull();
         expect(planner.createSeries).toBeInstanceOf(Function);
       });
 
@@ -248,7 +248,8 @@ describe('Segment 14: Public API', () => {
 
         // Internal storage should use UTC
         const savedCall = (adapter.saveSeries as any).mock.calls[0];
-        expect(savedCall).toBeDefined();
+        expect(savedCall).toEqual(expect.any(Array));
+        expect(savedCall.length).toBeGreaterThan(0);
       });
 
       it('round-trip preserves time - store then retrieve same local time', async () => {
@@ -278,9 +279,9 @@ describe('Segment 14: Public API', () => {
         // 2:30 AM doesn't exist on DST start - should shift to 3:00 AM (first valid time)
         expect(schedule.instances).toHaveLength(1);
         const instance = schedule.instances.find((i) => i.seriesId === id);
-        expect(instance).toBeDefined();
+        expect(instance).not.toBeUndefined();
         // Time should be shifted to 03:00 since 02:30 doesn't exist
-        expect(instance?.time).toContain('03:00');
+        expect(instance!.time).toContain('03:00');
       });
 
       it('DST fall back - 1:30am on DST end uses first occurrence', async () => {
@@ -296,8 +297,8 @@ describe('Segment 14: Public API', () => {
         // 1:30 AM occurs twice on DST end - should use first occurrence (EDT, before fall back)
         expect(schedule.instances).toHaveLength(1);
         const instance = schedule.instances.find((i) => i.seriesId === id);
-        expect(instance).toBeDefined();
-        expect(instance?.time).toContain('01:30');
+        expect(instance).not.toBeUndefined();
+        expect(instance!.time).toContain('01:30');
         // Instance should be at the first 01:30 (EDT, not EST)
       });
     });
@@ -891,8 +892,8 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
-        expect(schedule).toBeDefined();
-        expect(schedule!.instances).toBeDefined();
+        expect(schedule).not.toBeNull();
+        expect(schedule!.instances).toEqual(expect.any(Array));
       });
     });
 
@@ -931,8 +932,8 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('09:00'), fixed: true }],
         });
 
-        expect(conflict).toBeDefined();
-        expect(conflict!.type).toBeDefined();
+        expect(conflict).not.toBeNull();
+        expect(typeof conflict!.type).toBe('string');
       });
     });
 
@@ -969,8 +970,8 @@ describe('Segment 14: Public API', () => {
 
         await planner.checkReminders(datetime('2025-01-15T08:45:00'));
 
-        expect(reminder).toBeDefined();
-        expect(reminder!.seriesId).toBeDefined();
+        expect(reminder).not.toBeNull();
+        expect(reminder!.seriesId).toBe(id);
       });
     });
 
@@ -1102,6 +1103,7 @@ describe('Segment 14: Public API', () => {
 
         const all = await planner.getAllSeries();
         expect(all).toHaveLength(2);
+        expect(all.map((s) => s.title).sort()).toEqual(['A', 'B']);
       });
 
       it('updateSeries modifies - changes applied', async () => {
@@ -1173,9 +1175,9 @@ describe('Segment 14: Public API', () => {
         const original = await planner.getSeries(id);
         const newSeries = await planner.getSeries(newId);
 
-        expect(original).toBeDefined();
-        expect(newSeries).toBeDefined();
-        expect(original?.id).not.toBe(newSeries?.id);
+        expect(original).not.toBeNull();
+        expect(newSeries).not.toBeNull();
+        expect(original!.id).not.toBe(newSeries!.id);
       });
     });
 
@@ -1274,8 +1276,8 @@ describe('Segment 14: Public API', () => {
         });
 
         const instance = await planner.getInstance(id, date('2025-01-15'));
-        expect(instance).toBeDefined();
-        expect(instance?.seriesId).toBe(id);
+        expect(instance).not.toBeNull();
+        expect(instance!.seriesId).toBe(id);
       });
 
       it('cancelInstance cancels - instance excluded from schedule', async () => {
@@ -1335,6 +1337,7 @@ describe('Segment 14: Public API', () => {
 
         const completions = await planner.getCompletions(id);
         expect(completions).toHaveLength(2);
+        expect(completions.map((c) => c.date).sort()).toEqual([date('2025-01-15'), date('2025-01-16')]);
       });
 
       it('deleteCompletion removes - completion gone', async () => {
@@ -1464,7 +1467,8 @@ describe('Segment 14: Public API', () => {
       const series = await planner.getSeries(id);
       const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
 
-      expect(series).toBeDefined();
+      expect(series).not.toBeNull();
+      expect(series!.id).toBe(id);
       expect(schedule.instances.some((i) => i.seriesId === id)).toBe(true);
     });
 
@@ -1545,7 +1549,7 @@ describe('Segment 14: Public API', () => {
           title: 'Test',
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
-        expect(id).toBeDefined();
+        expect(id).toMatch(/^[0-9a-f-]{36}$/);
 
         // Get
         let series = await planner.getSeries(id);
@@ -1636,7 +1640,8 @@ describe('Segment 14: Public API', () => {
         const childAfter = schedule.instances.find((i) => i.seriesId === childId);
 
         // Child may have adjusted based on parent's early completion
-        expect(childAfter).toBeDefined();
+        expect(childAfter).not.toBeUndefined();
+        expect(childAfter!.seriesId).toBe(childId);
       });
     });
   });
