@@ -183,11 +183,12 @@ describe('Segment 12: Relational Constraints', () => {
 
         await deleteConstraint(adapter, createResult.value.id);
 
-        const constraint = await getConstraint(adapter, createResult.value.id);
-        expect(constraint).toBeNull();
-        // Verify the constraint ID is no longer retrievable
+        // Verify the constraint ID is no longer retrievable from collection
         const allConstraints = await adapter.getConstraints?.() ?? [];
         expect(allConstraints.map((c: any) => c.id)).not.toContain(createResult.value.id);
+        // Also verify direct lookup returns null
+        const constraint = await getConstraint(adapter, createResult.value.id);
+        expect(constraint).toBe(null);
       });
 
       it('series delete doesnt delete constraint', async () => {
@@ -1104,7 +1105,7 @@ describe('Segment 12: Relational Constraints', () => {
         const constraint = await getConstraint(adapter, result.value.id);
         // For non-mustBeWithin constraints, withinMinutes should not be present
         expect(constraint!.type).toBe('mustBeBefore');
-        expect((constraint as any).withinMinutes === undefined || (constraint as any).withinMinutes === null).toBe(true);
+        expect(constraint).not.toHaveProperty('withinMinutes');
       }
     });
 

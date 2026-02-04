@@ -857,8 +857,8 @@ describe('Segment 07: Cycling', () => {
 
       const series = await adapter.getSeries(seriesResult.value.id);
       // Verify series exists and cycling is not configured
-      expect(series!.title).toBe('No Cycling');
-      expect(series!.cycling === undefined || series!.cycling === null).toBe(true);
+      expect(series).toEqual(expect.objectContaining({ title: 'No Cycling' }));
+      expect(series).not.toHaveProperty('cycling');
     });
 
     it('gapLeap state persisted', async () => {

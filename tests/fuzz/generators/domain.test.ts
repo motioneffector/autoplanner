@@ -448,7 +448,7 @@ describe('constraint generators', () => {
             expect(typeof constraint.withinMinutes === 'number' && constraint.withinMinutes >= 1).toBe(true)
           } else {
             // Verify withinMinutes is not present for non-mustBeWithin constraints
-            expect('withinMinutes' in constraint && constraint.withinMinutes !== undefined).toBe(false)
+            expect(constraint).not.toHaveProperty('withinMinutes')
           }
         })
       )

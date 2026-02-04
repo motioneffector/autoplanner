@@ -43,7 +43,9 @@ describe('test harness', () => {
         'array length matches',
         [fc.array(fc.integer()), fc.nat({ max: 10 })],
         (arr, _n) => {
-          expect(arr).toEqual(expect.any(Array))
+          // Verify arr is an array of integers by checking length and every element
+          expect(arr.length).toBeGreaterThanOrEqual(0);
+          arr.forEach((x) => expect(Number.isInteger(x)).toBe(true));
         },
         { numRuns: 50 }
       )
@@ -77,7 +79,7 @@ describe('test harness', () => {
   describe('generate', () => {
     it('generates a single value', () => {
       const value = generate(fc.integer())
-      expect(value).toEqual(expect.any(Number))
+      expect(Number.isInteger(value)).toBe(true);
     })
   })
 
@@ -150,7 +152,7 @@ describe('test harness', () => {
   describe('getNumRuns', () => {
     it('returns a positive number', () => {
       const runs = getNumRuns()
-      expect(runs).toEqual(expect.any(Number))
+      expect(Number.isInteger(runs)).toBe(true);
       expect(runs).toBeGreaterThan(0)
     })
   })
