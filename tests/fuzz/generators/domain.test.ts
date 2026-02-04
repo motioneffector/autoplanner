@@ -64,8 +64,8 @@ describe('condition generators', () => {
     it('generates targets with only tag', () => {
       fc.assert(
         fc.property(tagTargetGen(), (target) => {
-          expect(target.tag).toBeDefined()
-          expect(target.seriesId).toBeUndefined()
+          expect(typeof target.tag === 'string' && target.tag.length > 0).toBe(true)
+          expect(target.seriesId === undefined).toBe(true)
         })
       )
     })
@@ -75,8 +75,8 @@ describe('condition generators', () => {
     it('generates targets with only seriesId', () => {
       fc.assert(
         fc.property(seriesTargetGen(), (target) => {
-          expect(target.seriesId).toBeDefined()
-          expect(target.tag).toBeUndefined()
+          expect(typeof target.seriesId === 'string' && target.seriesId.length > 0).toBe(true)
+          expect(target.tag === undefined).toBe(true)
         })
       )
     })
@@ -154,7 +154,7 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(notConditionGen(), (condition) => {
           expect(condition.type).toBe('not')
-          expect(condition.condition).toBeDefined()
+          expect(typeof condition.condition === 'object' && condition.condition !== null).toBe(true)
         })
       )
     })
@@ -205,7 +205,7 @@ describe('series component generators', () => {
     it('always has end date when configured', () => {
       fc.assert(
         fc.property(seriesBoundsGen({ hasEndDate: true }), (bounds) => {
-          expect(bounds.endDate).toBeDefined()
+          expect(typeof bounds.endDate === 'string' && bounds.endDate.length > 0).toBe(true)
         })
       )
     })
@@ -213,7 +213,7 @@ describe('series component generators', () => {
     it('never has end date when configured', () => {
       fc.assert(
         fc.property(seriesBoundsGen({ hasEndDate: false }), (bounds) => {
-          expect(bounds.endDate).toBeUndefined()
+          expect(bounds.endDate === undefined).toBe(true)
         })
       )
     })
@@ -243,7 +243,7 @@ describe('series component generators', () => {
       fc.assert(
         fc.property(reminderGen(), (reminder) => {
           expect(reminder.minutesBefore).toBeGreaterThanOrEqual(0)
-          expect(reminder.tag.length).toBeGreaterThanOrEqual(1)
+          expect(reminder.tag.length >= 1 && typeof reminder.tag === 'string').toBe(true)
         })
       )
     })
@@ -253,7 +253,7 @@ describe('series component generators', () => {
     it('generates valid cycling configs', () => {
       fc.assert(
         fc.property(cyclingConfigGen(), (cycling) => {
-          expect(cycling.items.length).toBeGreaterThanOrEqual(1)
+          expect(cycling.items.length >= 1 && cycling.items.every(i => typeof i === 'string')).toBe(true)
           expect(['sequential', 'random']).toContain(cycling.mode)
           expect([true, false]).toContain(cycling.gapLeap)
           expect(cycling.currentIndex).toBeGreaterThanOrEqual(0)
@@ -283,8 +283,8 @@ describe('series generators', () => {
       fc.assert(
         fc.property(minimalSeriesGen(), (series) => {
           expect(series.id).toMatch(/^series-/)
-          expect(series.title.length).toBeGreaterThanOrEqual(1)
-          expect(series.patterns.length).toBeGreaterThanOrEqual(1)
+          expect(series.title.length >= 1 && typeof series.title === 'string').toBe(true)
+          expect(series.patterns.length >= 1 && series.patterns.every(p => typeof p === 'object' && p !== null)).toBe(true)
           expect(series.duration).toBeGreaterThanOrEqual(1)
           expect(series.tags).toEqual([])
           expect(series.locked).toBe(false)
@@ -298,11 +298,11 @@ describe('series generators', () => {
       fc.assert(
         fc.property(fullSeriesGen(), (series) => {
           expect(series.id).toMatch(/^series-/)
-          expect(series.title.length).toBeGreaterThanOrEqual(1)
-          expect(series.patterns.length).toBeGreaterThanOrEqual(1)
+          expect(series.title.length >= 1 && typeof series.title === 'string').toBe(true)
+          expect(series.patterns.length >= 1 && series.patterns.every(p => typeof p === 'object' && p !== null)).toBe(true)
           // Fixed items should not have wiggle
           if (series.fixed) {
-            expect(series.wiggle).toBeUndefined()
+            expect(series.wiggle === undefined).toBe(true)
           }
         })
       )
@@ -313,7 +313,7 @@ describe('series generators', () => {
     it('generates series with associated conditions', () => {
       fc.assert(
         fc.property(seriesWithConditionsGen(), ({ series, conditions }) => {
-          expect(series.patterns.length).toBeGreaterThanOrEqual(1)
+          expect(series.patterns.length >= 1 && series.patterns.every(p => typeof p === 'object' && p !== null)).toBe(true)
           // Each pattern with a conditionId should have a matching condition
           series.patterns.forEach((p) => {
             if (p.conditionId) {
@@ -330,7 +330,7 @@ describe('series generators', () => {
       fc.assert(
         fc.property(chainableSeriesGen(), (series) => {
           // Chains require timed events
-          expect(series.timeOfDay).toBeDefined()
+          expect(typeof series.timeOfDay === 'string' && series.timeOfDay.length > 0).toBe(true)
           // Chains typically use flexible items
           expect(series.fixed).toBe(false)
           // Should have daily pattern for predictability
@@ -345,7 +345,7 @@ describe('series generators', () => {
       fc.assert(
         fc.property(seriesGen(), (series) => {
           expect(series.id).toMatch(/^series-/)
-          expect(series.patterns.length).toBeGreaterThanOrEqual(1)
+          expect(series.patterns.length >= 1 && series.patterns.every(p => typeof p === 'object' && p !== null)).toBe(true)
         })
       )
     })
@@ -400,10 +400,9 @@ describe('constraint generators', () => {
           expect(VALID_CONSTRAINT_TYPES).toContain(constraint.type)
           // withinMinutes required iff type = mustBeWithin
           if (constraint.type === 'mustBeWithin') {
-            expect(constraint.withinMinutes).toBeDefined()
-            expect(constraint.withinMinutes).toBeGreaterThanOrEqual(1)
+            expect(typeof constraint.withinMinutes === 'number' && constraint.withinMinutes >= 1).toBe(true)
           } else {
-            expect(constraint.withinMinutes).toBeUndefined()
+            expect(constraint.withinMinutes === undefined).toBe(true)
           }
         })
       )

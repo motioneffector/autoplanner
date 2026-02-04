@@ -92,9 +92,9 @@ describe('Segment 12: Relational Constraints', () => {
 
         // Constraint is not tied to a specific series
         const constraint = await getConstraint(adapter, result.value.id);
-        expect(constraint).not.toBeNull();
-        expect(constraint!.source).toBeDefined();
-        expect(constraint!.dest).toBeDefined();
+        expect(constraint !== null).toBe(true);
+        expect(constraint!.source.type).toBe('seriesId');
+        expect(constraint!.dest.type).toBe('seriesId');
       });
 
       it('constraints reference targets', async () => {
@@ -130,13 +130,12 @@ describe('Segment 12: Relational Constraints', () => {
         if (!createResult.ok) throw new Error(`'get existing constraint' setup failed: ${createResult.error.type}`);
 
         const constraint = await getConstraint(adapter, createResult.value.id);
-        expect(constraint).not.toBeNull();
-        expect(constraint!.type).toBe('mustBeBefore');
+        expect(constraint !== null && constraint.type === 'mustBeBefore').toBe(true);
       });
 
       it('get non-existent constraint', async () => {
         const constraint = await getConstraint(adapter, 'non-existent-id' as ConstraintId);
-        expect(constraint).toBeNull();
+        expect(constraint === null).toBe(true);
       });
 
       it('get all constraints', async () => {
@@ -161,7 +160,8 @@ describe('Segment 12: Relational Constraints', () => {
         });
 
         const constraints = await getAllConstraints(adapter);
-        expect(constraints.length).toBe(3);
+        const types = constraints.map(c => c.type).sort();
+        expect(types).toEqual(['mustBeAfter', 'mustBeBefore', 'mustBeOnSameDay']);
       });
     });
 
@@ -181,7 +181,7 @@ describe('Segment 12: Relational Constraints', () => {
         await deleteConstraint(adapter, createResult.value.id);
 
         const constraint = await getConstraint(adapter, createResult.value.id);
-        expect(constraint).toBeNull();
+        expect(constraint === null).toBe(true);
       });
 
       it('series delete doesnt delete constraint', async () => {
@@ -200,7 +200,7 @@ describe('Segment 12: Relational Constraints', () => {
 
         // Constraint should still exist
         const constraint = await getConstraint(adapter, createResult.value.id);
-        expect(constraint).not.toBeNull();
+        expect(constraint !== null && constraint.type === 'mustBeBefore').toBe(true);
       });
 
       it('constraint with non-existent target', async () => {
@@ -236,7 +236,7 @@ describe('Segment 12: Relational Constraints', () => {
         await createTestSeries('Series3', ['exercise']);
 
         const resolved = await resolveTarget(adapter, { type: 'tag', tag: 'exercise' });
-        expect(resolved.length).toBe(3);
+        expect(resolved.length === 3 && resolved.every(r => typeof r === 'string' && r.length > 0)).toBe(true);
       });
 
       it('tag excludes non-tagged', async () => {
@@ -245,7 +245,7 @@ describe('Segment 12: Relational Constraints', () => {
         await createTestSeries('Series3', ['reading']); // Different tag
 
         const resolved = await resolveTarget(adapter, { type: 'tag', tag: 'exercise' });
-        expect(resolved.length).toBe(2);
+        expect(resolved.length === 2 && resolved.every(r => typeof r === 'string' && r.length > 0)).toBe(true);
       });
 
       it('non-existent tag empty match', async () => {
@@ -262,8 +262,7 @@ describe('Segment 12: Relational Constraints', () => {
         await createTestSeries('B');
 
         const resolved = await resolveTarget(adapter, { type: 'seriesId', seriesId: seriesA });
-        expect(resolved.length).toBe(1);
-        expect(resolved[0]).toBe(seriesA);
+        expect(resolved).toEqual([seriesA]);
       });
 
       it('seriesId excludes others', async () => {
@@ -271,8 +270,7 @@ describe('Segment 12: Relational Constraints', () => {
         const seriesB = await createTestSeries('B');
 
         const resolved = await resolveTarget(adapter, { type: 'seriesId', seriesId: seriesA });
-        expect(resolved.length).toBe(1);
-        expect(resolved.includes(seriesB)).toBe(false);
+        expect(resolved).toEqual([seriesA]);
       });
 
       it('non-existent seriesId empty', async () => {
@@ -916,9 +914,7 @@ describe('Segment 12: Relational Constraints', () => {
         dest: { type: 'seriesId', seriesId: resultB.value.id },
       }, { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') });
 
-      expect(violations.length).toBeGreaterThan(0);
-      expect(violations[0].sourceInstance).toBeDefined();
-      expect(violations[0].destInstance).toBeDefined();
+      expect(violations.length === 1 && typeof violations[0].sourceInstance === 'string' && typeof violations[0].destInstance === 'string').toBe(true);
     });
 
     it('multiple violations same constraint', async () => {
@@ -943,7 +939,8 @@ describe('Segment 12: Relational Constraints', () => {
         dest: { type: 'seriesId', seriesId: resultB.value.id },
       }, { start: parseDate('2024-01-15'), end: parseDate('2024-01-17') });
 
-      expect(violations.length).toBe(3); // One per day
+      // One per day
+      expect(violations.length === 3 && violations.every(v => typeof v.sourceInstance === 'string' && typeof v.destInstance === 'string')).toBe(true);
     });
 
     it('violation includes description', async () => {
@@ -996,7 +993,7 @@ describe('Segment 12: Relational Constraints', () => {
 
         // Both constraints exist but are unsatisfiable together
         const constraints = await getAllConstraints(adapter);
-        expect(constraints.length).toBe(2);
+        expect(constraints.length === 2 && constraints.every(c => c.type === 'mustBeBefore')).toBe(true);
       });
 
       it('sameDay + notSameDay', async () => {
@@ -1017,7 +1014,8 @@ describe('Segment 12: Relational Constraints', () => {
 
         // Both constraints created
         const constraints = await getAllConstraints(adapter);
-        expect(constraints.length).toBe(2);
+        const types = constraints.map(c => c.type).sort();
+        expect(types).toEqual(['cantBeOnSameDay', 'mustBeOnSameDay']);
       });
     });
 
@@ -1095,7 +1093,7 @@ describe('Segment 12: Relational Constraints', () => {
       // Should either ignore withinMinutes or error
       if (result.ok) {
         const constraint = await getConstraint(adapter, result.value.id);
-        expect((constraint as any).withinMinutes).toBeUndefined();
+        expect((constraint as any).withinMinutes === undefined).toBe(true);
       }
     });
 
@@ -1128,7 +1126,7 @@ describe('Segment 12: Relational Constraints', () => {
       await deleteSeries(adapter, seriesA);
 
       const constraint = await getConstraint(adapter, createResult.value.id);
-      expect(constraint).not.toBeNull();
+      expect(constraint !== null && constraint.type === 'mustBeBefore').toBe(true);
     });
   });
 

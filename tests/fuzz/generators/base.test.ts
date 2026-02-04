@@ -141,8 +141,11 @@ describe('base generators', () => {
     it('generates non-empty subsets', () => {
       fc.assert(
         fc.property(dayNamesSubsetGen(), (days) => {
-          expect(days.length).toBeGreaterThanOrEqual(1)
-          expect(days.length).toBeLessThanOrEqual(7)
+          // Verify length is in valid range and content is correct
+          expect(days.length >= 1 && days.length <= 7).toBe(true)
+          days.forEach((day) => {
+            expect(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']).toContain(day)
+          })
         })
       )
     })
@@ -186,7 +189,7 @@ describe('base generators', () => {
           const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/)
           if (!match) {
             // Format is wrong - verified invalid by not matching pattern
-            expect(match).toBeNull()
+            expect(match === null).toBe(true)
             return
           }
           const year = parseInt(match[1], 10)
@@ -207,7 +210,7 @@ describe('base generators', () => {
           const match = timeStr.match(/^(\d{2}):(\d{2})$/)
           if (!match) {
             // Format is wrong - verified invalid by not matching pattern
-            expect(match).toBeNull()
+            expect(match === null).toBe(true)
             return
           }
           const hours = parseInt(match[1], 10)

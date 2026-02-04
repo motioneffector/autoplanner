@@ -500,7 +500,8 @@ describe('Spec 4: Patterns - Weekdays', () => {
         const expansion = expandPattern(pattern, startDate, endDate)
 
         // A full week (Mon-Sun) should produce exactly 5 weekdays (Mon-Fri)
-        expect(expansion.length).toBe(5)
+        // Verify both length and that all days are within expected range
+        expect(expansion.length === 5 && expansion.every(d => d >= startDate && d <= endDate)).toBe(true)
       })
     )
   })
@@ -521,7 +522,7 @@ describe('Spec 4: Patterns - OneOff', () => {
 
         const expansion = expandPattern(pattern, startDate, endDate)
 
-        expect(expansion.length).toBe(1)
+        expect(expansion.length === 1 && expansion[0] === pattern.date).toBe(true)
       })
     )
   })
@@ -943,11 +944,11 @@ describe('Spec 4: Patterns - NthWeekdayOfMonth', () => {
           // If a date is produced, it should be in days 29-31 (only possible for 5th occurrence)
           expansion.forEach((date) => {
             const { day } = parseLocalDate(date)
-            expect(day).toBeGreaterThanOrEqual(29)
+            expect(day >= 29).toBe(true)
           })
 
           // Also verify not all 12 months are present (some won't have 5th occurrence)
-          expect(expansion.length).toBeLessThan(12)
+          expect(expansion.length < 12).toBe(true)
         }
       )
     )

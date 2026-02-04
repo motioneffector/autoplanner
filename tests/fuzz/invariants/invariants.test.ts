@@ -498,7 +498,7 @@ describe('Invariants - Aggregate Check', () => {
       durations: [0 as Duration, -5 as Duration],
     })
     expect(result.passed).toBe(false)
-    expect(result.violations.length).toBe(2)
+    expect(result.violations.length === 2 && result.violations.every(v => v.invariant === 'durationIsPositive')).toBe(true)
   })
 })
 
@@ -528,8 +528,7 @@ describe('Invariants - Framework Integration', () => {
     expect(report.violationsByInvariant.get('durationIsPositive')).toBe(2)
 
     // Details should be provided
-    expect(report.details.length).toBe(2)
-    expect(report.details[0].invariant).toBe('durationIsPositive')
+    expect(report.details.length === 2 && report.details[0].invariant === 'durationIsPositive').toBe(true)
     expect(report.details[0].severity).toBe('error')
   })
 

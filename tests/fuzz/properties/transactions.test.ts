@@ -183,7 +183,9 @@ describe('Spec 13: Transactions - Atomicity', () => {
           // After commit - all changes persisted
           expect(manager.getAllSeries().length).toBe(seriesList.length)
           for (const id of ids) {
-            expect(manager.getSeries(id)).toBeDefined()
+            const retrieved = manager.getSeries(id)
+            expect(retrieved !== undefined).toBe(true)
+            expect(retrieved!.id).toBe(id)
           }
         }
       )
@@ -213,8 +215,11 @@ describe('Spec 13: Transactions - Atomicity', () => {
           manager.rollback()
 
           // After rollback - only initial data remains
-          expect(manager.getAllSeries().length).toBe(1)
-          expect(manager.getSeries(initialId)).toBeDefined()
+          const allSeries = manager.getAllSeries()
+          expect(allSeries.length === 1 && allSeries[0].id === initialId).toBe(true)
+          const initialSeries = manager.getSeries(initialId)
+          expect(initialSeries !== undefined).toBe(true)
+          expect(initialSeries!.id).toBe(initialId)
         }
       )
     )
@@ -262,14 +267,20 @@ describe('Spec 13: Transactions - Atomicity', () => {
         expect(manager.getTransactionDepth()).toBe(1)
 
         // Changes from inner transaction still pending
-        expect(manager.getSeries(id2)).toBeDefined()
+        const series2InTx = manager.getSeries(id2)
+        expect(series2InTx !== undefined).toBe(true)
+        expect(series2InTx!.id).toBe(id2)
 
         manager.commit() // Depth 0
 
         // Now all changes committed
         expect(manager.getTransactionDepth()).toBe(0)
-        expect(manager.getSeries(id1)).toBeDefined()
-        expect(manager.getSeries(id2)).toBeDefined()
+        const series1Committed = manager.getSeries(id1)
+        const series2Committed = manager.getSeries(id2)
+        expect(series1Committed !== undefined).toBe(true)
+        expect(series1Committed!.id).toBe(id1)
+        expect(series2Committed !== undefined).toBe(true)
+        expect(series2Committed!.id).toBe(id2)
       })
     )
   })
@@ -289,8 +300,9 @@ describe('Spec 13: Transactions - Error Handling', () => {
         const result = manager.updateSeries(nonExistentId, { name: 'test' })
 
         expect(result).toBe(false)
-        expect(manager.getLastError()).toBeDefined()
-        expect(manager.getLastError()?.message).toContain('not found')
+        const error = manager.getLastError()
+        expect(error !== null).toBe(true)
+        expect(error!.message).toContain('not found')
       })
     )
   })
@@ -309,7 +321,9 @@ describe('Spec 13: Transactions - Error Handling', () => {
 
         // State should be unchanged
         expect(manager.getAllSeries().length).toBe(stateBefore)
-        expect(manager.getSeries(id)).toBeDefined()
+        const existingSeries = manager.getSeries(id)
+        expect(existingSeries !== undefined).toBe(true)
+        expect(existingSeries!.id).toBe(id)
       })
     )
   })
@@ -630,7 +644,9 @@ describe('Spec 13: Transactions - Rollback State Restoration', () => {
 
           // All initial series should still exist
           for (const id of initialIds) {
-            expect(manager.getSeries(id)).toBeDefined()
+            const series = manager.getSeries(id)
+            expect(series !== undefined).toBe(true)
+            expect(series!.id).toBe(id)
           }
 
           // Transaction depth should be 0
@@ -680,19 +696,22 @@ describe('Spec 13: Transactions - Rollback State Restoration', () => {
         // Create and verify
         const id = manager.createSeries(series)
         const originalSeries = manager.getSeries(id)
-        expect(originalSeries).toBeDefined()
+        expect(originalSeries !== undefined).toBe(true)
+        expect(originalSeries!.id).toBe(id)
 
         // Delete in transaction
         manager.beginTransaction()
         manager.deleteSeries(id)
 
         // Deleted in transaction view
-        expect(manager.getSeries(id)).toBeUndefined()
+        expect(manager.getSeries(id) === undefined).toBe(true)
 
         // Rollback restores it
         manager.rollback()
-        expect(manager.getSeries(id)).toBeDefined()
-        expect(manager.getSeries(id)).toEqual(originalSeries)
+        const restoredSeries = manager.getSeries(id)
+        expect(restoredSeries !== undefined).toBe(true)
+        expect(restoredSeries!.id).toBe(id)
+        expect(restoredSeries).toEqual(originalSeries)
       })
     )
   })
@@ -707,11 +726,17 @@ describe('Spec 13: Transactions - Rollback State Restoration', () => {
     manager.beginTransaction()
     manager.createSeries({ name: 'In Transaction' } as Series)
 
-    expect(manager.getAllSeries().length).toBe(2)
+    const allSeriesBeforeRollback = manager.getAllSeries()
+    expect(
+      allSeriesBeforeRollback.length === 2 &&
+        allSeriesBeforeRollback.some(s => s.name === 'Test') &&
+        allSeriesBeforeRollback.some(s => s.name === 'In Transaction')
+    ).toBe(true)
 
     // First rollback
     manager.rollback()
-    expect(manager.getAllSeries().length).toBe(1)
+    const allSeriesAfterRollback = manager.getAllSeries()
+    expect(allSeriesAfterRollback.length === 1 && allSeriesAfterRollback[0].id === id).toBe(true)
     expect(manager.getTransactionDepth()).toBe(0)
 
     // Second rollback should throw (no transaction)
@@ -746,11 +771,15 @@ describe('Spec 13: Transactions - Rollback State Restoration', () => {
           // Rollback reverts everything
           manager.rollback()
 
-          expect(manager.getAllSeries().length).toBe(1)
-          expect(manager.getSeries(initialId)?.name).toBe('Initial')
+          const allSeriesAfterRollback = manager.getAllSeries()
+          expect(
+            allSeriesAfterRollback.length === 1 &&
+              allSeriesAfterRollback[0].id === initialId &&
+              manager.getSeries(initialId)?.name === 'Initial'
+          ).toBe(true)
 
           for (const id of transactionIds) {
-            expect(manager.getSeries(id)).toBeUndefined()
+            expect(manager.getSeries(id) === undefined).toBe(true)
           }
         }
       )
@@ -799,9 +828,13 @@ describe('Spec 13: Transactions - Nested Transactions', () => {
           expect(manager.getCommittedState().size).toBe(seriesList.length)
 
           // All created IDs should be retrievable
-          expect(manager.getSeries(outsideId)).toBeDefined()
+          const outsideSeries = manager.getSeries(outsideId)
+          expect(outsideSeries !== undefined).toBe(true)
+          expect(outsideSeries!.id).toBe(outsideId)
           for (const id of idsAtDepth) {
-            expect(manager.getSeries(id)).toBeDefined()
+            const depthSeries = manager.getSeries(id)
+            expect(depthSeries !== undefined).toBe(true)
+            expect(depthSeries!.id).toBe(id)
           }
         }
       )
@@ -862,7 +895,12 @@ describe('Spec 13: Transactions - Nested Transactions', () => {
 
     // Both still pending (level 1 not committed)
     expect(manager.getTransactionDepth()).toBe(1)
-    expect(manager.getAllSeries().length).toBe(2)
+    const allSeriesPending = manager.getAllSeries()
+    expect(
+      allSeriesPending.length === 2 &&
+        allSeriesPending.some(s => s.id === 's1') &&
+        allSeriesPending.some(s => s.id === 's2')
+    ).toBe(true)
     expect(manager.getCommittedState().size).toBe(0)
 
     // Rollback level 1 clears everything
@@ -908,7 +946,9 @@ describe('Spec 13: Transactions - Nested Transactions', () => {
           // Verify all IDs are accessible
           for (const levelIds of createdAtLevel) {
             for (const id of levelIds) {
-              expect(manager.getSeries(id)).toBeDefined()
+              const levelSeries = manager.getSeries(id)
+              expect(levelSeries !== undefined).toBe(true)
+              expect(levelSeries!.id).toBe(id)
             }
           }
         }
@@ -930,8 +970,7 @@ describe('Spec 13: Transactions - BEGIN IMMEDIATE', () => {
 
         // Verify BEGIN IMMEDIATE was used
         const commands = manager.getTransactionStartCommands()
-        expect(commands.length).toBe(1)
-        expect(commands[0]).toBe('BEGIN IMMEDIATE')
+        expect(commands.length === 1 && commands[0] === 'BEGIN IMMEDIATE').toBe(true)
       })
     )
   })
@@ -1069,8 +1108,10 @@ describe('Spec 14: Events - State Mutation', () => {
         manager.createSeries(series)
 
         // Data should be captured
-        expect(receivedData).toBeDefined()
-        expect((receivedData as { series: Series }).series).toBeDefined()
+        expect(receivedData !== null).toBe(true)
+        const seriesData = (receivedData as { series: Series }).series
+        expect(seriesData !== undefined).toBe(true)
+        expect(seriesData.id).toBe(manager.getAllSeries()[0]?.id)
 
         // Modifying received data shouldn't affect manager state
         if (receivedData) {
@@ -1094,12 +1135,17 @@ describe('Spec 14: Events - State Mutation', () => {
           throw new Error('Handler error!')
         })
 
-        // Operations should still succeed
-        expect(() => manager.createSeries(series1)).not.toThrow()
-        expect(() => manager.createSeries(series2)).not.toThrow()
+        // Operations should still succeed - call directly since handlers swallow errors
+        const id1 = manager.createSeries(series1)
+        const id2 = manager.createSeries(series2)
 
         // State should be correct
-        expect(manager.getAllSeries().length).toBe(2)
+        const allSeries = manager.getAllSeries()
+        expect(
+          allSeries.length === 2 &&
+            allSeries.some(s => s.id === id1) &&
+            allSeries.some(s => s.id === id2)
+        ).toBe(true)
       })
     )
   })
@@ -1165,8 +1211,10 @@ describe('Spec 14: Events - State Mutation', () => {
 
           manager.updateSeries(id, { title: newTitle })
 
-          expect(receivedUpdates).toBeDefined()
-          expect((receivedUpdates as { updates: { title: string } }).updates.title).toBe(newTitle)
+          expect(receivedUpdates !== null).toBe(true)
+          const updates = (receivedUpdates as { updates: { title: string } }).updates
+          expect(updates !== undefined).toBe(true)
+          expect(updates.title).toBe(newTitle)
         }
       )
     )

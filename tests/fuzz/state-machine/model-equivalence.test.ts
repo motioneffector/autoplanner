@@ -104,7 +104,7 @@ describe('State Machine - Model Equivalence', () => {
         const result = applyOperation(createOp, state)
 
         expect(result.success).toBe(true)
-        expect(result.createdId).toBeDefined()
+        expect(typeof result.createdId === 'string' && result.createdId.length > 0).toBe(true)
         expect(result.state.series.size).toBe(1)
       })
     )

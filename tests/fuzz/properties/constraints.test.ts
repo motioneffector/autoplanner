@@ -371,10 +371,10 @@ describe('Spec 10: Constraints - withinMinutes Validation', () => {
     fc.assert(
       fc.property(relationalConstraintGen(), (constraint) => {
         if (constraint.type === 'mustBeWithin') {
-          expect(constraint.withinMinutes).toBeDefined()
+          expect(typeof constraint.withinMinutes).toBe('number')
           expect(constraint.withinMinutes).toBeGreaterThanOrEqual(1)
         } else {
-          expect(constraint.withinMinutes).toBeUndefined()
+          expect(constraint.withinMinutes === undefined).toBe(true)
         }
       })
     )
@@ -394,11 +394,17 @@ describe('Spec 10: Constraints - Boundary Values', () => {
     fc.assert(
       fc.property(boundaryConstraintGen(), (constraint) => {
         expect(constraint.id).toMatch(/^constraint-/)
-        expect(constraint.sourceTarget).toBeDefined()
-        expect(constraint.destTarget).toBeDefined()
+        // sourceTarget must have either tag or seriesId
+        const hasSourceTag = 'tag' in constraint.sourceTarget && typeof constraint.sourceTarget.tag === 'string'
+        const hasSourceSeriesId = 'seriesId' in constraint.sourceTarget && typeof constraint.sourceTarget.seriesId === 'string'
+        expect(hasSourceTag || hasSourceSeriesId).toBe(true)
+        // destTarget must have either tag or seriesId
+        const hasDestTag = 'tag' in constraint.destTarget && typeof constraint.destTarget.tag === 'string'
+        const hasDestSeriesId = 'seriesId' in constraint.destTarget && typeof constraint.destTarget.seriesId === 'string'
+        expect(hasDestTag || hasDestSeriesId).toBe(true)
 
         if (constraint.type === 'mustBeWithin') {
-          expect(constraint.withinMinutes).toBeDefined()
+          expect(typeof constraint.withinMinutes).toBe('number')
         }
       }),
       { numRuns: 200 }
@@ -444,7 +450,9 @@ describe('Spec 10: Constraints - CRUD Operations', () => {
         const newId = manager.createConstraint(rest)
 
         expect(newId).toMatch(/^constraint-/)
-        expect(manager.getConstraint(newId)).toBeDefined()
+        const retrieved = manager.getConstraint(newId)
+        expect(retrieved !== undefined).toBe(true)
+        expect(retrieved!.id).toBe(newId)
       })
     )
   })
@@ -456,11 +464,13 @@ describe('Spec 10: Constraints - CRUD Operations', () => {
         const { id, ...rest } = constraint
         const newId = manager.createConstraint(rest)
 
-        expect(manager.getConstraint(newId)).toBeDefined()
+        const retrieved = manager.getConstraint(newId)
+        expect(retrieved !== undefined).toBe(true)
+        expect(retrieved!.id).toBe(newId)
 
         const deleted = manager.deleteConstraint(newId)
         expect(deleted).toBe(true)
-        expect(manager.getConstraint(newId)).toBeUndefined()
+        expect(manager.getConstraint(newId) === undefined).toBe(true)
       })
     )
   })
@@ -482,7 +492,9 @@ describe('Spec 10: Constraints - CRUD Operations', () => {
           expect(allConstraints.length).toBe(constraints.length)
 
           for (const id of ids) {
-            expect(allConstraints.find((c) => c.id === id)).toBeDefined()
+            const found = allConstraints.find((c) => c.id === id)
+            expect(found !== undefined).toBe(true)
+            expect(found!.id).toBe(id)
           }
         }
       )
@@ -528,7 +540,9 @@ describe('Spec 10: Constraints - Edge Cases', () => {
     })
 
     // Constraint still exists
-    expect(manager.getConstraint(id)).toBeDefined()
+    const retrieved = manager.getConstraint(id)
+    expect(retrieved !== undefined).toBe(true)
+    expect(retrieved!.id).toBe(id)
 
     // But when evaluated with empty instances, it's trivially satisfied
     const constraint = manager.getConstraint(id)!
@@ -659,10 +673,9 @@ describe('Spec 10: Constraints - Arc Consistency', () => {
 
           // The second slot in A (which starts after B) should be pruned
           // because A can't be before B if A starts after B
-          expect(prunedA.slots.length).toBeLessThanOrEqual(domainA.slots.length)
-
-          // First slot should remain (it ends before B's latest end)
-          expect(prunedA.slots.some(s => s.start === aStart)).toBe(true)
+          // Pruning removes impossible values, so we should have exactly 1 slot remaining
+          // (the first slot that ends before B starts)
+          expect(prunedA.slots).toEqual([{ start: aStart, end: aStart + aLen }])
         }
       )
     )

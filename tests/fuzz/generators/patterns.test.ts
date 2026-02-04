@@ -72,11 +72,8 @@ describe('pattern generators', () => {
       fc.assert(
         fc.property(weeklyPatternGen(), (pattern) => {
           expect(pattern.type).toBe('weekly')
-          expect(pattern.days.length).toBeGreaterThanOrEqual(1)
-          expect(pattern.days.length).toBeLessThanOrEqual(7)
-          pattern.days.forEach((day) => {
-            expect(ALL_DAYS).toContain(day)
-          })
+          expect(pattern.days.length >= 1 && pattern.days.length <= 7).toBe(true)
+          expect(pattern.days.every((day) => ALL_DAYS.includes(day))).toBe(true)
         })
       )
     })
@@ -106,10 +103,8 @@ describe('pattern generators', () => {
     it('generates valid days and anchor', () => {
       fc.assert(
         fc.property(everyNWeeksPatternGen(), (pattern) => {
-          expect(pattern.days.length).toBeGreaterThanOrEqual(1)
-          pattern.days.forEach((day) => {
-            expect(ALL_DAYS).toContain(day)
-          })
+          expect(pattern.days.length >= 1).toBe(true)
+          expect(pattern.days.every((day) => ALL_DAYS.includes(day))).toBe(true)
           const { year, month, day } = parseLocalDate(pattern.anchor)
           expect(isValidDate(year, month, day)).toBe(true)
         })
@@ -192,7 +187,8 @@ describe('pattern generators', () => {
       fc.assert(
         fc.property(customPatternGen(), (pattern) => {
           expect(pattern.type).toBe('custom')
-          expect(pattern.dates.length).toBeGreaterThanOrEqual(1)
+          expect(pattern.dates.length >= 1).toBe(true)
+          expect(typeof pattern.dates[0]).toBe('string')
         })
       )
     })
@@ -216,8 +212,9 @@ describe('pattern generators', () => {
       fc.assert(
         fc.property(activeOnDatesPatternGen(), (pattern) => {
           expect(pattern.type).toBe('activeOnDates')
-          expect(pattern.base).toBeDefined()
-          expect(pattern.dates.length).toBeGreaterThanOrEqual(1)
+          expect(typeof pattern.base.type).toBe('string')
+          expect(pattern.dates.length >= 1).toBe(true)
+          expect(typeof pattern.dates[0]).toBe('string')
         })
       )
     })
@@ -228,8 +225,9 @@ describe('pattern generators', () => {
       fc.assert(
         fc.property(inactiveOnDatesPatternGen(), (pattern) => {
           expect(pattern.type).toBe('inactiveOnDates')
-          expect(pattern.base).toBeDefined()
-          expect(pattern.dates.length).toBeGreaterThanOrEqual(1)
+          expect(typeof pattern.base.type).toBe('string')
+          expect(pattern.dates.length >= 1).toBe(true)
+          expect(typeof pattern.dates[0]).toBe('string')
         })
       )
     })
@@ -270,7 +268,8 @@ describe('pattern generators', () => {
     it('generates valid boundary patterns', () => {
       fc.assert(
         fc.property(boundaryPatternGen(), (pattern) => {
-          expect(pattern.type).toBeDefined()
+          expect(typeof pattern.type).toBe('string')
+          expect(pattern.type.length > 0).toBe(true)
         }),
         { numRuns: 200 }
       )

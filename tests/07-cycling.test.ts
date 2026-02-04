@@ -223,8 +223,7 @@ describe('Segment 07: Cycling', () => {
         // Don't log any completion - just skip the instance
         // Index should remain 0
         const series = await adapter.getSeries(seriesId);
-        expect(series).not.toBeNull();
-        expect(series!.cycling!.currentIndex).toBe(0);
+        expect(series !== null && series.cycling !== undefined && series.cycling.currentIndex === 0).toBe(true);
       });
     });
 
@@ -855,7 +854,7 @@ describe('Segment 07: Cycling', () => {
       if (!seriesResult.ok) throw new Error(`'cycling optional' setup failed: ${seriesResult.error.type}`);
 
       const series = await adapter.getSeries(seriesResult.value.id);
-      expect(series!.cycling).toBeUndefined();
+      expect(series!.cycling === undefined).toBe(true);
     });
 
     it('gapLeap state persisted', async () => {

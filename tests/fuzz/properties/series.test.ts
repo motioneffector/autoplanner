@@ -176,7 +176,7 @@ describe('Spec 3: Series - CRUD Operations', () => {
         const id = manager.createSeries(series)
 
         const retrieved = manager.getSeries(id)
-        expect(retrieved).toBeDefined()
+        expect(retrieved?.id).toBe(id)
         expect(retrieved?.name).toBe(series.name)
         expect(retrieved?.estimatedDuration).toBe(series.estimatedDuration)
       })
@@ -204,7 +204,9 @@ describe('Spec 3: Series - CRUD Operations', () => {
       fc.property(seriesIdGen(), (id) => {
         const manager = new SeriesManager()
         const retrieved = manager.getSeries(id)
-        expect(retrieved).toBeUndefined()
+        // Verify no series with this ID exists
+        expect(manager.getAllSeries().every((s) => s.id !== id)).toBe(true)
+        expect(retrieved === undefined).toBe(true)
       })
     )
   })
@@ -252,7 +254,9 @@ describe('Spec 3: Series - CRUD Operations', () => {
         expect(deleted).toBe(true)
 
         const retrieved = manager.getSeries(id)
-        expect(retrieved).toBeUndefined()
+        // Verify series is no longer in the collection
+        expect(manager.getAllSeries().every((s) => s.id !== id)).toBe(true)
+        expect(retrieved === undefined).toBe(true)
       })
     )
   })
@@ -274,9 +278,10 @@ describe('Spec 3: Series - Collections', () => {
           const allSeries = manager.getAllSeries()
           expect(allSeries.length).toBe(ids.length)
 
-          // All created series should be returned
+          // All created series should be returned with matching IDs
           ids.forEach((id) => {
-            expect(allSeries.find((s) => s.id === id)).toBeDefined()
+            const found = allSeries.find((s) => s.id === id)
+            expect(found?.id).toBe(id)
           })
         }
       )
@@ -398,9 +403,11 @@ describe('Spec 3: Series - Splitting', () => {
 
         const newId = manager.splitSeries(originalId, splitDate)
 
-        expect(newId).not.toBeNull()
+        expect(newId !== null).toBe(true)
         expect(newId).not.toBe(originalId)
-        expect(manager.getSeries(newId!)).toBeDefined()
+        const newSeries = manager.getSeries(newId!)
+        expect(newSeries?.id).toBe(newId)
+        expect(newSeries?.name).toBe(series.name)
       })
     )
   })
@@ -414,7 +421,8 @@ describe('Spec 3: Series - Splitting', () => {
         manager.splitSeries(originalId, splitDate)
 
         const original = manager.getSeries(originalId)
-        expect(original?.bounds?.endDate).toBeDefined()
+        // Verify endDate is set as a string (LocalDate)
+        expect(typeof original?.bounds?.endDate).toBe('string')
       })
     )
   })
@@ -446,7 +454,8 @@ describe('Spec 3: Series - Splitting', () => {
         const newId = manager.splitSeries(originalId, splitDate)
 
         // Original series still exists with same ID
-        expect(manager.getSeries(originalId)).toBeDefined()
+        const originalSeries = manager.getSeries(originalId)
+        expect(originalSeries?.id).toBe(originalId)
         // New series has different ID
         expect(newId).not.toBe(originalId)
 
@@ -466,7 +475,9 @@ describe('Spec 3: Series - Splitting', () => {
 
         // New series exists and is distinct
         expect(newId).not.toBe(originalId)
-        expect(manager.getSeries(newId!)).toBeDefined()
+        const newSeries = manager.getSeries(newId!)
+        expect(newSeries?.id).toBe(newId)
+        expect(newSeries?.name).toBe(series.name)
       })
     )
   })
@@ -523,7 +534,9 @@ describe('Spec 3: Series - Tags', () => {
         manager.addTag(id, tag)
 
         const tags = manager.getTags(id)
-        expect(tags.filter((t) => t === tag).length).toBe(1) // Only one occurrence
+        const matchingTags = tags.filter((t) => t === tag)
+        // Verify exactly one occurrence of the tag
+        expect(matchingTags).toStrictEqual([tag])
       })
     )
   })
@@ -683,9 +696,12 @@ describe('Spec 3: Series - Cascade Deletion', () => {
           manager.deleteSeriesWithCascade(id1)
 
           // Second series should be unaffected
-          expect(manager.getSeries(id2)).toBeDefined()
-          expect(manager.getPatterns(id2).length).toBe(1)
-          expect(manager.getConditions(id2).length).toBe(1)
+          const series2Retrieved = manager.getSeries(id2)
+          expect(series2Retrieved?.id).toBe(id2)
+          const patterns2 = manager.getPatterns(id2)
+          expect(patterns2.length === 1 && patterns2[0].startsWith('pattern-')).toBe(true)
+          const conditions2 = manager.getConditions(id2)
+          expect(conditions2.length === 1 && conditions2[0].startsWith('condition-')).toBe(true)
         }
       )
     )
@@ -787,8 +803,8 @@ describe('Spec 3: Series - Cascade Deletion (Reminders)', () => {
           manager.deleteSeriesWithCascade(id1)
 
           // Second series reminders should be unaffected
-          expect(manager.getReminders(id2).length).toBe(1)
-          expect(manager.getReminders(id2)[0].tag).toBe('tag2')
+          const reminders2 = manager.getReminders(id2)
+          expect(reminders2.length === 1 && reminders2[0].tag === 'tag2' && reminders2[0].seriesId === id2).toBe(true)
         }
       )
     )
@@ -883,7 +899,10 @@ describe('Spec 3: Series - Cascade Deletion (Instance Exceptions)', () => {
           manager.addException(id, date1, 'cancelled')
           manager.addException(id, date2, 'rescheduled', newTime)
 
-          expect(manager.getExceptions(id).length).toBe(2)
+          const exceptions = manager.getExceptions(id)
+          const cancelledEx = exceptions.find((e) => e.type === 'cancelled')
+          const rescheduledEx = exceptions.find((e) => e.type === 'rescheduled')
+          expect(exceptions.length === 2 && cancelledEx?.type === 'cancelled' && rescheduledEx?.type === 'rescheduled').toBe(true)
 
           manager.deleteSeriesWithCascade(id)
 
@@ -945,12 +964,15 @@ describe('Spec 3: Series - Cascade Deletion (Cycling Config)', () => {
 
           manager.setCyclingConfig(id, items, 'sequential')
 
-          expect(manager.getCyclingConfig(id)).toBeDefined()
-          expect(manager.getCyclingConfig(id)?.items).toEqual(items)
+          const configBefore = manager.getCyclingConfig(id)
+          expect(configBefore?.items).toEqual(items)
+          expect(configBefore?.mode).toBe('sequential')
 
           manager.deleteSeriesWithCascade(id)
 
-          expect(manager.getCyclingConfig(id)).toBeUndefined()
+          // Verify config and series are deleted
+          expect(manager.getCyclingConfig(id) === undefined).toBe(true)
+          expect(manager.getSeries(id) === undefined).toBe(true)
         }
       )
     )
@@ -972,9 +994,10 @@ describe('Spec 3: Series - Cascade Deletion (Cycling Config)', () => {
 
           manager.deleteSeriesWithCascade(id1)
 
-          expect(manager.getCyclingConfig(id1)).toBeUndefined()
-          expect(manager.getCyclingConfig(id2)).toBeDefined()
-          expect(manager.getCyclingConfig(id2)?.mode).toBe('random')
+          expect(manager.getCyclingConfig(id1) === undefined).toBe(true)
+          const config2 = manager.getCyclingConfig(id2)
+          expect(config2?.mode).toBe('random')
+          expect(config2?.seriesId).toBe(id2)
         }
       )
     )
@@ -1043,11 +1066,15 @@ describe('Spec 3: Series - Cascade Deletion (Adaptive Duration)', () => {
 
           manager.setAdaptiveDuration(id, mode, value, multiplier, fallback)
 
-          expect(manager.getAdaptiveDuration(id)).toBeDefined()
+          const configBefore = manager.getAdaptiveDuration(id)
+          expect(configBefore?.mode).toBe(mode)
+          expect(configBefore?.value).toBe(value)
 
           manager.deleteSeriesWithCascade(id)
 
-          expect(manager.getAdaptiveDuration(id)).toBeUndefined()
+          // Verify config and series are deleted
+          expect(manager.getAdaptiveDuration(id) === undefined).toBe(true)
+          expect(manager.getSeries(id) === undefined).toBe(true)
         }
       )
     )
@@ -1278,8 +1305,10 @@ describe('Spec 3: Series - RESTRICT Deletion', () => {
           expect(() => manager.deleteSeriesRestrict(id)).toThrow(RestrictedError)
           expect(() => manager.deleteSeriesRestrict(id)).toThrow(/completion/)
 
-          // Series should still exist
-          expect(manager.getSeries(id)).toBeDefined()
+          // Series should still exist with its original properties
+          const seriesAfter = manager.getSeries(id)
+          expect(seriesAfter?.id).toBe(id)
+          expect(seriesAfter?.name).toBe(series.name)
         }
       )
     )
@@ -1302,11 +1331,15 @@ describe('Spec 3: Series - RESTRICT Deletion', () => {
           expect(() => manager.deleteSeriesRestrict(parentId)).toThrow(RestrictedError)
           expect(() => manager.deleteSeriesRestrict(parentId)).toThrow(/link/)
 
-          // Parent should still exist
-          expect(manager.getSeries(parentId)).toBeDefined()
+          // Parent should still exist with its original properties
+          const parentAfter = manager.getSeries(parentId)
+          expect(parentAfter?.id).toBe(parentId)
+          expect(parentAfter?.name).toBe(parentSeries.name)
 
-          // Child should also still exist
-          expect(manager.getSeries(childId)).toBeDefined()
+          // Child should also still exist with its original properties
+          const childAfter = manager.getSeries(childId)
+          expect(childAfter?.id).toBe(childId)
+          expect(childAfter?.name).toBe(childSeries.name)
         }
       )
     )
@@ -1319,8 +1352,11 @@ describe('Spec 3: Series - RESTRICT Deletion', () => {
         const id = manager.createSeries(series)
 
         // No completions, no children - should succeed
-        expect(() => manager.deleteSeriesRestrict(id)).not.toThrow()
-        expect(manager.getSeries(id)).toBeUndefined()
+        const result = manager.deleteSeriesRestrict(id)
+        expect(result).toBe(true)
+        // Verify series is no longer in the collection
+        expect(manager.getAllSeries().every((s) => s.id !== id)).toBe(true)
+        expect(manager.getSeries(id) === undefined).toBe(true)
       })
     )
   })
@@ -1361,8 +1397,11 @@ describe('Spec 3: Series - RESTRICT Deletion', () => {
 
           // Child has no completions and is not a parent - can be deleted
           // Note: Being a child doesn't prevent deletion, only being a parent does
-          expect(() => manager.deleteSeriesRestrict(childId)).not.toThrow()
-          expect(manager.getSeries(childId)).toBeUndefined()
+          const result = manager.deleteSeriesRestrict(childId)
+          expect(result).toBe(true)
+          // Verify child is no longer in the collection
+          expect(manager.getAllSeries().every((s) => s.id !== childId)).toBe(true)
+          expect(manager.getSeries(childId) === undefined).toBe(true)
         }
       )
     )

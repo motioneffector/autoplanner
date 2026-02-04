@@ -135,7 +135,8 @@ describe('Spec 8: Reminders - Timing', () => {
           manager.scheduleReminder(seriesId, date, scheduledTime)
 
           const reminder = manager.getReminderInstance(seriesId, date)
-          expect(reminder).toBeDefined()
+          expect(reminder !== undefined).toBe(true)
+          expect(reminder!.seriesId).toBe(seriesId)
 
           // Verify reminder time is minutesBefore the scheduled time
           const scheduledParsed = parseLocalDateTime(scheduledTime)
@@ -173,7 +174,8 @@ describe('Spec 8: Reminders - Timing', () => {
           manager.scheduleReminder(seriesId, date, scheduledTime)
 
           const reminder = manager.getReminderInstance(seriesId, date)
-          expect(reminder).toBeDefined()
+          expect(reminder !== undefined).toBe(true)
+          expect(reminder!.seriesId).toBe(seriesId)
 
           // Reminder should be minutesBefore midnight
           // E.g., if minutesBefore=60, reminder at 23:00 previous day
@@ -223,7 +225,7 @@ describe('Spec 8: Reminders - Acknowledgment', () => {
           // After acknowledgment - should not be pending
           const pendingAfter = manager.getPendingReminders(makeLocalDateTime(date, makeLocalTime(23, 59)))
           const reminderAfter = pendingAfter.find((r) => r.seriesId === seriesId)
-          expect(reminderAfter).toBeUndefined()
+          expect(reminderAfter === undefined).toBe(true)
         }
       )
     )
@@ -302,7 +304,7 @@ describe('Spec 8: Reminders - Pending Queries', () => {
           // Time before reminder should fire
           const earlyTime = makeLocalDateTime(date, makeLocalTime(9, 30 - minutesBefore - 5))
           const earlyPending = manager.getPendingReminders(earlyTime)
-          expect(earlyPending.find((r) => r.seriesId === seriesId)).toBeUndefined()
+          expect(earlyPending.find((r) => r.seriesId === seriesId) === undefined).toBe(true)
 
           // Time after reminder should fire
           const laterTime = makeLocalDateTime(date, makeLocalTime(9, 45))
@@ -312,7 +314,8 @@ describe('Spec 8: Reminders - Pending Queries', () => {
           // Should be pending if reminder time <= check time
           const reminder = manager.getReminderInstance(seriesId, date)
           if (reminder && reminder.reminderTime <= laterTime) {
-            expect(found).toBeDefined()
+            expect(found !== undefined).toBe(true)
+            expect(found!.seriesId).toBe(seriesId)
           }
         }
       )
@@ -334,7 +337,7 @@ describe('Spec 8: Reminders - Pending Queries', () => {
         const morningCheck = makeLocalDateTime(date, makeLocalTime(9, 0))
         const pending = manager.getPendingReminders(morningCheck)
 
-        expect(pending.find((r) => r.seriesId === seriesId)).toBeUndefined()
+        expect(pending.find((r) => r.seriesId === seriesId) === undefined).toBe(true)
       })
     )
   })
@@ -370,9 +373,11 @@ describe('Spec 8: Reminders - Instance Interaction', () => {
           const reminder1 = manager.getReminderInstance(seriesId, date1)
           const reminder2 = manager.getReminderInstance(seriesId, date2)
 
-          expect(reminder1).toBeDefined()
-          expect(reminder2).toBeDefined()
-          expect(reminder1?.reminderTime).not.toBe(reminder2?.reminderTime)
+          expect(reminder1 !== undefined).toBe(true)
+          expect(reminder1!.seriesId).toBe(seriesId)
+          expect(reminder2 !== undefined).toBe(true)
+          expect(reminder2!.seriesId).toBe(seriesId)
+          expect(reminder1!.reminderTime !== reminder2!.reminderTime).toBe(true)
         }
       )
     )

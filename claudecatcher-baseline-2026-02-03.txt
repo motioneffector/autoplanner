@@ -1,0 +1,1308 @@
+ClaudeCatcher v1.0.0 - AI Test Audit Tool
+
+Scanning 40 test file(s)...
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/02-pattern-expansion.test.ts
+  Line 1173: it('invalid range start > end throws InvalidRangeError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1177: it('everyNDays n=0 throws InvalidPatternError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1181: it('everyNDays n=-1 throws InvalidPatternError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1185: it('everyNWeeks n=0 throws InvalidPatternError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1189: it('monthly day=0 throws InvalidPatternError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1193: it('monthly day=32 throws InvalidPatternError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1197: it('yearly month=0 throws InvalidPatternError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1201: it('yearly month=13 throws InvalidPatternError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1205: it('weekdays empty array throws InvalidPatternError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/03-condition-evaluation.test.ts
+  Line 1153: it('empty and conditions throws InvalidConditionError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1157: it('empty or conditions throws InvalidConditionError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1161: it('negative windowDays throws InvalidConditionError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1165: it('negative value throws InvalidConditionError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/04-adapter.test.ts
+  Line 488: it('series delete cascades patterns')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 570: it('create root condition')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 625: it('delete cascades children')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 649: it('no cycles allowed')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 731: it('set null removes config')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 744: it('series delete cascades adaptive duration')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 979: it('delete exception')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1238: it('create tag returns ID')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1262: it('add tag creates if needed')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1285: it('series delete cascades tag associations')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1376: it('delete reminder')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 59: it('transaction commits on success')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 76: it('transaction rolls back on error')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 111: it('nested transactions behave as single transaction')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 112: it('nested transactions behave as single transaction')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 130: it('nested rollback reverts all')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 147: it('rollback series creation')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 135: it('rollback series creation')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 157: it('rollback series update')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 183: it('rollback series deletion')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 175: it('rollback series deletion')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 211: it('rollback multiple operations')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 213: it('rollback multiple operations')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 198: it('rollback multiple operations')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 253: it('get non-existent series returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 319: it('delete series')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 877: it('series delete cascades config and items')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1056: it('one per series+instance throws error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1099: it('get completion by instance')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1113: it('delete completion')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1180: it('days since never completed returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1497: it('delete constraint')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1514: it('independent of series - constraint remains after series delete')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1636: it('delete link')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1655: it('one link per child throws error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1694: it('no self-links throws error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1717: it('child delete cascades link')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1755: it('no cycles allowed')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1824: it('max chain depth 33 throws error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1883: it('INV 4: CASCADE deletes work')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1930: it('INV 7: No orphaned children after operations')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/05-series-crud.test.ts
+  Line 73: it('created series is retrievable')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 100: it('createdAt set on create')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 112: it('updatedAt set on create')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 151: it('patterns present means not one-time')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 236: it('valid title accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 269: it('valid startDate accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 291: it('endDate equals startDate accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 314: it('endDate after startDate accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 349: it('count = 1 accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 373: it('valid timeOfDay accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 384: it('allDay timeOfDay accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 425: it('allDay consistency accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 438: it('valid duration minutes accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 469: it('allDay duration accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 484: it('adaptive duration valid accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 531: it('adaptive min < max accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 545: it('valid patterns accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 570: it('valid wiggle accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 609: it('valid timeWindow accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 650: it('fixed with null wiggle accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 663: it('fixed with zero wiggle accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 677: it('valid reminders accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 700: it('zero reminder minutes accepted')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 718: it('get existing series')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 723: it('get non-existent series returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 735: it('get deleted series returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 938: it('delete existing series succeeds')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 949: it('get after delete returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1149: it('split returns new ID')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1232: it('both series valid after split')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1233: it('both series valid after split')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1421: it('add tag creates if not exists')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1437: it('remove non-existent tag is idempotent')
+    [ERROR] NO_ASSERTION - Test has no assertions - it verifies nothing. Add expect() calls to verify the expected behavior.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/06-completions.test.ts
+  Line 67: it('log completion returns unique ID')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 82: it('logged completion is retrievable')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 85: it('logged completion is retrievable')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 99: it('date derived from startTime')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 102: it('date derived from startTime')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 118: it('createdAt set on log')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 121: it('createdAt set on log')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 122: it('createdAt set on log')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 137: it('duration calculated correctly')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 140: it('duration calculated correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 271: it('get existing completion')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 274: it('get existing completion')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 280: it('get non-existent completion')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 291: it('get deleted completion')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 295: it('get deleted completion')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 325: it('excludes other series')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 394: it('get completion by instance')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 405: it('returns null if no completion')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 418: it('unique per instance')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 472: it('target by tag')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 503: it('target by tag multiple series')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 550: it('target by seriesId excludes others')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 589: it('delete existing completion')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 603: it('get after delete returns null')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 607: it('get after delete returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 619: it('getByInstance after delete')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 623: it('getByInstance after delete')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 642: it('delete already deleted')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 823: it('count by tag')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 883: it('count excludes wrong tag')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 913: it('no completions returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1028: it('days since by tag')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1073: it('tag finds most recent across series')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1373: it('completion ID immutable')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1379: it('completion ID immutable')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1391: it('completions never modified')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1477: it('condition count query')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1505: it('condition days since query')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/07-cycling.test.ts
+  Line 188: it('index advances on completion')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 203: it('index advances on completion')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 219: it('skipped instance no advance')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 226: it('skipped instance no advance')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 244: it('index wraps at end')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 251: it('index wraps at end')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 267: it('continuous wrap')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 298: it('gap-leap full sequence')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 437: it('advance increments index')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 458: it('advance wraps around')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 478: it('advance requires gapLeap=true')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 499: it('advance on gapLeap=true series')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 516: it('advance on gapLeap=false series')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 542: it('reset sets index to 0')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 563: it('reset from index 0')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 586: it('no auto-reset on deactivation')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 606: it('consumer must explicitly reset')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 625: it('deactivation preserves index')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 650: it('no cycling uses series title')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 668: it('with cycling uses item title')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 725: it('completions determine index')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 767: it('index at last wraps to 0')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 797: it('no completions first item')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 836: it('currentIndex in bounds')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 855: it('cycling optional')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 858: it('cycling optional')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 873: it('gapLeap state persisted')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/08-adaptive-duration.test.ts
+  Line 780: it('INV 1: fallback >= 1')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 794: it('INV 2: minimum <= maximum')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 806: it('INV 3: multiplier > 0')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/09-instance-exceptions.test.ts
+  Line 73: it('cancel removes from schedule')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 95: it('cancel creates exception')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 137: it('instance must exist')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 190: it('cancel overwrites reschedule')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 192: it('cancel overwrites reschedule')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 215: it('reschedule moves instance')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 234: it('original slot freed')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 244: it('exception record created')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 273: it('instance must exist')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 349: it('original still freed')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 384: it('restored at original time')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 402: it('restore rescheduled instance')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 413: it('exception deleted')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 443: it('get exception for instance')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 449: it('get non-excepted returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 519: it('rescheduled at new time')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 616: it('B2: cancel last instance')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 666: it('B5: reschedule across year boundary')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 698: it('B7: exception on non-pattern date')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 736: it('INV 2: rescheduled has newTime')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 746: it('INV 3: cancelled no newTime')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 757: it('INV 4: exception only for pattern dates')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 797: it('NonExistentInstanceError: cancel instance not in pattern')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 879: it('skip workout one day')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 925: it('move meeting earlier')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/10-reminders.test.ts
+  Line 768: it('all-day uses 00:00')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 785: it('all-day 60 min before')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 802: it('all-day 1440 min before')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1114: it('reminder day before')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1131: it('reminder evening before')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 77: it('create reminder returns ID')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 123: it('get existing reminder')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 126: it('get existing reminder')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 133: it('get non-existent reminder')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 154: it('update minutesBefore')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 169: it('update tag')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 186: it('delete existing reminder')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 192: it('delete existing reminder')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 202: it('delete cascades acknowledgments')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 212: it('delete cascades acknowledgments')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 299: it('acknowledged not in pending')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 443: it('acknowledge records timestamp')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 464: it('acknowledged removed from pending')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 476: it('acknowledged removed from pending')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 486: it('acknowledge is idempotent')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 519: it('doesnt affect other instances')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 541: it('doesnt affect other reminders')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 553: it('doesnt affect other reminders')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 570: it('false if never acknowledged')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 583: it('true after acknowledgment')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 604: it('removes old acknowledgments')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 627: it('keeps recent acknowledgments')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 650: it('purged may re-appear pending')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 716: it('uses rescheduled time')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 737: it('not original time')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 863: it('B5: cancelled no reminder')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 874: it('B6: all-day minutesBefore 0')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 889: it('B6: all-day minutesBefore 0')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 900: it('B7: all-day 1440 min')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 915: it('B7: all-day 1440 min')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 971: it('INV 5: auto-purge old acks')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1023: it('15-min meeting reminder early')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1033: it('acknowledge dismisses')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1047: it('acknowledge dismisses')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1070: it('acknowledge each separately')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1082: it('acknowledge each separately')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/11-links.test.ts
+  Line 83: it('link returns ID')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 99: it('link creates relationship')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 276: it('unlink removes relationship')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 293: it('unlinked child independent')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 324: it('get link by child')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 332: it('get link by child none')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 385: it('update targetDistance')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 404: it('update earlyWobble')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 423: it('update lateWobble')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 451: it('cannot change child ID')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 471: it('cannot change parent ID')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 800: it('delete child cascades link')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/12-relational-constraints.test.ts
+  Line 76: it('add constraint returns ID')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 92: it('constraints are global')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 96: it('constraints are global')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 97: it('constraints are global')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 98: it('constraints are global')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 112: it('constraints reference targets')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 131: it('get existing constraint')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 134: it('get existing constraint')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 140: it('get non-existent constraint')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 180: it('delete constraint')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 185: it('delete constraint')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 198: it('series delete doesnt delete constraint')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 204: it('series delete doesnt delete constraint')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 217: it('constraint with non-existent target')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 921: it('violation identifies instances')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 922: it('violation identifies instances')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 972: it('violation includes description')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1100: it('INV 1: withinMinutes only for mustBeWithin')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1128: it('INV 3: constraints independent of series')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 1133: it('INV 3: constraints independent of series')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/13-reflow-algorithm.test.ts
+  Line 148: it('respects series bounds - series with count=5 produces only 5 instances')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 156: it('cancelled excluded - cancelled instance not generated')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 178: it('conditions evaluated as of today - correct evaluation')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 189: it('duration calculated once - single calculation per instance')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 207: it('pattern active when condition true - instances generated')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 217: it('pattern inactive when condition false - instances not generated')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 336: it('all-day excluded from reflow - not in constraint graph')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 358: it('chain child domain dynamic - computed from parent')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 554: it('finds valid assignment - assignment returned')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 555: it('finds valid assignment - assignment returned')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 556: it('finds valid assignment - assignment returned')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 578: it('satisfies all constraints - all constraints met')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 602: it('finds solution if exists - exactly one solution found')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 619: it('terminates on no solution - returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 676: it('chain roots before children - A assigned then B then C')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 678: it('chain roots before children - A assigned then B then C')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 679: it('chain roots before children - A assigned then B then C')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 680: it('chain roots before children - A assigned then B then C')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 783: it('fixed-fixed overlap allowed - both placed with warning')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 784: it('fixed-fixed overlap allowed - both placed with warning')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 809: it('best effort for flexible - placed with conflict')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 846: it('overlap conflict - two fixed at same time')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 872: it('chainCannotFit conflict - child outside parent bounds')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 892: it('constraintViolation conflict - relational constraint unsatisfied')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 909: it('noValidSlot conflict - no slot in wiggle range')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1150: it('valid inputs produce solution found')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1221: it('chain bounds respected - child within parent bounds')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1255: it('INV 2: all-day excluded from constraint graph')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1281: it('INV 3: chain bounds are hard constraints')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1328: it('simple daily schedule - 5 daily series non-overlapping')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1329: it('simple daily schedule - 5 daily series non-overlapping')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1350: it('with relational constraints - order enforced')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1351: it('with relational constraints - order enforced')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1383: it('with adaptive duration - duration calculated and used')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1418: it('multiple chains - both chains scheduled')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1419: it('multiple chains - both chains scheduled')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1461: it('near-conflict - tight fit solution found')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1462: it('near-conflict - tight fit solution found')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1510: it('complex constraint network - correct result')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1536: it('deep chains - 10-level chain correctly scheduled')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1551: it('many flexible items - solution found')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1574: it('two non-overlapping - both at ideal times')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1650: it('typical week window - fast performance')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1704: it('MRV finds conflicts early - fast failure on unsolvable')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1725: it('manageable search space - typical calendar reasonable time')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1740: it('correctness over performance - correct result always')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/14-public-api.test.ts
+  Line 118: it('create autoplanner - valid config creates instance')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 119: it('create autoplanner - valid config creates instance')
+    [WARNING] WEAK_ASSERTION - expect(typeof x).toBe('function') is weak. Verify specific structure or behavior.
+  Line 150: it('adapter must implement interface - invalid adapter throws error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 156: it('timezone must be valid IANA - Invalid/Zone throws error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 162: it('valid IANA timezone - America/New_York succeeds')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 251: it('stored as UTC - check storage format')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 279: it('DST spring forward - 2:30am on DST start shifts to 3:00am')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 281: it('DST spring forward - 2:30am on DST start shifts to 3:00am')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 297: it('DST fall back - 1:30am on DST end uses first occurrence')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 299: it('DST fall back - 1:30am on DST end uses first occurrence')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 527: it('NotFoundError - get non-existent series returns null or throws')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 697: it('failed ops dont mutate - state unchanged')
+    [ERROR] EMPTY_CATCH - Catch block has no assertions - errors are swallowed silently. Add expect(error).toBeInstanceOf(SpecificError) to verify the correct error type.
+  Line 738: it('lock is idempotent - lock twice no error still locked')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 753: it('unlock is idempotent - unlock twice no error still unlocked')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 773: it('acknowledgeReminder idempotent - acknowledge twice no error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 804: it('logCompletion not idempotent - log same instance twice throws error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 858: it('adapter transaction support - adapter provides transaction method')
+    [WARNING] WEAK_ASSERTION - expect(typeof x).toBe('function') is weak. Verify specific structure or behavior.
+  Line 893: it('reflow payload is schedule - complete schedule in event')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 894: it('reflow payload is schedule - complete schedule in event')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 933: it('conflict payload has details - conflict object in event')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 934: it('conflict payload has details - conflict object in event')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 971: it('reminder payload has details - reminder object in event')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 972: it('reminder payload has details - reminder object in event')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1030: it('handler errors isolated - API unaffected by handler throw')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1049: it('createSeries returns ID - UUID returned')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1069: it('getSeries returns null - non-existent returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1087: it('getSeriesByTag filters - matching series returned')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1104: it('getAllSeries returns all - all series returned')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1160: it('deleteSeries removes - series gone')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1176: it('splitSeries splits - two series created')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1177: it('splitSeries splits - two series created')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1217: it('unlinkSeries removes link - link removed')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1240: it('addConstraint creates - constraint exists')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1263: it('removeConstraint removes - constraint gone')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1277: it('getInstance returns instance - instance data returned')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1337: it('getCompletions returns - matching completions returned')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1352: it('deleteCompletion removes - completion gone')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1399: it('acknowledgeReminder acknowledges - reminder dismissed')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1445: it('getActiveConditions returns - active patterns per series')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1446: it('getActiveConditions returns - active patterns per series')
+    [WARNING] WEAK_ASSERTION - Checking Array.isArray() only verifies it's an array. Add assertions for actual contents.
+  Line 1468: it('INV 1: consistent state - query after any operation')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1521: it('INV 4: operations transactional - check state after failure')
+    [ERROR] EMPTY_CATCH - Catch block has no assertions - errors are swallowed silently. Add expect(error).toBeInstanceOf(SpecificError) to verify the correct error type.
+  Line 1548: it('series lifecycle - create get update delete all work')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1562: it('series lifecycle - create get update delete all work')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1580: it('completion workflow - create series log completion query')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1607: it('conditional pattern activation - condition changes pattern activates schedule updates')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1639: it('chain with completion - parent completes child reschedules')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/15-sqlite-adapter.test.ts
+  Line 192: it('CHECK constraints active - insert invalid data rejected')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 204: it('UNIQUE constraints active - insert duplicate rejected')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 243: it('rollback restores prior state - data unchanged on failure')
+    [ERROR] EMPTY_CATCH - Catch block has no assertions - errors are swallowed silently. Add expect(error).toBeInstanceOf(SpecificError) to verify the correct error type.
+  Line 266: it('commit is durable - data persists after reopen')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 298: it('RESTRICT prevents deletion - delete with references errors')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 315: it('CASCADE deletes dependents - delete parent removes children')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 321: it('CASCADE deletes dependents - delete parent removes children')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 594: it('NULL when no completions - empty series returns null')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 666: it('cascades adaptive_duration - config deleted')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 679: it('cascades cycling_config - config deleted')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 693: it('cascades cycling_item - items deleted')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 707: it('cascades condition - conditions deleted')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 721: it('cascades pattern - patterns deleted')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 739: it('cascades pattern_weekday - weekdays deleted')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 752: it('cascades instance_exception - exceptions deleted')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 761: it('cascades series_tag - tags removed')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 775: it('cascades reminder - reminders deleted')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 794: it('cascades reminder_ack - acks deleted')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 810: it('cascades child link - link as child deleted')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 827: it('blocked by completion - series has completion error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 842: it('blocked by parent link - series is parent error')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 863: it('cascades atomically - all or nothing')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 864: it('cascades atomically - all or nothing')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 888: it('respects FK order - complex cascade correct order')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 918: it('RESTRICT before CASCADE - RESTRICT checked first')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 914: it('RESTRICT before CASCADE - RESTRICT checked first')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1037: it('getSchedule (50 series, 1 week) < 100ms')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1086: it('correctness over performance - slow but correct still correct')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1119: it('failed migrations roll back - no partial changes')
+    [ERROR] EMPTY_CATCH - Catch block has no assertions - errors are swallowed silently. Add expect(error).toBeInstanceOf(SpecificError) to verify the correct error type.
+  Line 1151: it('all Segment 4 tests pass - run adapter tests')
+    [WARNING] WEAK_ASSERTION - expect(typeof x).toBe('function') is weak. Verify specific structure or behavior.
+  Line 1152: it('all Segment 4 tests pass - run adapter tests')
+    [WARNING] WEAK_ASSERTION - expect(typeof x).toBe('function') is weak. Verify specific structure or behavior.
+  Line 1153: it('all Segment 4 tests pass - run adapter tests')
+    [WARNING] WEAK_ASSERTION - expect(typeof x).toBe('function') is weak. Verify specific structure or behavior.
+  Line 1154: it('all Segment 4 tests pass - run adapter tests')
+    [WARNING] WEAK_ASSERTION - expect(typeof x).toBe('function') is weak. Verify specific structure or behavior.
+  Line 1165: it('transaction semantics match - same behavior as mock')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1185: it('CRUD operations match - same behavior as mock')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1201: it('cascade behavior matches - same behavior as mock')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1209: it('query results match - same behavior as mock')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1233: it('INV 2: all constraints enforced - attempt violations')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1236: it('INV 2: all constraints enforced - attempt violations')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1251: it('INV 3: transactions are ACID - verify atomicity isolation')
+    [ERROR] EMPTY_CATCH - Catch block has no assertions - errors are swallowed silently. Add expect(error).toBeInstanceOf(SpecificError) to verify the correct error type.
+  Line 1276: it('INV 4: no data loss on rollback - verify exact restoration')
+    [ERROR] EMPTY_CATCH - Catch block has no assertions - errors are swallowed silently. Add expect(error).toBeInstanceOf(SpecificError) to verify the correct error type.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/16-integration.test.ts
+  Line 149: it('initial state - walks every other day, no weights')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 261: it('conditions update immediately after completion')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 276: it('multiple state transitions work correctly')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 335: it('PROP 5: cycling preserved across pattern deactivation/reactivation')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 408: it('initial schedule - all chain instances scheduled')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 410: it('initial schedule - all chain instances scheduled')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 412: it('initial schedule - all chain instances scheduled')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 432: it('complete washer late - transfer adjusts based on actual completion')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 456: it('complete transfer - unload adjusts based on transfer completion')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 462: it('attempt early transfer - blocked by earlyWobble=0')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 472: it('chain bounds enforced - instances within wobble limits')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 473: it('chain bounds enforced - instances within wobble limits')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 484: it('3-level chain works - all scheduled correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 485: it('3-level chain works - all scheduled correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 486: it('3-level chain works - all scheduled correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 499: it('reschedule cascades - reschedule parent moves children')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 520: it('chain respects actual completion times')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 752: it('remove cantBeNextTo - heavy can be adjacent')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1007: it('12:55 - no pending reminders')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1067: it('cancel Monday - that Monday not in schedule')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1077: it('check other Mondays - still scheduled')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1098: it('check original Monday - slot free')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 552: it('fixed overlap warning - both scheduled with warning')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 553: it('fixed overlap warning - both scheduled with warning')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 572: it('overlap details - includes involved series')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 618: it('best-effort placement - both tasks still scheduled after error')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 619: it('best-effort placement - both tasks still scheduled after error')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 669: it('conflict details - chain info included')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 670: it('conflict details - chain info included')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 802: it('no infinite loops - complex constraints terminate')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 871: it('spring forward 02:30 - shifts to 03:00')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 873: it('spring forward 02:30 - shifts to 03:00')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 904: it('fall back ambiguity - 01:30 on DST end uses first occurrence')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 906: it('fall back ambiguity - 01:30 on DST end uses first occurrence')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 975: it('all-day excluded from reflow - no time conflicts')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1285: it('non-leap year Feb 29 - no instance')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1334: it('depth 33 rejected - ChainDepthExceededError')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1365: it('E2E 1: all features together - complex scenario passes')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1378: it('E2E 2: state consistency - query after any operation')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1402: it('E2E 3: valid inputs produce valid schedule')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1403: it('E2E 3: valid inputs produce valid schedule')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1465: it('E2E 6: no data loss - persist and reload')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1469: it('E2E 6: no data loss - persist and reload')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 1483: it('E2E 7: error recovery consistent - fail and verify state')
+    [ERROR] EMPTY_CATCH - Catch block has no assertions - errors are swallowed silently. Add expect(error).toBeInstanceOf(SpecificError) to verify the correct error type.
+  Line 1533: it('E2E 9: children move on parent reschedule')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1571: it('mock adapter passes - all integration tests work')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1587: it('SQLite adapter passes - all integration tests work')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/generators/base.test.ts
+  Line 187: it('invalidDateGen generates strings that fail date validation')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 207: it('invalidTimeGen generates strings that fail time validation')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/generators/domain.test.ts
+  Line 67: it('generates targets with only tag')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 68: it('generates targets with only tag')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 78: it('generates targets with only seriesId')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 79: it('generates targets with only seriesId')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 135: it('generates AND conditions')
+    [WARNING] WEAK_ASSERTION - Checking Array.isArray() only verifies it's an array. Add assertions for actual contents.
+  Line 146: it('generates OR conditions')
+    [WARNING] WEAK_ASSERTION - Checking Array.isArray() only verifies it's an array. Add assertions for actual contents.
+  Line 157: it('generates NOT conditions')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 208: it('always has end date when configured')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 216: it('never has end date when configured')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 305: it('generates full series with all fields')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 333: it('generates series suitable for chains')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 403: it('generates valid relational constraints')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 406: it('generates valid relational constraints')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 441: it('generates sets of non-conflicting constraints')
+    [WARNING] WEAK_ASSERTION - Checking Array.isArray() only verifies it's an array. Add assertions for actual contents.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/generators/patterns.test.ts
+  Line 219: it('generates activeOnDates patterns with valid structure')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 231: it('generates inactiveOnDates patterns with valid structure')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 273: it('generates valid boundary patterns')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/integration/stress.test.ts
+  Line 397: it('Property #480: flexible items with no valid slots')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 643: it('random series creation and querying')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 982: it('uncommitted changes are lost on reconnect')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1002: it('rollback discards pending changes')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1040: it('multiple transactions are atomic')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1284: it('Test #461: link → complete parent → verify child shift')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1298: it('Test #461: link → complete parent → verify child shift')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1299: it('Test #461: link → complete parent → verify child shift')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1741: it('Test #462: split → completions stay with original')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1750: it('Test #462: split → completions stay with original')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1751: it('Test #462: split → completions stay with original')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 2517: it('Property #411b: daysSince returns null-like value when no completions')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 2521: it('Property #411b: daysSince returns null-like value when no completions')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 3064: it('Test #465: cycling advancement across pattern deactivation')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 3347: it('Test #463: constraint → delete series → constraint no-op')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 3406: it('deleting series makes constraints inactive but they still exist')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4186: it('Property #467: genSolvableSchedule produces solvable inputs')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4200: it('Property #468: genUnsolvableSchedule produces unsolvable inputs')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4202: it('Property #468: genUnsolvableSchedule produces unsolvable inputs')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4215: it('Property #471: solvable inputs produce solution with no errors')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4244: it('Property #472: unsolvable inputs report conflicts')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4267: it('solver handles single fixed item')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 4281: it('solver detects fixed-fixed overlap')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4302: it('Property #469: genBarelySolvableSchedule produces tight constraints')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 4332: it('Property #470: genHighlyConstrainedSchedule still solvable')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4544: it('Property #414: SQLite errors mapped to domain errors')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 4545: it('Property #414: SQLite errors mapped to domain errors')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/invariants/invariants.test.ts
+  Line 49: it('Property #417: valid dates pass dateIsValid')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 75: it('Property #418: valid times pass timeIsValid')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 99: it('Property #419: valid dateTimes pass dateTimeIsValid')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 111: it('Property #420: positive durations pass durationIsPositive')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 137: it('Property #423: valid completions pass completionEndAfterStart')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 558: it('assertNoViolations throws on violations')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 568: it('assertNoViolations passes for valid state')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/lib/harness.test.ts
+  Line 46: it('handles multiple arbitraries')
+    [WARNING] WEAK_ASSERTION - Checking Array.isArray() only verifies it's an array. Add assertions for actual contents.
+  Line 54: it('runs property tests with boolean predicates')
+    [ERROR] NO_ASSERTION - Test has no assertions - it verifies nothing. Add expect() calls to verify the expected behavior.
+  Line 66: it('generates the requested number of values')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 72: it('defaults to 10 values')
+    [WARNING] WEAK_ASSERTION - toHaveLength() only verifies count, not contents. Add assertions for actual elements.
+  Line 84: it('passes for equal primitives')
+    [ERROR] NO_ASSERTION - Test has no assertions - it verifies nothing. Add expect() calls to verify the expected behavior.
+  Line 90: it('passes for equal objects')
+    [ERROR] NO_ASSERTION - Test has no assertions - it verifies nothing. Add expect() calls to verify the expected behavior.
+  Line 94: it('passes for equal arrays')
+    [ERROR] NO_ASSERTION - Test has no assertions - it verifies nothing. Add expect() calls to verify the expected behavior.
+  Line 99: it('throws for unequal values')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 100: it('throws for unequal values')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 105: it('passes when function throws')
+    [ERROR] NO_ASSERTION - Test has no assertions - it verifies nothing. Add expect() calls to verify the expected behavior.
+  Line 123: it('checks error type when specified')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 135: it('passes for values in range')
+    [ERROR] NO_ASSERTION - Test has no assertions - it verifies nothing. Add expect() calls to verify the expected behavior.
+  Line 142: it('fails for values outside range')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 143: it('fails for values outside range')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/completions.test.ts
+  Line 175: it('Property #268: createCompletion then getCompletion returns entity')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 193: it('Property #269: deleteCompletion removes it')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 329: it('boundary completions are well-formed')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 330: it('boundary completions are well-formed')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 331: it('boundary completions are well-formed')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 332: it('boundary completions are well-formed')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 333: it('boundary completions are well-formed')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 524: it('daysSinceLastCompletion returns null for no completions')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/constraints.test.ts
+  Line 374: it('Property #357: withinMinutes required iff type = mustBeWithin')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 377: it('Property #357: withinMinutes required iff type = mustBeWithin')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 397: it('boundary constraints are well-formed')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 398: it('boundary constraints are well-formed')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 401: it('boundary constraints are well-formed')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 447: it('Property #275: createConstraint returns valid ID')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 459: it('Property #276: deleteConstraint removes it')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 463: it('Property #276: deleteConstraint removes it')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 485: it('Property #277: getAllConstraints returns all')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 531: it('Property #356: orphaned constraint remains but matches nothing')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/cycling.test.ts
+  Line 252: it('Property #304: random cycling has variation')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+  Line 467: it('getCurrentItem returns undefined for unconfigured series')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/instances.test.ts
+  Line 261: it('Property #323: exceptions persist')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/links.test.ts
+  Line 140: it('Property #274: deleteLink removes relationship')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/pattern-crud.test.ts
+  Line 135: it('Property #264: createPattern associates with series')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 151: it('Property #265: deletePattern removes from series')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 193: it('Property #266: createCondition returns valid ID')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 208: it('Property #267: condition tree deletion cascades')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/patterns.test.ts
+  Line 790: it('Property #200: everyNWeeks produces correct week spacing')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/reflow.test.ts
+  Line 226: it('Property #359: reflow is deterministic')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 255: it('Property #391: reflow is synchronous')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 349: it('Property #375: fixed-fixed overlaps allowed (warning, not error)')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 350: it('Property #375: fixed-fixed overlaps allowed (warning, not error)')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 435: it('flexible item respects wiggle bounds')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 502: it('Property #367: all-day excluded from reflow')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 804: it('Property #390: getSchedule returns post-reflow state')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/reminders.test.ts
+  Line 138: it('Property #324: reminder fires at scheduled - minutesBefore')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 176: it('Property #328: all-day reminder relative to 00:00')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 226: it('Property #325: acknowledged reminder not pending')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 305: it('Property #329: getPendingReminders returns due unacked')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 315: it('Property #329: getPendingReminders returns due unacked')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 337: it('future reminders not pending')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 373: it('Property #327: new instance gets new reminder')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 374: it('Property #327: new instance gets new reminder')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/series.test.ts
+  Line 179: it('Property #247: createSeries then getSeries returns entity')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 207: it('Property #249: getSeries for non-existent ID returns undefined')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 255: it('Property #252: deleteSeries then getSeries returns undefined')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 279: it('Property #262: getAllSeries returns all created series')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 401: it('Property #283: splitSeries creates new series')
+    [WARNING] WEAK_ASSERTION - 'toBeNull' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 403: it('Property #283: splitSeries creates new series')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 417: it('Property #284: splitSeries sets original endDate')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 449: it('Property #286: splitSeries completions stay with original')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 469: it('Property #287: splitSeries new has no completions (by default)')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 686: it('cascade delete does not affect other series')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 948: it('Property #257: deleteSeries cascades to cycling config')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 953: it('Property #257: deleteSeries cascades to cycling config')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 975: it('cycling config cascade does not affect other series')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 976: it('cycling config cascade does not affect other series')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1046: it('Property #258: deleteSeries cascades to adaptive duration')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1050: it('Property #258: deleteSeries cascades to adaptive duration')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1282: it('Property #260: deleteSeries RESTRICT by completions')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1306: it('Property #261: deleteSeries RESTRICT by child links')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1309: it('Property #261: deleteSeries RESTRICT by child links')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1323: it('series without completions or children can be deleted')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1322: it('series without completions or children can be deleted')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1365: it('child series can be deleted if it has no completions')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1364: it('child series can be deleted if it has no completions')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/temporal.test.ts
+  Line 1286: it('non-DST dates have no adjustments')
+    [ERROR] CONDITIONAL_SKIP - Conditional return may skip test logic. For property tests, use fc.pre(condition) instead of bare return. For regular tests, restructure to test all code paths or explicitly skip with it.skip().
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/properties/transactions.test.ts
+  Line 186: it('Property #243: transaction commits all changes on success')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 217: it('Property #244: transaction rolls back on rollback')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 265: it('Property #246: nested transactions flatten correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 271: it('Property #246: nested transactions flatten correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 272: it('Property #246: nested transactions flatten correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 292: it('Property #392: all errors include descriptive message')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 312: it('Property #393: failed operations dont mutate state')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 409: it('deletion in transaction doesnt affect committed until commit')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 633: it('Property #401: rollback restores exact prior state')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 683: it('rollback after deletion restores deleted item')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 690: it('rollback after deletion restores deleted item')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 694: it('rollback after deletion restores deleted item')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 718: it('multiple rollbacks dont stack')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 753: it('rollback mid-operations reverts all changes')
+    [WARNING] WEAK_ASSERTION - 'toBeUndefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 802: it('Property #400: nested transactions flatten correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 804: it('Property #400: nested transactions flatten correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 911: it('changes at each level accumulate correctly')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1072: it('Property #397: event handlers receive immutable snapshots')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1073: it('Property #397: event handlers receive immutable snapshots')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 1098: it('Property #398: errors in handlers dont affect API operation')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1099: it('Property #398: errors in handlers dont affect API operation')
+    [WARNING] LOOSE_ERROR - Loose error assertion accepts any error. Specify expected error type: toThrow(SpecificError) or toThrow('expected message')
+  Line 1168: it('update event includes changed fields')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/shrinking/shrinking.test.ts
+  Line 32: it('all shrinkers are exported')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 33: it('all shrinkers are exported')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 34: it('all shrinkers are exported')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 35: it('all shrinkers are exported')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 36: it('all shrinkers are exported')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 37: it('all shrinkers are exported')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 38: it('all shrinkers are exported')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 39: it('all shrinkers are exported')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 46: it('dateRangeArb integrates with fast-check')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 47: it('dateRangeArb integrates with fast-check')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 73: it('shrinks by halving the range')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 74: it('shrinks by halving the range')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 249: it('reduces count threshold')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 318: it('shortens chain from the end')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 322: it('shortens chain from the end')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 384: it('produces minimal sequence')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 675: it('constraint set shrinker preserves constraint validity')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 676: it('constraint set shrinker preserves constraint validity')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 677: it('constraint set shrinker preserves constraint validity')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 700: it('link chain shrinker preserves chain structure')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 701: it('link chain shrinker preserves chain structure')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+  Line 733: it('operation sequence shrinker handles mixed operations')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+/home/legion/Documents/RealmScribe/libs/autoplanner/tests/fuzz/state-machine/model-equivalence.test.ts
+  Line 107: it('create operations always succeed on empty state')
+    [WARNING] WEAK_ASSERTION - 'toBeDefined' is a weak assertion. Verify the actual expected value instead of just existence.
+
+Summary:
+  Files scanned:  40
+  Tests found:    1996
+  Violations:     612 (109 error(s), 503 warning(s))
+
+  WEAK_ASSERTION: 448
+  CONDITIONAL_SKIP: 95
+  LOOSE_ERROR: 55
+  NO_ASSERTION: 7
+  EMPTY_CATCH: 7

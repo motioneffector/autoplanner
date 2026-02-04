@@ -147,8 +147,16 @@ describe('Segment 16: Integration Tests', () => {
       const walkInstances = schedule.instances.filter((i) => i.seriesId === walkSeriesId);
       const weightInstances = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
 
-      expect(walkInstances.length).toBeGreaterThan(0);
-      expect(walkInstances.length).toBeLessThanOrEqual(7); // Every other day = ~7 in 14 days
+      // Every other day in 14 days = 7 instances (Jan 1, 3, 5, 7, 9, 11, 13)
+      // Verify walk instances have correct count and properties
+      expect(walkInstances.map((i) => i.date)).toEqual([
+        date('2025-01-01'), date('2025-01-03'), date('2025-01-05'), date('2025-01-07'),
+        date('2025-01-09'), date('2025-01-11'), date('2025-01-13'),
+      ]);
+      walkInstances.forEach((instance) => {
+        expect(instance.time).toContain('07:00');
+        expect(instance.duration).toBe(minutes(30));
+      });
       // Verify no weight instances exist - condition not met yet
       expect(weightInstances).toEqual([]);
     });
@@ -161,13 +169,29 @@ describe('Segment 16: Integration Tests', () => {
 
       const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-28'));
 
-      // Walks should now be daily
+      // Walks should now be daily - 14 days = 14 instances
       const walkInstances = schedule.instances.filter((i) => i.seriesId === walkSeriesId);
-      expect(walkInstances.length).toBeGreaterThanOrEqual(12); // ~14 days of daily
+      // Verify all 14 daily walk instances exist with correct dates
+      expect(walkInstances.map((i) => i.date)).toEqual([
+        date('2025-01-15'), date('2025-01-16'), date('2025-01-17'), date('2025-01-18'),
+        date('2025-01-19'), date('2025-01-20'), date('2025-01-21'), date('2025-01-22'),
+        date('2025-01-23'), date('2025-01-24'), date('2025-01-25'), date('2025-01-26'),
+        date('2025-01-27'), date('2025-01-28'),
+      ]);
+      // Verify all walk instances have correct time
+      expect(walkInstances.every((i) => i.time.includes('07:00'))).toBe(true);
 
-      // Weights should appear (Mon/Fri initially)
+      // Weights should appear (Mon/Fri initially) - 4 instances in 14 days (Mon 20, Fri 24, Mon 27, Fri 31... but range ends 28)
+      // Jan 15-28: Mon 20, Fri 24, Mon 27 = 3 instances
       const weightInstances = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
-      expect(weightInstances.length).toBeGreaterThan(0);
+      // Verify weights have correct dates and properties
+      expect(weightInstances.map((i) => i.date)).toEqual([
+        date('2025-01-20'), date('2025-01-24'), date('2025-01-27'),
+      ]);
+      weightInstances.forEach((instance) => {
+        expect(instance.time).toContain('08:00');
+        expect(instance.duration).toBe(minutes(45));
+      });
     });
 
     it('complete first weight - next weight shows Workout B', async () => {
@@ -211,18 +235,30 @@ describe('Segment 16: Integration Tests', () => {
         await planner.logCompletion(walkSeriesId, date(`2025-01-${String(i).padStart(2, '0')}`));
       }
 
-      // Verify conditioned state - daily walks
+      // Verify conditioned state - daily walks (7 days = 7 instances)
       const scheduleConditioned = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
       const walksConditioned = scheduleConditioned.instances.filter((i) => i.seriesId === walkSeriesId);
-      expect(walksConditioned.length).toBeGreaterThanOrEqual(6); // Daily = ~7 in a week
+      // Verify all 7 daily walk instances
+      expect(walksConditioned.map((i) => i.date)).toEqual([
+        date('2025-01-15'), date('2025-01-16'), date('2025-01-17'), date('2025-01-18'),
+        date('2025-01-19'), date('2025-01-20'), date('2025-01-21'),
+      ]);
 
       // Query far future where sliding window no longer contains 7 completions
       // Feb 1-14 is >14 days after last completion (Jan 14), so window has 0 completions
       const scheduleDeconditioned = await planner.getSchedule(date('2025-02-01'), date('2025-02-14'));
       const walksDeconditioned = scheduleDeconditioned.instances.filter((i) => i.seriesId === walkSeriesId);
 
-      // Should regress to every-other-day pattern (<=7 in 14 days)
-      expect(walksDeconditioned.length).toBeLessThanOrEqual(7);
+      // Should regress to every-other-day pattern (7 in 14 days)
+      // Verify they are still walks with correct dates and properties
+      expect(walksDeconditioned.map((i) => i.date)).toEqual([
+        date('2025-02-01'), date('2025-02-03'), date('2025-02-05'), date('2025-02-07'),
+        date('2025-02-09'), date('2025-02-11'), date('2025-02-13'),
+      ]);
+      walksDeconditioned.forEach((instance) => {
+        expect(instance.seriesId).toBe(walkSeriesId);
+        expect(instance.time).toContain('07:00');
+      });
     });
 
     it('check cycling - cycling index preserved', async () => {
@@ -272,7 +308,10 @@ describe('Segment 16: Integration Tests', () => {
 
       const scheduleAfter = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
       const weightsAfter = scheduleAfter.instances.filter((i) => i.seriesId === weightSeriesId);
-      expect(weightsAfter.length).toBeGreaterThan(0);
+      // Jan 15-21 contains Mon 20 = 1 weight instance
+      expect(weightsAfter.map((i) => i.date)).toEqual([date('2025-01-20')]);
+      expect(weightsAfter[0].seriesId).toBe(weightSeriesId);
+      expect(weightsAfter[0].time).toContain('08:00');
     });
 
     it('multiple state transitions work correctly', async () => {
@@ -287,7 +326,10 @@ describe('Segment 16: Integration Tests', () => {
       }
 
       schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
-      expect(schedule.instances.filter((i) => i.seriesId === weightSeriesId).length).toBeGreaterThan(0);
+      const conditioningWeights = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
+      // Jan 15-21 contains Mon 20 = 1 weight instance
+      expect(conditioningWeights.map((i) => i.date)).toEqual([date('2025-01-20')]);
+      expect(conditioningWeights[0].time).toContain('08:00');
 
       // Move to conditioned
       for (let i = 0; i < 4; i++) {
@@ -296,7 +338,14 @@ describe('Segment 16: Integration Tests', () => {
 
       schedule = await planner.getSchedule(date('2025-02-01'), date('2025-02-07'));
       const weights = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
-      expect(weights.length).toBeGreaterThanOrEqual(2); // Mon, Wed, Fri in a week
+      // Mon, Wed, Fri in Feb 1-7 = Mon 3, Wed 5, Fri 7 = 3 instances
+      expect(weights.map((i) => i.date)).toEqual([
+        date('2025-02-03'), date('2025-02-05'), date('2025-02-07'),
+      ]);
+      weights.forEach((w) => {
+        expect(w.seriesId).toBe(weightSeriesId);
+        expect(w.time).toContain('08:00');
+      });
     });
 
     it('completion count window slides correctly', async () => {
@@ -308,7 +357,11 @@ describe('Segment 16: Integration Tests', () => {
       // Should be conditioned (7 completions in 14-day window)
       const scheduleConditioned = await planner.getSchedule(date('2025-01-08'), date('2025-01-14'));
       const walksConditioned = scheduleConditioned.instances.filter((i) => i.seriesId === walkSeriesId);
-      expect(walksConditioned.length).toBeGreaterThanOrEqual(6); // Daily pattern active
+      // Daily pattern: Jan 8-14 = 7 days = 7 instances
+      expect(walksConditioned.map((i) => i.date)).toEqual([
+        date('2025-01-08'), date('2025-01-09'), date('2025-01-10'), date('2025-01-11'),
+        date('2025-01-12'), date('2025-01-13'), date('2025-01-14'),
+      ]);
 
       // After 14 days (Jan 22+), window slides past all completions
       // 14-day window from Jan 22 = Jan 8-22, which excludes Jan 1-7 completions
@@ -316,7 +369,14 @@ describe('Segment 16: Integration Tests', () => {
       const walksSlid = scheduleSlid.instances.filter((i) => i.seriesId === walkSeriesId);
 
       // Should regress to every-other-day pattern (0 completions in window < 7)
-      expect(walksSlid.length).toBeLessThanOrEqual(4); // ~3-4 in a week for every-other-day
+      // Jan 22-28 = 7 days, every other day = ~4 instances (Jan 22, 24, 26, 28)
+      expect(walksSlid.map((i) => i.date)).toEqual([
+        date('2025-01-22'), date('2025-01-24'), date('2025-01-26'), date('2025-01-28'),
+      ]);
+      walksSlid.forEach((w) => {
+        expect(w.seriesId).toBe(walkSeriesId);
+        expect(w.time).toContain('07:00');
+      });
     });
 
     it('PROP 5: cycling preserved across pattern deactivation/reactivation', async () => {
@@ -412,12 +472,18 @@ describe('Segment 16: Integration Tests', () => {
       const transfer = schedule.instances.find((i) => i.seriesId === transferId);
       const unload = schedule.instances.find((i) => i.seriesId === unloadId);
 
-      expect(loadWasher).toBeDefined();
-      expect(loadWasher?.time).toContain('09:00');
-      expect(transfer).toBeDefined();
-      expect(transfer?.time).toContain('10:34');
-      expect(unload).toBeDefined();
-      expect(unload?.time).toContain('13:59');
+      expect(loadWasher !== undefined).toBe(true);
+      expect(loadWasher!.seriesId).toBe(loadWasherId);
+      expect(loadWasher!.time).toContain('09:00');
+      expect(loadWasher!.date).toBe(date('2025-01-19'));
+
+      expect(transfer !== undefined).toBe(true);
+      expect(transfer!.seriesId).toBe(transferId);
+      expect(transfer!.time).toContain('10:34');
+
+      expect(unload !== undefined).toBe(true);
+      expect(unload!.seriesId).toBe(unloadId);
+      expect(unload!.time).toContain('13:59');
     });
 
     it('complete washer late - transfer adjusts based on actual completion', async () => {
@@ -436,8 +502,9 @@ describe('Segment 16: Integration Tests', () => {
       const transferAfter = scheduleAfter.instances.find((i) => i.seriesId === transferId);
 
       // Transfer should shift: endTime 09:20 + 80min distance = 10:40
-      expect(transferAfter).toBeDefined();
-      expect(transferAfter?.time).toContain('10:40');
+      expect(transferAfter !== undefined).toBe(true);
+      expect(transferAfter!.seriesId).toBe(transferId);
+      expect(transferAfter!.time).toContain('10:40');
     });
 
     it('complete transfer - unload adjusts based on transfer completion', async () => {
@@ -460,8 +527,9 @@ describe('Segment 16: Integration Tests', () => {
       const unloadAfter = scheduleAfter.instances.find((i) => i.seriesId === unloadId);
 
       // Unload target = transfer endTime 10:45 + 200min = 14:05
-      expect(unloadAfter).toBeDefined();
-      expect(unloadAfter?.time).toContain('14:05');
+      expect(unloadAfter !== undefined).toBe(true);
+      expect(unloadAfter!.seriesId).toBe(unloadId);
+      expect(unloadAfter!.time).toContain('14:05');
     });
 
     it('attempt early transfer - blocked by earlyWobble=0', async () => {
@@ -476,21 +544,30 @@ describe('Segment 16: Integration Tests', () => {
       const loadWasher = schedule.instances.find((i) => i.seriesId === loadWasherId);
       const transfer = schedule.instances.find((i) => i.seriesId === transferId);
 
-      expect(loadWasher).toBeDefined();
-      expect(transfer).toBeDefined();
+      expect(loadWasher !== undefined).toBe(true);
+      expect(loadWasher!.seriesId).toBe(loadWasherId);
+      expect(transfer !== undefined).toBe(true);
+      expect(transfer!.seriesId).toBe(transferId);
 
       // Transfer has earlyWobble=0, lateWobble=10
       // Parent ends at 09:00 + 14min = 09:14, distance=80min means target=10:34
       // Allowed range: 10:34 to 10:44
-      expect(transfer?.time).toContain('10:34');
+      expect(transfer!.time).toContain('10:34');
     });
 
     it('3-level chain works - all scheduled correctly', async () => {
       const schedule = await planner.getSchedule(date('2025-01-19'), date('2025-01-20'));
 
-      expect(schedule.instances.find((i) => i.seriesId === loadWasherId)).toBeDefined();
-      expect(schedule.instances.find((i) => i.seriesId === transferId)).toBeDefined();
-      expect(schedule.instances.find((i) => i.seriesId === unloadId)).toBeDefined();
+      const loadWasher = schedule.instances.find((i) => i.seriesId === loadWasherId);
+      const transfer = schedule.instances.find((i) => i.seriesId === transferId);
+      const unload = schedule.instances.find((i) => i.seriesId === unloadId);
+
+      expect(loadWasher !== undefined).toBe(true);
+      expect(loadWasher!.title).toBe('Load Washer');
+      expect(transfer !== undefined).toBe(true);
+      expect(transfer!.title).toBe('Transfer to Dryer');
+      expect(unload !== undefined).toBe(true);
+      expect(unload!.title).toBe('Unload & Fold');
     });
 
     it('reschedule cascades - reschedule parent moves children', async () => {
@@ -503,8 +580,9 @@ describe('Segment 16: Integration Tests', () => {
 
       expect(loadWasher?.time).toContain('10:00');
       // Transfer target = Load Washer end (10:14) + 80 = 11:34
-      expect(transfer).toBeDefined();
-      expect(transfer?.time).toContain('11:34');
+      expect(transfer !== undefined).toBe(true);
+      expect(transfer!.seriesId).toBe(transferId);
+      expect(transfer!.time).toContain('11:34');
     });
 
     it('chain respects actual completion times', async () => {
@@ -524,8 +602,9 @@ describe('Segment 16: Integration Tests', () => {
 
       // New target = endTime 09:10 + 80 = 10:30
       // earlyWobble=0 means Transfer can't be earlier than target, so Transfer is at 10:30
-      expect(transferAfter).toBeDefined();
-      expect(transferAfter?.time).toContain('10:30');
+      expect(transferAfter !== undefined).toBe(true);
+      expect(transferAfter!.seriesId).toBe(transferId);
+      expect(transferAfter!.time).toContain('10:30');
     });
   });
 
@@ -556,8 +635,12 @@ describe('Segment 16: Integration Tests', () => {
         const conflicts = await planner.getConflicts();
 
         // Both should be scheduled
-        expect(schedule.instances.find((i) => i.seriesId === meeting1Id)).toBeDefined();
-        expect(schedule.instances.find((i) => i.seriesId === meeting2Id)).toBeDefined();
+        const meeting1 = schedule.instances.find((i) => i.seriesId === meeting1Id);
+        const meeting2 = schedule.instances.find((i) => i.seriesId === meeting2Id);
+        expect(meeting1 !== undefined).toBe(true);
+        expect(meeting1!.title).toBe('Meeting 1');
+        expect(meeting2 !== undefined).toBe(true);
+        expect(meeting2!.title).toBe('Meeting 2');
 
         // Should have overlap warning
         expect(conflicts.some((c) => c.type === 'overlap')).toBe(true);
@@ -576,8 +659,11 @@ describe('Segment 16: Integration Tests', () => {
         const conflicts = await planner.getConflicts();
         const overlap = conflicts.find((c) => c.type === 'overlap');
 
-        expect(overlap?.instances).toBeDefined();
-        expect(overlap?.instances?.length).toBeGreaterThanOrEqual(2);
+        expect(overlap !== undefined).toBe(true);
+        expect(overlap!.type).toBe('overlap');
+        expect(overlap!.instances !== undefined).toBe(true);
+        // Two meetings overlap at the same time - verify both are present
+        expect(overlap!.instances!.map((i) => i.title).sort()).toEqual(['Meeting 1', 'Meeting 2']);
       });
     });
 
@@ -622,8 +708,12 @@ describe('Segment 16: Integration Tests', () => {
         const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
 
         // Both should still be scheduled (best-effort)
-        expect(schedule.instances.find((i) => i.seriesId === id1)).toBeDefined();
-        expect(schedule.instances.find((i) => i.seriesId === id2)).toBeDefined();
+        const taskA = schedule.instances.find((i) => i.seriesId === id1);
+        const taskB = schedule.instances.find((i) => i.seriesId === id2);
+        expect(taskA !== undefined).toBe(true);
+        expect(taskA!.title).toBe('Task A');
+        expect(taskB !== undefined).toBe(true);
+        expect(taskB!.title).toBe('Task B');
       });
     });
 
@@ -673,8 +763,11 @@ describe('Segment 16: Integration Tests', () => {
         const conflicts = await planner.getConflicts();
         const chainConflict = conflicts.find((c) => c.type === 'chainCannotFit');
 
-        expect(chainConflict).toBeDefined();
-        expect(chainConflict!.parentId ?? chainConflict!.childId).toBeDefined();
+        expect(chainConflict !== undefined).toBe(true);
+        expect(chainConflict!.type).toBe('chainCannotFit');
+        // Verify chain info is included - either parentId or childId should be set
+        const hasChainInfo = chainConflict!.parentId !== undefined || chainConflict!.childId !== undefined;
+        expect(hasChainInfo).toBe(true);
       });
     });
   });
@@ -708,8 +801,8 @@ describe('Segment 16: Integration Tests', () => {
       });
 
       const conflicts = await planner.getConflicts();
-      // Mon and Tue are adjacent, should have conflict
-      expect(conflicts.length).toBeGreaterThan(0);
+      // Mon and Tue are adjacent, should have exactly one conflict
+      expect(conflicts.map((c) => c.type)).toEqual(['constraintViolation']);
     });
 
     it('add cardio - mustBeOnSameDay as heavy', async () => {
@@ -780,7 +873,12 @@ describe('Segment 16: Integration Tests', () => {
       }
 
       const schedule = await planner.getSchedule(date('2025-01-01'), date('2025-12-31'));
-      expect(schedule.instances.length).toBeGreaterThan(0);
+      // 100 series * 365 days = 36500 instances
+      // Verify count and sample content
+      expect(schedule.instances.length === 36500).toBe(true);
+      // Verify first and last instances have expected properties
+      expect(schedule.instances[0].title).toMatch(/^Series \d+$/);
+      expect(schedule.instances[36499].title).toMatch(/^Series \d+$/);
     });
 
     it('no infinite loops - complex constraints terminate', async () => {
@@ -808,7 +906,11 @@ describe('Segment 16: Integration Tests', () => {
       const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
       const elapsed = Date.now() - start;
 
-      expect(schedule).toBeDefined();
+      // 20 series for 1 day = 20 instances
+      // Verify count and that all series are represented
+      expect(schedule.instances.map((i) => i.title).sort()).toEqual(
+        Array.from({ length: 20 }, (_, i) => `Series ${i}`).sort()
+      );
       expect(elapsed).toBeLessThan(30000); // Should complete in under 30 seconds
     });
 
@@ -878,10 +980,12 @@ describe('Segment 16: Integration Tests', () => {
 
         // 02:30 doesn't exist on DST start, should shift to 03:00 (first valid time)
         // Verify exactly one instance with correct properties
-        expect(schedule.instances.length).toBe(1);
-        expect(schedule.instances[0].seriesId).toBe(id);
-        expect(schedule.instances[0].date).toBe(date('2025-03-09'));
-        expect(schedule.instances[0].time).toContain('03:00');
+        expect(schedule.instances.map((i) => ({ seriesId: i.seriesId, date: i.date }))).toEqual([
+          { seriesId: id, date: date('2025-03-09') },
+        ]);
+        const instance = schedule.instances[0];
+        expect(instance.title).toBe('Early Morning');
+        expect(instance.time).toContain('03:00');
       });
 
       it('other instances unaffected - adjacent days normal times', async () => {
@@ -912,10 +1016,12 @@ describe('Segment 16: Integration Tests', () => {
 
         // 01:30 occurs twice on DST end - should use first occurrence (EDT, before fall back)
         // Verify exactly one instance with correct properties (not duplicated)
-        expect(schedule.instances.length).toBe(1);
-        expect(schedule.instances[0].seriesId).toBe(id);
-        expect(schedule.instances[0].date).toBe(date('2025-11-02'));
-        expect(schedule.instances[0].time).toContain('01:30');
+        expect(schedule.instances.map((i) => ({ seriesId: i.seriesId, date: i.date }))).toEqual([
+          { seriesId: id, date: date('2025-11-02') },
+        ]);
+        const instance = schedule.instances[0];
+        expect(instance.title).toBe('Night Task');
+        expect(instance.time).toContain('01:30');
       });
     });
 
@@ -1036,9 +1142,12 @@ describe('Segment 16: Integration Tests', () => {
 
       const remindersAfter = await planner.getPendingReminders(datetime('2025-01-15T13:10:00'));
       // Prepare should not be pending after acknowledgment (for this instance)
-      expect(remindersAfter.filter((r) =>
+      // Only the urgent (10 min) reminder might still be pending (not yet triggered at 13:10)
+      const seriesRemindersAfter = remindersAfter.filter((r) =>
         r.seriesId === seriesIdValue && r.instanceDate === date('2025-01-15')
-      ).length).toBeLessThanOrEqual(1);
+      );
+      // At 13:10, the prepare reminder (60 min) was acknowledged, urgent (10 min before 14:00 = 13:50) not yet triggered
+      expect(seriesRemindersAfter.length).toBe(0);
     });
 
     it('13:50 - urgent (10 min) pending', async () => {
@@ -1078,9 +1187,13 @@ describe('Segment 16: Integration Tests', () => {
 
       const schedule = await planner.getSchedule(date('2025-01-20'), date('2025-01-21'));
 
-      expect(schedule.instances.find((i) =>
+      const cancelledInstance = schedule.instances.find((i) =>
         i.seriesId === seriesIdValue && i.date === date('2025-01-20')
-      )).toBeUndefined();
+      );
+      // Instance should not exist after cancellation
+      expect(cancelledInstance === undefined).toBe(true);
+      // Verify the schedule is still valid
+      expect(schedule.instances.filter((i) => i.date === date('2025-01-20'))).toEqual([]);
     });
 
     it('check other Mondays - still scheduled', async () => {
@@ -1088,9 +1201,13 @@ describe('Segment 16: Integration Tests', () => {
 
       const schedule = await planner.getSchedule(date('2025-01-27'), date('2025-01-28'));
 
-      expect(schedule.instances.find((i) =>
+      const instance = schedule.instances.find((i) =>
         i.seriesId === seriesIdValue && i.date === date('2025-01-27')
-      )).toBeDefined();
+      );
+      expect(instance !== undefined).toBe(true);
+      expect(instance!.seriesId).toBe(seriesIdValue);
+      expect(instance!.title).toBe('Weekly Meeting');
+      expect(instance!.time).toContain('09:00');
     });
 
     it('reschedule to Tuesday - instance on Tuesday', async () => {
@@ -1109,9 +1226,16 @@ describe('Segment 16: Integration Tests', () => {
       const schedule = await planner.getSchedule(date('2025-01-20'), date('2025-01-22'));
 
       // Original Monday should not have the instance
-      expect(schedule.instances.find((i) =>
+      const originalInstance = schedule.instances.find((i) =>
         i.seriesId === seriesIdValue && i.date === date('2025-01-20')
-      )).toBeUndefined();
+      );
+      expect(originalInstance === undefined).toBe(true);
+      // Verify the instance moved to Tuesday
+      const rescheduledInstance = schedule.instances.find((i) =>
+        i.seriesId === seriesIdValue && i.date === date('2025-01-21')
+      );
+      expect(rescheduledInstance !== undefined).toBe(true);
+      expect(rescheduledInstance!.time).toContain('14:00');
     });
   });
 
@@ -1392,7 +1516,9 @@ describe('Segment 16: Integration Tests', () => {
 
       // State should be consistent after each operation
       let series = await planner.getSeries(id);
-      expect(series).toBeDefined();
+      expect(series !== undefined).toBe(true);
+      expect(series!.id).toBe(id);
+      expect(series!.title).toBe('Test');
 
       await planner.updateSeries(id, { title: 'Updated' });
       series = await planner.getSeries(id);
@@ -1407,17 +1533,22 @@ describe('Segment 16: Integration Tests', () => {
       const planner = await createTestPlanner();
 
       // Create valid series
-      await planner.createSeries({
+      const id = await planner.createSeries({
         title: 'Valid Series',
         patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(60) }],
       });
 
       const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
 
-      expect(schedule.instances.length).toBeGreaterThan(0);
+      // 7 days = 7 instances
+      expect(schedule.instances.map((i) => i.date)).toEqual([
+        date('2025-01-15'), date('2025-01-16'), date('2025-01-17'), date('2025-01-18'),
+        date('2025-01-19'), date('2025-01-20'), date('2025-01-21'),
+      ]);
       schedule.instances.forEach((instance) => {
-        expect(instance.time).toBeDefined();
-        expect(instance.duration).toBeDefined();
+        expect(instance.seriesId).toBe(id);
+        expect(instance.time).toContain('09:00');
+        expect(instance.duration).toBe(minutes(60));
       });
     });
 
@@ -1434,7 +1565,8 @@ describe('Segment 16: Integration Tests', () => {
       });
 
       const conflicts = await planner.getConflicts();
-      expect(conflicts.length).toBeGreaterThan(0);
+      // Two fixed series at same time should produce overlap conflict
+      expect(conflicts.map((c) => c.type)).toEqual(['overlap']);
     });
 
     it('E2E 5: performance acceptable - benchmark passes', async () => {
@@ -1479,14 +1611,15 @@ describe('Segment 16: Integration Tests', () => {
 
       // Verify data persisted across planner instances
       const series = await planner2.getSeries(id);
-      expect(series).toBeDefined();
-      expect(series?.title).toBe('Persistent Series');
+      expect(series !== undefined).toBe(true);
+      expect(series!.id).toBe(id);
+      expect(series!.title).toBe('Persistent Series');
 
       const completions = await planner2.getCompletions(id);
       // Verify the completion data was persisted correctly
-      expect(completions.length).toBe(1);
-      expect(completions[0].seriesId).toBe(id);
-      expect(completions[0].date).toBe(date('2025-01-15'));
+      expect(completions.map((c) => ({ seriesId: c.seriesId, date: c.date }))).toEqual([
+        { seriesId: id, date: date('2025-01-15') },
+      ]);
     });
 
     it('E2E 7: error recovery consistent - fail and verify state', async () => {
@@ -1551,8 +1684,10 @@ describe('Segment 16: Integration Tests', () => {
       expect(parent?.time).toContain('11:00');
 
       // Child should have moved: parent end (12:00) + distance (30) = 12:30
-      expect(child).toBeDefined();
-      expect(child?.time).toContain('12:30');
+      expect(child !== undefined).toBe(true);
+      expect(child!.seriesId).toBe(childId);
+      expect(child!.title).toBe('Child');
+      expect(child!.time).toContain('12:30');
     });
 
     it('E2E 10: all-day reminders use 00:00', async () => {
@@ -1589,7 +1724,9 @@ describe('Segment 16: Integration Tests', () => {
       });
 
       const series = await planner.getSeries(id);
-      expect(series).toBeDefined();
+      expect(series !== undefined).toBe(true);
+      expect(series!.id).toBe(id);
+      expect(series!.title).toBe('Test');
     });
 
     it('SQLite adapter passes - all integration tests work', async () => {
@@ -1605,7 +1742,9 @@ describe('Segment 16: Integration Tests', () => {
       });
 
       const series = await planner.getSeries(id);
-      expect(series).toBeDefined();
+      expect(series !== undefined).toBe(true);
+      expect(series!.id).toBe(id);
+      expect(series!.title).toBe('Test');
 
       await sqliteAdapter.close();
     });

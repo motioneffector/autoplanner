@@ -111,12 +111,19 @@ function createValidConfig(overrides: Partial<AutoplannerConfig> = {}): Autoplan
 describe('Segment 14: Public API', () => {
   describe('Initialization', () => {
     describe('Basic Initialization', () => {
-      it('create autoplanner - valid config creates instance', () => {
+      it('create autoplanner - valid config creates instance', async () => {
         const config = createValidConfig();
         const planner = createAutoplanner(config);
 
-        expect(planner).not.toBeNull();
-        expect(planner.createSeries).toBeInstanceOf(Function);
+        // Verify instance works by calling a method
+        const id = await planner.createSeries({
+          title: 'Test',
+          patterns: [{ type: 'daily', time: time('09:00') }],
+        });
+        expect(id).toMatch(/^[0-9a-f-]{36}$/);
+
+        const series = await planner.getSeries(id);
+        expect(series?.title).toBe('Test');
       });
 
       it('uses provided adapter - operations use adapter', async () => {
@@ -158,10 +165,14 @@ describe('Segment 14: Public API', () => {
         }).toThrow(ValidationError);
       });
 
-      it('valid IANA timezone - America/New_York succeeds', () => {
-        expect(() => {
-          createAutoplanner(createValidConfig({ timezone: 'America/New_York' }));
-        }).not.toThrow();
+      it('valid IANA timezone - America/New_York succeeds', async () => {
+        const planner = createAutoplanner(createValidConfig({ timezone: 'America/New_York' }));
+        // Verify planner is functional with valid timezone
+        const id = await planner.createSeries({
+          title: 'Test',
+          patterns: [{ type: 'daily', time: time('09:00') }],
+        });
+        expect(id).toMatch(/^[0-9a-f-]{36}$/);
       });
     });
   });
@@ -249,7 +260,10 @@ describe('Segment 14: Public API', () => {
         // Internal storage should use UTC
         const savedCall = (adapter.saveSeries as any).mock.calls[0];
         expect(savedCall).toEqual(expect.any(Array));
-        expect(savedCall.length).toBeGreaterThan(0);
+        const savedSeries = savedCall[0];
+        expect(savedSeries.title).toBe('Test');
+        expect(savedSeries.id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(savedSeries.patterns[0].time).toBe(time('09:00'));
       });
 
       it('round-trip preserves time - store then retrieve same local time', async () => {
@@ -279,9 +293,9 @@ describe('Segment 14: Public API', () => {
         // 2:30 AM doesn't exist on DST start - should shift to 3:00 AM (first valid time)
         expect(schedule.instances).toSatisfy((instances: typeof schedule.instances) => instances.length === 1 && instances[0].seriesId === id);
         const instance = schedule.instances.find((i) => i.seriesId === id);
-        expect(instance).not.toBeUndefined();
+        expect(instance?.seriesId).toBe(id);
         // Time should be shifted to 03:00 since 02:30 doesn't exist
-        expect(instance!.time).toContain('03:00');
+        expect(instance?.time).toContain('03:00');
       });
 
       it('DST fall back - 1:30am on DST end uses first occurrence', async () => {
@@ -297,8 +311,8 @@ describe('Segment 14: Public API', () => {
         // 1:30 AM occurs twice on DST end - should use first occurrence (EDT, before fall back)
         expect(schedule.instances).toSatisfy((instances: typeof schedule.instances) => instances.length === 1 && instances[0].seriesId === id);
         const instance = schedule.instances.find((i) => i.seriesId === id);
-        expect(instance).not.toBeUndefined();
-        expect(instance!.time).toContain('01:30');
+        expect(instance?.seriesId).toBe(id);
+        expect(instance?.time).toContain('01:30');
         // Instance should be at the first 01:30 (EDT, not EST)
       });
     });
@@ -486,7 +500,11 @@ describe('Segment 14: Public API', () => {
         });
 
         const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
-        expect(schedule.instances.length).toBeGreaterThan(0);
+        // 6 days from 2025-01-15 to 2025-01-20 inclusive (daily pattern)
+        expect(schedule.instances.every((i) => i.seriesId === id)).toBe(true);
+        expect(schedule.instances.every((i) => i.title === 'Test')).toBe(true);
+        expect(schedule.instances.map((i) => i.date)).toContain(date('2025-01-15'));
+        expect(schedule.instances.map((i) => i.date)).toContain(date('2025-01-20'));
       });
 
       it('reflow is synchronous - query sees new state immediately', async () => {
@@ -525,7 +543,10 @@ describe('Segment 14: Public API', () => {
         const planner = createAutoplanner(createValidConfig());
 
         const result = await planner.getSeries(seriesId('non-existent'));
-        expect(result).toBeNull();
+        expect(result === null).toBe(true);
+        // Verify query for non-existent series doesn't return any series data
+        const allSeries = await planner.getAllSeries();
+        expect(allSeries.length).toBe(0);
       });
 
       it('LockedSeriesError - update locked series throws', async () => {
@@ -680,7 +701,7 @@ describe('Segment 14: Public API', () => {
           expect.fail('Should have thrown');
         } catch (e: any) {
           expect(e.message).toEqual(expect.any(String));
-          expect(e.message.length).toBeGreaterThan(0);
+          expect(e.message).toContain('title');
         }
       });
 
@@ -737,7 +758,7 @@ describe('Segment 14: Public API', () => {
         });
 
         await planner.lock(id);
-        await expect(planner.lock(id)).resolves.not.toThrow();
+        await planner.lock(id);
 
         const series = await planner.getSeries(id);
         expect(series?.locked).toBe(true);
@@ -752,7 +773,7 @@ describe('Segment 14: Public API', () => {
         });
 
         await planner.unlock(id);
-        await expect(planner.unlock(id)).resolves.not.toThrow();
+        await planner.unlock(id);
 
         const series = await planner.getSeries(id);
         expect(series?.locked).toBe(false);
@@ -772,9 +793,11 @@ describe('Segment 14: Public API', () => {
 
         // Simulate reminder becoming due and acknowledging
         await planner.acknowledgeReminder(reminderId, datetime('2025-01-15T08:45:00'));
-        await expect(
-          planner.acknowledgeReminder(reminderId, datetime('2025-01-15T08:45:00'))
-        ).resolves.not.toThrow();
+        await planner.acknowledgeReminder(reminderId, datetime('2025-01-15T08:45:00'));
+
+        // Verify reminder is acknowledged (not in pending list)
+        const pending = await planner.getPendingReminders(datetime('2025-01-15T08:45:00'));
+        expect(pending.every((r) => r.id !== reminderId)).toBe(true);
       });
     });
 
@@ -855,9 +878,13 @@ describe('Segment 14: Public API', () => {
       expect(series?.title).toBe('Title 9');
     });
 
-    it('adapter transaction support - adapter provides transaction method', () => {
+    it('adapter transaction support - adapter provides transaction method', async () => {
       const adapter = createMockAdapter();
-      expect(adapter.transaction).toBeInstanceOf(Function);
+      // Verify transaction actually works by calling it
+      const result = await adapter.transaction(() => 'test-result');
+      expect(result).toBe('test-result');
+      // Verify transaction was tracked
+      expect(adapter.transaction).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -887,13 +914,14 @@ describe('Segment 14: Public API', () => {
           schedule = s;
         });
 
-        await planner.createSeries({
+        const id = await planner.createSeries({
           title: 'Test',
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
-        expect(schedule).not.toBeNull();
-        expect(schedule!.instances).toEqual(expect.any(Array));
+        expect(schedule?.instances).toEqual(expect.any(Array));
+        expect(schedule?.instances.some((i) => i.seriesId === id)).toBe(true);
+        expect(schedule?.instances.some((i) => i.title === 'Test')).toBe(true);
       });
     });
 
@@ -923,17 +951,18 @@ describe('Segment 14: Public API', () => {
           conflict = c;
         });
 
-        await planner.createSeries({
+        const idA = await planner.createSeries({
           title: 'A',
           patterns: [{ type: 'daily', time: time('09:00'), fixed: true }],
         });
-        await planner.createSeries({
+        const idB = await planner.createSeries({
           title: 'B',
           patterns: [{ type: 'daily', time: time('09:00'), fixed: true }],
         });
 
-        expect(conflict).not.toBeNull();
-        expect(typeof conflict!.type).toBe('string');
+        expect(conflict?.type).toBe('overlap');
+        expect([idA, idB]).toContain(conflict?.seriesIds[0]);
+        expect([idA, idB]).toContain(conflict?.seriesIds[1]);
       });
     });
 
@@ -966,12 +995,13 @@ describe('Segment 14: Public API', () => {
           title: 'Test',
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
-        await planner.createReminder(id, { type: 'before', offset: minutes(15) });
+        const reminderId = await planner.createReminder(id, { type: 'before', offset: minutes(15) });
 
         await planner.checkReminders(datetime('2025-01-15T08:45:00'));
 
-        expect(reminder).not.toBeNull();
-        expect(reminder!.seriesId).toBe(id);
+        expect(reminder?.seriesId).toBe(id);
+        expect(reminder?.id).toBe(reminderId);
+        expect(reminder?.type).toBe('before');
       });
     });
 
@@ -985,12 +1015,13 @@ describe('Segment 14: Public API', () => {
           scheduleAtEvent = schedule;
         });
 
-        await planner.createSeries({
+        const id = await planner.createSeries({
           title: 'Test',
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
-        expect(scheduleAtEvent?.instances.length).toBeGreaterThan(0);
+        expect(scheduleAtEvent?.instances.some((i) => i.seriesId === id)).toBe(true);
+        expect(scheduleAtEvent?.instances.some((i) => i.title === 'Test')).toBe(true);
       });
 
       it('event data immutable - modify payload does not change original', async () => {
@@ -1003,17 +1034,19 @@ describe('Segment 14: Public API', () => {
           (schedule as any).instances = [];
         });
 
-        await planner.createSeries({
+        const id1 = await planner.createSeries({
           title: 'Test 1',
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
-        await planner.createSeries({
+        const id2 = await planner.createSeries({
           title: 'Test 2',
           patterns: [{ type: 'daily', time: time('10:00') }],
         });
 
         // Second event should have fresh data, not affected by mutation
-        expect(schedules[1]?.instances.length).toBeGreaterThan(0);
+        expect(schedules[0]?.instances.some((i) => i.seriesId === id1)).toBe(true);
+        expect(schedules[1]?.instances.some((i) => i.seriesId === id2)).toBe(true);
+        expect(schedules[1]?.instances.some((i) => i.title === 'Test 2')).toBe(true);
       });
 
       it('handler errors isolated - API unaffected by handler throw', async () => {
@@ -1066,8 +1099,18 @@ describe('Segment 14: Public API', () => {
       it('getSeries returns null - non-existent returns null', async () => {
         const planner = createAutoplanner(createValidConfig());
 
+        // Create a series first to ensure we can distinguish non-existent from empty
+        const existingId = await planner.createSeries({
+          title: 'Existing',
+          patterns: [{ type: 'daily', time: time('09:00') }],
+        });
+
         const series = await planner.getSeries(seriesId('non-existent'));
-        expect(series).toBeNull();
+        expect(series === null).toBe(true);
+
+        // Confirm the existing series is still there
+        const existingSeries = await planner.getSeries(existingId);
+        expect(existingSeries?.title).toBe('Existing');
       });
 
       it('getSeriesByTag filters - matching series returned', async () => {
@@ -1154,10 +1197,17 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
+        // Verify series exists before deletion
+        const seriesBefore = await planner.getSeries(id);
+        expect(seriesBefore?.title).toBe('Test');
+
         await planner.deleteSeries(id);
 
         const series = await planner.getSeries(id);
-        expect(series).toBeNull();
+        expect(series === null).toBe(true);
+        // Confirm series no longer appears in schedule
+        const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        expect(schedule.instances.every((i) => i.seriesId !== id)).toBe(true);
       });
 
       it('splitSeries splits - two series created', async () => {
@@ -1173,9 +1223,10 @@ describe('Segment 14: Public API', () => {
         const original = await planner.getSeries(id);
         const newSeries = await planner.getSeries(newId);
 
-        expect(original).not.toBeNull();
-        expect(newSeries).not.toBeNull();
-        expect(original!.id).not.toBe(newSeries!.id);
+        expect(original?.id).toBe(id);
+        expect(original?.title).toBe('Test');
+        expect(newSeries?.id).toBe(newId);
+        expect(original?.id).not.toBe(newSeries?.id);
       });
     });
 
@@ -1211,10 +1262,16 @@ describe('Segment 14: Public API', () => {
         });
         await planner.linkSeries(parentId, childId, { distance: 0 });
 
+        // Verify link exists before unlinking
+        const childBefore = await planner.getSeries(childId);
+        expect(childBefore?.parentId).toBe(parentId);
+
         await planner.unlinkSeries(childId);
 
         const child = await planner.getSeries(childId);
         expect(child?.parentId).toBeUndefined();
+        expect(child?.id).toBe(childId);
+        expect(child?.title).toBe('Child');
       });
     });
 
@@ -1257,10 +1314,15 @@ describe('Segment 14: Public API', () => {
           secondSeries: id2,
         });
 
+        // Verify constraint exists before removal
+        const constraintsBefore = await planner.getConstraints();
+        expect(constraintsBefore.some((c) => c.id === constraintId)).toBe(true);
+
         await planner.removeConstraint(constraintId);
 
         const constraints = await planner.getConstraints();
-        expect(constraints.find((c) => c.id === constraintId)).toBeUndefined();
+        expect(constraints.every((c) => c.id !== constraintId)).toBe(true);
+        expect(constraints.length).toBe(constraintsBefore.length - 1);
       });
     });
 
@@ -1274,8 +1336,9 @@ describe('Segment 14: Public API', () => {
         });
 
         const instance = await planner.getInstance(id, date('2025-01-15'));
-        expect(instance).not.toBeNull();
-        expect(instance!.seriesId).toBe(id);
+        expect(instance?.seriesId).toBe(id);
+        expect(instance?.date).toBe(date('2025-01-15'));
+        expect(instance?.title).toBe('Test');
       });
 
       it('cancelInstance cancels - instance excluded from schedule', async () => {
@@ -1358,14 +1421,18 @@ describe('Segment 14: Public API', () => {
       it('getSchedule returns schedule - instances in range', async () => {
         const planner = createAutoplanner(createValidConfig());
 
-        await planner.createSeries({
+        const id = await planner.createSeries({
           title: 'Test',
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
         const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
 
-        expect(schedule.instances.length).toBeGreaterThan(0);
+        // Verify instances are returned with correct data
+        expect(schedule.instances.every((i) => i.seriesId === id)).toBe(true);
+        expect(schedule.instances.every((i) => i.title === 'Test')).toBe(true);
+        expect(schedule.instances.map((i) => i.date)).toContain(date('2025-01-15'));
+        expect(schedule.instances.map((i) => i.date)).toContain(date('2025-01-20'));
       });
 
       it('getPendingReminders returns - due reminders returned', async () => {
@@ -1375,11 +1442,13 @@ describe('Segment 14: Public API', () => {
           title: 'Test',
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
-        await planner.createReminder(id, { type: 'before', offset: minutes(15) });
+        const reminderId = await planner.createReminder(id, { type: 'before', offset: minutes(15) });
 
         const pending = await planner.getPendingReminders(datetime('2025-01-15T08:45:00'));
 
-        expect(pending.length).toBeGreaterThan(0);
+        expect(pending.some((r) => r.id === reminderId)).toBe(true);
+        expect(pending.some((r) => r.seriesId === id)).toBe(true);
+        expect(pending.some((r) => r.type === 'before')).toBe(true);
       });
 
       it('acknowledgeReminder acknowledges - reminder dismissed', async () => {
@@ -1394,27 +1463,34 @@ describe('Segment 14: Public API', () => {
           offset: minutes(15),
         });
 
+        // Verify reminder is pending before acknowledgement
+        const pendingBefore = await planner.getPendingReminders(datetime('2025-01-15T08:45:00'));
+        expect(pendingBefore.some((r) => r.id === reminderId)).toBe(true);
+
         await planner.acknowledgeReminder(reminderId, datetime('2025-01-15T08:45:00'));
 
         const pending = await planner.getPendingReminders(datetime('2025-01-15T08:45:00'));
-        expect(pending.find((r) => r.id === reminderId)).toBeUndefined();
+        expect(pending.every((r) => r.id !== reminderId)).toBe(true);
+        expect(pending.length).toBe(pendingBefore.length - 1);
       });
 
       it('getConflicts returns - current conflicts returned', async () => {
         const planner = createAutoplanner(createValidConfig());
 
-        await planner.createSeries({
+        const idA = await planner.createSeries({
           title: 'A',
           patterns: [{ type: 'daily', time: time('09:00'), fixed: true }],
         });
-        await planner.createSeries({
+        const idB = await planner.createSeries({
           title: 'B',
           patterns: [{ type: 'daily', time: time('09:00'), fixed: true }],
         });
 
         const conflicts = await planner.getConflicts();
 
-        expect(conflicts.length).toBeGreaterThan(0);
+        expect(conflicts.some((c) => c.type === 'overlap')).toBe(true);
+        expect(conflicts.some((c) => c.seriesIds.includes(idA))).toBe(true);
+        expect(conflicts.some((c) => c.seriesIds.includes(idB))).toBe(true);
       });
     });
 
@@ -1465,8 +1541,8 @@ describe('Segment 14: Public API', () => {
       const series = await planner.getSeries(id);
       const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
 
-      expect(series).not.toBeNull();
-      expect(series!.id).toBe(id);
+      expect(series?.id).toBe(id);
+      expect(series?.title).toBe('Test');
       expect(schedule.instances.some((i) => i.seriesId === id)).toBe(true);
     });
 
@@ -1561,7 +1637,10 @@ describe('Segment 14: Public API', () => {
         // Delete
         await planner.deleteSeries(id);
         series = await planner.getSeries(id);
-        expect(series).toBeNull();
+        expect(series === null).toBe(true);
+        // Verify deletion is complete
+        const allSeries = await planner.getAllSeries();
+        expect(allSeries.every((s) => s.id !== id)).toBe(true);
       });
 
       it('completion workflow - create series log completion query', async () => {
@@ -1602,7 +1681,9 @@ describe('Segment 14: Public API', () => {
 
         // Wednesday (weekday) - should appear
         const weekdaySchedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
-        expect(weekdaySchedule.instances.length).toBeGreaterThan(0);
+        expect(weekdaySchedule.instances.some((i) => i.seriesId === id)).toBe(true);
+        expect(weekdaySchedule.instances.some((i) => i.title === 'Weekday Only')).toBe(true);
+        expect(weekdaySchedule.instances.some((i) => i.date === date('2025-01-15'))).toBe(true);
 
         // Saturday (weekend) - should not appear
         const weekendSchedule = await planner.getSchedule(date('2025-01-18'), date('2025-01-19'));
@@ -1627,6 +1708,8 @@ describe('Segment 14: Public API', () => {
         // Before completion, child scheduled relative to parent's scheduled end
         let schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
         const childBefore = schedule.instances.find((i) => i.seriesId === childId);
+        expect(childBefore?.seriesId).toBe(childId);
+        expect(childBefore?.title).toBe('Child');
 
         // Complete parent early - started at 09:00, finished at 09:45 (15 min early)
         await planner.logCompletion(parentId, date('2025-01-15'), {
@@ -1639,8 +1722,8 @@ describe('Segment 14: Public API', () => {
         const childAfter = schedule.instances.find((i) => i.seriesId === childId);
 
         // Child may have adjusted based on parent's early completion
-        expect(childAfter).not.toBeUndefined();
-        expect(childAfter!.seriesId).toBe(childId);
+        expect(childAfter?.seriesId).toBe(childId);
+        expect(childAfter?.title).toBe('Child');
       });
     });
   });

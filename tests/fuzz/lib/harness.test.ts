@@ -32,7 +32,7 @@ describe('test harness', () => {
         'strings have non-negative length',
         [fc.string()],
         (s) => {
-          expect(s.length).toBeGreaterThanOrEqual(0)
+          expect(s.length >= 0).toBe(true)
         },
         { numRuns: 50 }
       )

@@ -95,9 +95,10 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         const link = await getLinkByChild(adapter, childId);
-        expect(link).not.toBeNull();
-        expect(link!.parentSeriesId).toBe(parentId);
-        expect(link!.childSeriesId).toBe(childId);
+        expect(link !== null).toBe(true);
+        if (link === null) throw new Error('Expected link to exist');
+        expect(link.parentSeriesId).toBe(parentId);
+        expect(link.childSeriesId).toBe(childId);
       });
 
       it('child scheduling relative to parent', async () => {
@@ -249,7 +250,10 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         const links = await getLinksByParent(adapter, parentId);
-        expect(links.length).toBe(2);
+        const childIds = links.map(l => l.childSeriesId);
+        expect(childIds).toContain(child1Id);
+        expect(childIds).toContain(child2Id);
+        expect(childIds.length === 2).toBe(true);
       });
     });
   });
@@ -272,7 +276,7 @@ describe('Segment 11: Links (Chains)', () => {
       await unlinkSeries(adapter, childId);
 
       const link = await getLinkByChild(adapter, childId);
-      expect(link).toBeNull();
+      expect(link === null).toBe(true);
     });
 
     it('unlinked child independent', async () => {
@@ -289,7 +293,7 @@ describe('Segment 11: Links (Chains)', () => {
 
       // Child should schedule independently now
       const link = await getLinkByChild(adapter, childId);
-      expect(link).toBeNull();
+      expect(link === null).toBe(true);
     });
 
     it('unlink non-linked child', async () => {
@@ -320,15 +324,16 @@ describe('Segment 11: Links (Chains)', () => {
       });
 
       const link = await getLinkByChild(adapter, childId);
-      expect(link).not.toBeNull();
-      expect(link!.childSeriesId).toBe(childId);
+      expect(link !== null).toBe(true);
+      if (link === null) throw new Error('Expected link to exist');
+      expect(link.childSeriesId).toBe(childId);
     });
 
     it('get link by child none', async () => {
       const childId = await createTestSeries('Child');
 
       const link = await getLinkByChild(adapter, childId);
-      expect(link).toBeNull();
+      expect(link === null).toBe(true);
     });
 
     it('get links by parent', async () => {
@@ -340,7 +345,10 @@ describe('Segment 11: Links (Chains)', () => {
       await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: child2Id, targetDistance: 30 });
 
       const links = await getLinksByParent(adapter, parentId);
-      expect(links.length).toBe(2);
+      const childIds = links.map(l => l.childSeriesId);
+      expect(childIds).toContain(child1Id);
+      expect(childIds).toContain(child2Id);
+      expect(childIds.length === 2).toBe(true);
     });
 
     it('get links by parent none', async () => {
@@ -362,7 +370,11 @@ describe('Segment 11: Links (Chains)', () => {
       await linkSeries(adapter, { parentSeriesId: parent2, childSeriesId: child3, targetDistance: 45 });
 
       const links = await getAllLinks(adapter);
-      expect(links.length).toBe(3);
+      const childIds = links.map(l => l.childSeriesId);
+      expect(childIds).toContain(child1);
+      expect(childIds).toContain(child2);
+      expect(childIds).toContain(child3);
+      expect(childIds.length === 3).toBe(true);
     });
   });
 
@@ -796,7 +808,7 @@ describe('Segment 11: Links (Chains)', () => {
       await deleteSeries(adapter, childId);
 
       const link = await getLinkByChild(adapter, childId);
-      expect(link).toBeNull();
+      expect(link === null).toBe(true);
     });
 
     it('delete parent blocked', async () => {

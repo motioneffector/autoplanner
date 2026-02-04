@@ -70,8 +70,8 @@ describe('Create Series', () => {
       }
       const id = await createSeries(adapter, input)
       const series = await getSeries(adapter, id)
-      expect(series).not.toBeNull()
-      expect(series?.title).toBe('Test Series')
+      expect(series !== null).toBe(true)
+      expect(series!.title).toBe('Test Series')
     })
 
     it('two creates return different IDs', async () => {
@@ -150,7 +150,7 @@ describe('Create Series', () => {
       }
       const id = await createSeries(adapter, input)
       const series = await getSeries(adapter, id)
-      expect(series?.count).toBeUndefined()
+      expect(series?.count === undefined).toBe(true)
     })
 
     it('count specified uses count', async () => {
@@ -216,7 +216,8 @@ describe('Create Series', () => {
       }
       const id2 = await createSeries(adapter, input2)
       const tags = await getTagsForSeries(adapter, id2)
-      expect(tags.filter((t) => t === 'work').length).toBe(1)
+      const workTags = tags.filter((t) => t === 'work')
+      expect(workTags).toEqual(['work'])
     })
   })
 })
@@ -717,12 +718,13 @@ describe('Get Series', () => {
       duration: 30,
     })
     const series = await getSeries(adapter, id)
-    expect(series).not.toBeNull()
+    expect(series !== null).toBe(true)
+    expect(series!.title).toBe('Test')
   })
 
   it('get non-existent series returns null', async () => {
     const series = await getSeries(adapter, 'nonexistent-id')
-    expect(series).toBeNull()
+    expect(series === null).toBe(true)
   })
 
   it('get deleted series returns null', async () => {
@@ -734,7 +736,7 @@ describe('Get Series', () => {
     })
     await deleteSeries(adapter, id)
     const series = await getSeries(adapter, id)
-    expect(series).toBeNull()
+    expect(series === null).toBe(true)
   })
 
   it('get series by tag returns matching', async () => {
@@ -781,8 +783,8 @@ describe('Get Series', () => {
       duration: 30,
     })
     const all = await getAllSeries(adapter)
-    expect(all.length).toBe(3)
-    expect(all.map((s) => s.title).sort()).toEqual(['A', 'B', 'C'])
+    const titles = all.map((s) => s.title).sort()
+    expect(titles).toEqual(['A', 'B', 'C'])
   })
 
   it('get all series empty returns empty array', async () => {
@@ -938,7 +940,7 @@ describe('Delete Series', () => {
     })
     await deleteSeries(adapter, id)
     const series = await getSeries(adapter, id)
-    expect(series).toBeNull()
+    expect(series === null).toBe(true)
   })
 
   it('get after delete returns null', async () => {
@@ -949,7 +951,8 @@ describe('Delete Series', () => {
       duration: 30,
     })
     await deleteSeries(adapter, id)
-    expect(await getSeries(adapter, id)).toBeNull()
+    const series = await getSeries(adapter, id)
+    expect(series === null).toBe(true)
   })
 
   it('delete non-existent series throws NotFoundError', async () => {
@@ -1231,8 +1234,10 @@ describe('Series Splitting', () => {
       const newId = await splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
       const original = await getSeries(adapter, id)
       const newSeries = await getSeries(adapter, newId)
-      expect(original).not.toBeNull()
-      expect(newSeries).not.toBeNull()
+      expect(original !== null).toBe(true)
+      expect(original!.id).toBe(id)
+      expect(newSeries !== null).toBe(true)
+      expect(newSeries!.id).toBe(newId)
     })
   })
 
@@ -1316,7 +1321,7 @@ describe('Series Splitting', () => {
       })
       await splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
       const completions = await adapter.getCompletionsBySeries(id)
-      expect(completions.length).toBe(1)
+      expect(completions.map(c => c.id)).toEqual(['comp-1'])
     })
 
     it('new series has no completions', async () => {
@@ -1420,7 +1425,8 @@ describe('Tag Management', () => {
     })
     await addTagToSeries(adapter, id, 'newTag')
     const tag = await adapter.getTagByName('newTag')
-    expect(tag).not.toBeNull()
+    expect(tag !== null).toBe(true)
+    expect(tag!.name).toBe('newTag')
   })
 
   it('add existing tag is idempotent', async () => {
@@ -1433,7 +1439,8 @@ describe('Tag Management', () => {
     })
     await addTagToSeries(adapter, id, 'work')
     const tags = await getTagsForSeries(adapter, id)
-    expect(tags.filter((t) => t === 'work').length).toBe(1)
+    const workTags = tags.filter((t) => t === 'work')
+    expect(workTags).toEqual(['work'])
   })
 
   it('remove non-existent tag is idempotent', async () => {

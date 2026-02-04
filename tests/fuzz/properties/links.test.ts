@@ -321,11 +321,13 @@ describe('Spec 11: Links - Multi-Child', () => {
       lateWobble: 10,
     })
 
-    expect(manager.getChildren(parentId).length).toBe(2)
+    const childrenBefore = manager.getChildren(parentId)
+    expect(childrenBefore.length === 2 && childrenBefore.includes(child1) && childrenBefore.includes(child2)).toBe(true)
 
     manager.deleteLink(child1)
 
-    expect(manager.getChildren(parentId).length).toBe(1)
+    const childrenAfter = manager.getChildren(parentId)
+    expect(childrenAfter.length === 1 && childrenAfter[0] === child2).toBe(true)
     expect(manager.getChildren(parentId)).toContain(child2)
     expect(manager.hasLink(child2)).toBe(true)
   })

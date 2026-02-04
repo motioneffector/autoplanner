@@ -132,7 +132,9 @@ describe('Spec 4: Patterns - CRUD Operations', () => {
         const patternId = manager.createPattern(seriesId, pattern)
 
         expect(patternId).toMatch(/^pattern-/)
-        expect(manager.getPattern(patternId)).toBeDefined()
+        const retrievedPattern = manager.getPattern(patternId)
+        expect(retrievedPattern !== undefined).toBe(true)
+        expect(retrievedPattern!.type).toBe(pattern.type)
         expect(manager.getPatternsForSeries(seriesId)).toContainEqual(pattern)
       })
     )
@@ -144,11 +146,12 @@ describe('Spec 4: Patterns - CRUD Operations', () => {
         const manager = new PatternManager()
         const patternId = manager.createPattern(seriesId, pattern)
 
-        expect(manager.getPatternsForSeries(seriesId).length).toBe(1)
+        const patternsBefore = manager.getPatternsForSeries(seriesId)
+        expect(patternsBefore.length === 1 && patternsBefore[0].type === pattern.type).toBe(true)
 
         const deleted = manager.deletePattern(patternId)
         expect(deleted).toBe(true)
-        expect(manager.getPattern(patternId)).toBeUndefined()
+        expect(manager.getPattern(patternId) === undefined).toBe(true)
         expect(manager.getPatternsForSeries(seriesId).length).toBe(0)
       })
     )
@@ -190,7 +193,9 @@ describe('Spec 7: Conditions - CRUD Operations', () => {
         const conditionId = manager.createCondition(seriesId, condition)
 
         expect(conditionId).toMatch(/^condition-/)
-        expect(manager.getCondition(conditionId)).toBeDefined()
+        const retrievedCondition = manager.getCondition(conditionId)
+        expect(retrievedCondition !== undefined).toBe(true)
+        expect(retrievedCondition!.type).toBe(condition.type)
         expect(manager.getConditionsForSeries(seriesId)).toContainEqual(condition)
       })
     )
@@ -205,7 +210,7 @@ describe('Spec 7: Conditions - CRUD Operations', () => {
         // Delete the root condition
         const deleted = manager.deleteCondition(conditionId)
         expect(deleted).toBe(true)
-        expect(manager.getCondition(conditionId)).toBeUndefined()
+        expect(manager.getCondition(conditionId) === undefined).toBe(true)
 
         // Note: In a real implementation, child conditions would also be deleted
         // Our mock just stores the whole tree as one condition
@@ -274,12 +279,14 @@ describe('Pattern/Condition - Cross Reference', () => {
           conditionManager.createCondition(series2, condition)
 
           // Series 1 has pattern but no condition
-          expect(patternManager.getPatternsForSeries(series1).length).toBe(1)
+          const series1Patterns = patternManager.getPatternsForSeries(series1)
+          expect(series1Patterns.length === 1 && series1Patterns[0].type === pattern.type).toBe(true)
           expect(conditionManager.getConditionsForSeries(series1).length).toBe(0)
 
           // Series 2 has condition but no pattern
           expect(patternManager.getPatternsForSeries(series2).length).toBe(0)
-          expect(conditionManager.getConditionsForSeries(series2).length).toBe(1)
+          const series2Conditions = conditionManager.getConditionsForSeries(series2)
+          expect(series2Conditions.length === 1 && series2Conditions[0].type === condition.type).toBe(true)
         }
       )
     )

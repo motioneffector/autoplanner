@@ -114,7 +114,9 @@ describe('Spec 5: Instances - Cancellation', () => {
         manager.scheduleInstance(seriesId, date, time, 60)
 
         // Before cancellation
-        expect(manager.getSchedule(seriesId).length).toBe(1)
+        const scheduleBefore = manager.getSchedule(seriesId)
+        expect(scheduleBefore.length === 1 && scheduleBefore[0].seriesId === seriesId).toBe(true)
+        expect(scheduleBefore[0].instanceDate).toBe(date)
 
         manager.cancelInstance(seriesId, date)
 
@@ -224,7 +226,9 @@ describe('Spec 5: Instances - Restoration', () => {
         manager.restoreInstance(seriesId, date)
 
         expect(manager.getInstance(seriesId, date)?.isCancelled).toBe(false)
-        expect(manager.getSchedule(seriesId).length).toBe(1)
+        const schedule = manager.getSchedule(seriesId)
+        expect(schedule.length === 1 && schedule[0].seriesId === seriesId).toBe(true)
+        expect(schedule[0].instanceDate).toBe(date)
       })
     )
   })
@@ -239,7 +243,9 @@ describe('Spec 5: Instances - Restoration', () => {
         manager.restoreInstance(seriesId, date)
 
         expect(manager.getInstance(seriesId, date)?.isCancelled).toBe(false)
-        expect(manager.getSchedule(seriesId).length).toBe(1)
+        const schedule = manager.getSchedule(seriesId)
+        expect(schedule.length === 1 && schedule[0].seriesId === seriesId).toBe(true)
+        expect(schedule[0].instanceDate).toBe(date)
       })
     )
   })
@@ -276,7 +282,8 @@ describe('Spec 5: Instances - Exception Persistence', () => {
 
           // Verify exceptions are tracked
           const exceptions = manager.getExceptions(seriesId)
-          expect(exceptions.length).toBeGreaterThanOrEqual(1)
+          expect(exceptions.length >= 1).toBe(true)
+          expect(exceptions[0].seriesId).toBe(seriesId)
 
           // Verify cancelled instance is still in exceptions
           const cancelled = exceptions.find((e) => e.instanceDate === uniqueDates[0])
@@ -345,7 +352,8 @@ describe('Spec 5: Instances - Bounds', () => {
           if (instanceDate < startDate || instanceDate > endDate) {
             expect(withinBounds.length).toBe(0)
           } else {
-            expect(withinBounds.length).toBe(1)
+            expect(withinBounds.length === 1 && withinBounds[0].seriesId === seriesId).toBe(true)
+            expect(withinBounds[0].instanceDate).toBe(instanceDate)
           }
         }
       )
@@ -363,7 +371,9 @@ describe('Spec 5: Instances - Bounds', () => {
           // No bounds set - all dates valid
           manager.scheduleInstance(seriesId, date, time, 60)
 
-          expect(manager.getScheduleWithinBounds(seriesId).length).toBe(1)
+          const scheduleBefore = manager.getScheduleWithinBounds(seriesId)
+          expect(scheduleBefore.length === 1 && scheduleBefore[0].seriesId === seriesId).toBe(true)
+          expect(scheduleBefore[0].instanceDate).toBe(date)
 
           manager.cancelInstance(seriesId, date)
 
@@ -516,7 +526,9 @@ describe('Spec 5: Instances - Schedule Interaction', () => {
         manager.rescheduleInstance(seriesId, date, newTime)
 
         // Rescheduled instances are still in schedule (not cancelled)
-        expect(manager.getSchedule(seriesId).length).toBe(1)
+        const schedule = manager.getSchedule(seriesId)
+        expect(schedule.length === 1 && schedule[0].seriesId === seriesId).toBe(true)
+        expect(schedule[0].rescheduledTo).toBe(newTime)
       })
     )
   })
@@ -535,11 +547,14 @@ describe('Spec 5: Instances - Schedule Interaction', () => {
           manager.scheduleInstance(seriesId, date1, time, 60)
           manager.scheduleInstance(seriesId, date2, time, 60)
 
-          expect(manager.getSchedule(seriesId).length).toBe(2)
+          const scheduleBefore = manager.getSchedule(seriesId)
+          expect(scheduleBefore.length === 2 && scheduleBefore.some((i) => i.instanceDate === date1)).toBe(true)
+          expect(scheduleBefore.some((i) => i.instanceDate === date2)).toBe(true)
 
           manager.cancelInstance(seriesId, date1)
 
-          expect(manager.getSchedule(seriesId).length).toBe(1)
+          const scheduleAfter = manager.getSchedule(seriesId)
+          expect(scheduleAfter.length === 1 && scheduleAfter[0].instanceDate === date2).toBe(true)
           expect(manager.getInstance(seriesId, date2)?.isCancelled).toBe(false)
         }
       )

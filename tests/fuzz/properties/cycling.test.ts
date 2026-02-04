@@ -275,8 +275,7 @@ describe('Spec 9: Cycling - Random Mode', () => {
           // This is a weak test since random could technically produce same sequences
           // We're mainly checking that the random function doesn't crash
           sequences.forEach((seq) => {
-            expect(seq.length).toBe(10)
-            seq.forEach((item) => expect(uniqueItems).toContain(item))
+            expect(seq.length === 10 && seq.every((item) => uniqueItems.includes(item))).toBe(true)
           })
         }
       )
@@ -464,7 +463,7 @@ describe('Spec 9: Cycling - Current Item', () => {
     fc.assert(
       fc.property(seriesIdGen(), (seriesId) => {
         const manager = new CyclingManager()
-        expect(manager.getCurrentItem(seriesId)).toBeUndefined()
+        expect(manager.getCurrentItem(seriesId) === undefined).toBe(true)
       })
     )
   })

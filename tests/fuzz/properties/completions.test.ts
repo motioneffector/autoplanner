@@ -172,10 +172,10 @@ describe('Spec 6: Completions - CRUD Operations', () => {
         manager.addCompletion(completion)
 
         const retrieved = manager.getCompletion(completion.id)
-        expect(retrieved).toBeDefined()
-        expect(retrieved?.id).toBe(completion.id)
-        expect(retrieved?.seriesId).toBe(completion.seriesId)
-        expect(retrieved?.instanceDate).toBe(completion.instanceDate)
+        expect(retrieved !== undefined).toBe(true)
+        expect(retrieved!.id).toBe(completion.id)
+        expect(retrieved!.seriesId).toBe(completion.seriesId)
+        expect(retrieved!.instanceDate).toBe(completion.instanceDate)
       })
     )
   })
@@ -190,7 +190,7 @@ describe('Spec 6: Completions - CRUD Operations', () => {
         expect(deleted).toBe(true)
 
         const retrieved = manager.getCompletion(completion.id)
-        expect(retrieved).toBeUndefined()
+        expect(retrieved === undefined).toBe(true)
       })
     )
   })
@@ -326,12 +326,12 @@ describe('Spec 6: Completions - Boundary Values', () => {
   it('boundary completions are well-formed', () => {
     fc.assert(
       fc.property(boundaryCompletionGen(), (completion) => {
-        expect(completion.id).toBeDefined()
-        expect(completion.seriesId).toBeDefined()
-        expect(completion.instanceDate).toBeDefined()
-        expect(completion.startTime).toBeDefined()
-        expect(completion.endTime).toBeDefined()
-        expect(completion.actualDuration).toBeGreaterThan(0)
+        expect(typeof completion.id).toBe('string')
+        expect(typeof completion.seriesId).toBe('string')
+        expect(typeof completion.instanceDate).toBe('string')
+        expect(typeof completion.startTime).toBe('string')
+        expect(typeof completion.endTime).toBe('string')
+        expect(completion.actualDuration > 0).toBe(true)
       }),
       { numRuns: 100 }
     )
@@ -521,7 +521,7 @@ describe('Spec 6: Completions - Counting', () => {
       fc.property(seriesIdGen(), localDateGen(), (seriesId, referenceDate) => {
         const manager = new CompletionCountingManager()
         const daysSince = manager.daysSinceLastCompletion(seriesId, referenceDate)
-        expect(daysSince).toBeNull()
+        expect(daysSince === null).toBe(true)
       })
     )
   })

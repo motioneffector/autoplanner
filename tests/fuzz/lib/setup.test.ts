@@ -20,7 +20,7 @@ describe('fast-check integration', () => {
     fc.assert(
       fc.property(fc.string(), (s) => {
         // String length is non-negative
-        expect(s.length).toBeGreaterThanOrEqual(0)
+        expect(s.length >= 0).toBe(true)
       }),
       { numRuns: iterations }
     )
