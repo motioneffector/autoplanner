@@ -316,12 +316,14 @@ describe('Segment 15: SQLite Adapter', () => {
       // First delete completion if any, then delete series
       const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
       expect(patterns).toHaveLength(1);
+      expect(patterns[0].id).toBe(patternId('p1'));
 
       // Delete series - patterns should cascade
       await adapter.deleteSeries(seriesId('test-1'));
 
       const patternsAfter = await adapter.getPatternsBySeries(seriesId('test-1'));
       expect(patternsAfter).toHaveLength(0);
+      expect(patternsAfter).toEqual([]);
     });
 
     it('FK errors throw ForeignKeyError - violate FK throws correct error', async () => {
@@ -694,6 +696,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
         const items = await adapter.getCyclingItems(testSeriesId);
         expect(items).toHaveLength(0);
+        expect(items).toEqual([]);
       });
 
       it('cascades condition - conditions deleted', async () => {
@@ -708,6 +711,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
         const conditions = await adapter.getConditionsBySeries(testSeriesId);
         expect(conditions).toHaveLength(0);
+        expect(conditions).toEqual([]);
       });
 
       it('cascades pattern - patterns deleted', async () => {
@@ -722,6 +726,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
         const patterns = await adapter.getPatternsBySeries(testSeriesId);
         expect(patterns).toHaveLength(0);
+        expect(patterns).toEqual([]);
       });
 
       it('cascades pattern_weekday - weekdays deleted', async () => {
@@ -740,6 +745,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
         const weekdays = await adapter.getPatternWeekdays(patternId('p1'));
         expect(weekdays).toHaveLength(0);
+        expect(weekdays).toEqual([]);
       });
 
       it('cascades instance_exception - exceptions deleted', async () => {
@@ -762,6 +768,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
         const tags = await adapter.getSeriesTags(testSeriesId);
         expect(tags).toHaveLength(0);
+        expect(tags).toEqual([]);
       });
 
       it('cascades reminder - reminders deleted', async () => {
@@ -795,6 +802,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
         const acks = await adapter.getReminderAcks(reminderId('r1'));
         expect(acks).toHaveLength(0);
+        expect(acks).toEqual([]);
       });
 
       it('cascades child link - link as child deleted', async () => {
@@ -865,6 +873,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
         expect(seriesAfter).toBeNull();
         expect(patterns).toHaveLength(0);
+        expect(patterns).toEqual([]);
       });
 
       it('respects FK order - complex cascade correct order', async () => {
@@ -919,6 +928,7 @@ describe('Segment 15: SQLite Adapter', () => {
         // Pattern should still exist (cascade didn't run)
         const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
         expect(patterns).toHaveLength(1);
+        expect(patterns[0].id).toBe(patternId('p1'));
       });
     });
   });
@@ -1038,6 +1048,9 @@ describe('Segment 15: SQLite Adapter', () => {
         const elapsed = Date.now() - start;
 
         expect(allSeries).toHaveLength(50);
+        expect(allSeries.map(s => s.id).sort()).toEqual(
+          Array.from({ length: 50 }, (_, i) => seriesId(`series-${i}`)).sort()
+        );
         expect(elapsed).toBeLessThan(100);
       });
 
@@ -1087,6 +1100,8 @@ describe('Segment 15: SQLite Adapter', () => {
 
         const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
         expect(patterns).toHaveLength(50);
+        expect(patterns.every(p => p.seriesId === seriesId('test-1'))).toBe(true);
+        expect(new Set(patterns.map(p => p.id)).size).toBe(50);
       });
     });
   });
@@ -1205,6 +1220,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
       const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
       expect(patterns).toHaveLength(0);
+      expect(patterns).toEqual([]);
     });
 
     it('query results match - same behavior as mock', async () => {
@@ -1214,6 +1230,7 @@ describe('Segment 15: SQLite Adapter', () => {
       const all = await adapter.getAllSeries();
       expect(all).toHaveLength(1);
       expect(all[0].id).toBe(seriesId('test-1'));
+      expect(all[0].title).toBe('Test Series test-1');
     });
   });
 

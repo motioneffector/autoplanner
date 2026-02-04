@@ -65,13 +65,12 @@ describe('test harness', () => {
   describe('sample', () => {
     it('generates the requested number of values', () => {
       const values = sample(fc.integer(), 5)
-      expect(values).toHaveLength(5)
-      values.forEach((v) => expect(v).toEqual(expect.any(Number)))
+      expect(values).toSatisfy((v: number[]) => v.length === 5 && v.every(x => typeof x === 'number'))
     })
 
     it('defaults to 10 values', () => {
       const values = sample(fc.string())
-      expect(values).toHaveLength(10)
+      expect(values).toSatisfy((v: string[]) => v.length === 10 && v.every(x => typeof x === 'string'))
     })
   })
 
@@ -98,8 +97,8 @@ describe('test harness', () => {
     })
 
     it('throws for unequal values', () => {
-      expect(() => assertDeepEquals(5, 6)).toThrow(Error)
-      expect(() => assertDeepEquals({ a: 1 }, { a: 2 })).toThrow(Error)
+      expect(() => assertDeepEquals(5, 6)).toThrow('Expected')
+      expect(() => assertDeepEquals({ a: 1 }, { a: 2 })).toThrow('Expected')
     })
   })
 
@@ -113,7 +112,7 @@ describe('test harness', () => {
     })
 
     it('fails when function does not throw', () => {
-      expect(() => assertThrows(() => {})).toThrow(Error)
+      expect(() => assertThrows(() => {})).toThrow('Expected function to throw')
     })
 
     it('checks error type when specified', () => {
@@ -131,7 +130,7 @@ describe('test harness', () => {
           },
           TypeError
         )
-      ).toThrow(Error)
+      ).toThrow('Expected error of type')
     })
   })
 
@@ -143,8 +142,8 @@ describe('test harness', () => {
     })
 
     it('fails for values outside range', () => {
-      expect(() => assertInRange(-1, 0, 10)).toThrow(Error)
-      expect(() => assertInRange(11, 0, 10)).toThrow(Error)
+      expect(() => assertInRange(-1, 0, 10)).toThrow('to be in range')
+      expect(() => assertInRange(11, 0, 10)).toThrow('to be in range')
     })
   })
 

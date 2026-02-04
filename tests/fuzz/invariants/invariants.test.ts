@@ -46,7 +46,7 @@ describe('Invariants - Date Validation', () => {
       fc.property(localDateGen(), (date) => {
         const result = dateIsValid(date)
         expect(result.passed).toBe(true)
-        expect(result.violations).toHaveLength(0)
+        expect(result.violations).toEqual([])
       })
     )
   })
@@ -72,7 +72,7 @@ describe('Invariants - Time Validation', () => {
       fc.property(localTimeGen(), (time) => {
         const result = timeIsValid(time)
         expect(result.passed).toBe(true)
-        expect(result.violations).toHaveLength(0)
+        expect(result.violations).toEqual([])
       })
     )
   })
@@ -96,7 +96,7 @@ describe('Invariants - DateTime Validation', () => {
       fc.property(localDateTimeGen(), (dateTime) => {
         const result = dateTimeIsValid(dateTime)
         expect(result.passed).toBe(true)
-        expect(result.violations).toHaveLength(0)
+        expect(result.violations).toEqual([])
       })
     )
   })
@@ -108,7 +108,7 @@ describe('Invariants - Duration Validation', () => {
       fc.property(durationGen({ min: 1, max: 480 }), (duration) => {
         const result = durationIsPositive(duration)
         expect(result.passed).toBe(true)
-        expect(result.violations).toHaveLength(0)
+        expect(result.violations).toEqual([])
       })
     )
   })
@@ -134,7 +134,7 @@ describe('Invariants - Completion Validation', () => {
       fc.property(completionValidGen(), (completion) => {
         const result = completionEndAfterStart(completion)
         expect(result.passed).toBe(true)
-        expect(result.violations).toHaveLength(0)
+        expect(result.violations).toEqual([])
       })
     )
   })
@@ -555,8 +555,8 @@ describe('Invariants - Framework Integration', () => {
       durations: [-1 as Duration],
     })
 
-    expect(() => assertNoViolations(result)).toThrow(Error)
-    expect(() => assertNoViolations(result, 'test context')).toThrow(Error)
+    expect(() => assertNoViolations(result)).toThrow(/Invariant violations detected/)
+    expect(() => assertNoViolations(result, 'test context')).toThrow(/Invariant violations detected/)
   })
 
   it('assertNoViolations passes for valid state', () => {

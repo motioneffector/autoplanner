@@ -277,7 +277,7 @@ describe('Segment 14: Public API', () => {
 
         const schedule = await planner.getSchedule(date('2025-03-09'), date('2025-03-10'));
         // 2:30 AM doesn't exist on DST start - should shift to 3:00 AM (first valid time)
-        expect(schedule.instances).toHaveLength(1);
+        expect(schedule.instances).toSatisfy((instances: typeof schedule.instances) => instances.length === 1 && instances[0].seriesId === id);
         const instance = schedule.instances.find((i) => i.seriesId === id);
         expect(instance).not.toBeUndefined();
         // Time should be shifted to 03:00 since 02:30 doesn't exist
@@ -295,7 +295,7 @@ describe('Segment 14: Public API', () => {
 
         const schedule = await planner.getSchedule(date('2025-11-02'), date('2025-11-03'));
         // 1:30 AM occurs twice on DST end - should use first occurrence (EDT, before fall back)
-        expect(schedule.instances).toHaveLength(1);
+        expect(schedule.instances).toSatisfy((instances: typeof schedule.instances) => instances.length === 1 && instances[0].seriesId === id);
         const instance = schedule.instances.find((i) => i.seriesId === id);
         expect(instance).not.toBeUndefined();
         expect(instance!.time).toContain('01:30');
@@ -1085,8 +1085,7 @@ describe('Segment 14: Public API', () => {
         });
 
         const workSeries = await planner.getSeriesByTag('work');
-        expect(workSeries).toHaveLength(1);
-        expect(workSeries[0].title).toBe('Work');
+        expect(workSeries).toSatisfy((series: typeof workSeries) => series.length === 1 && series[0].title === 'Work' && series[0].tags?.includes('work'));
       });
 
       it('getAllSeries returns all - all series returned', async () => {
@@ -1102,8 +1101,7 @@ describe('Segment 14: Public API', () => {
         });
 
         const all = await planner.getAllSeries();
-        expect(all).toHaveLength(2);
-        expect(all.map((s) => s.title).sort()).toEqual(['A', 'B']);
+        expect(all).toSatisfy((series: typeof all) => series.length === 2 && series.map(s => s.title).sort().join(',') === 'A,B');
       });
 
       it('updateSeries modifies - changes applied', async () => {
@@ -1336,7 +1334,7 @@ describe('Segment 14: Public API', () => {
         await planner.logCompletion(id, date('2025-01-16'));
 
         const completions = await planner.getCompletions(id);
-        expect(completions).toHaveLength(2);
+        expect(completions).toSatisfy((c: typeof completions) => c.length === 2 && c.every(comp => comp.seriesId === id));
         expect(completions.map((c) => c.date).sort()).toEqual([date('2025-01-15'), date('2025-01-16')]);
       });
 
@@ -1352,7 +1350,7 @@ describe('Segment 14: Public API', () => {
         await planner.deleteCompletion(completionId);
 
         const completions = await planner.getCompletions(id);
-        expect(completions).toHaveLength(0);
+        expect(completions).toEqual([]);
       });
     });
 
@@ -1581,7 +1579,7 @@ describe('Segment 14: Public API', () => {
         });
 
         const completions = await planner.getCompletions(id);
-        expect(completions).toHaveLength(1);
+        expect(completions).toSatisfy((c: typeof completions) => c.length === 1 && c[0].seriesId === id);
         // Duration derived from endTime - startTime = 45 minutes
         expect(completions[0].endTime).toBe(datetime('2025-01-15T09:45:00'));
       });
@@ -1608,7 +1606,8 @@ describe('Segment 14: Public API', () => {
 
         // Saturday (weekend) - should not appear
         const weekendSchedule = await planner.getSchedule(date('2025-01-18'), date('2025-01-19'));
-        expect(weekendSchedule.instances.filter((i) => i.seriesId === id)).toHaveLength(0);
+        const weekendInstances = weekendSchedule.instances.filter((i) => i.seriesId === id);
+        expect(weekendInstances).toEqual([]);
       });
 
       it('chain with completion - parent completes child reschedules', async () => {

@@ -149,7 +149,8 @@ describe('Segment 16: Integration Tests', () => {
 
       expect(walkInstances.length).toBeGreaterThan(0);
       expect(walkInstances.length).toBeLessThanOrEqual(7); // Every other day = ~7 in 14 days
-      expect(weightInstances).toHaveLength(0);
+      // Verify no weight instances exist - condition not met yet
+      expect(weightInstances).toEqual([]);
     });
 
     it('log 7 walks - pattern transitions to daily, weights appear', async () => {
@@ -261,7 +262,8 @@ describe('Segment 16: Integration Tests', () => {
     it('conditions update immediately after completion', async () => {
       const scheduleBefore = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
       const weightsBefore = scheduleBefore.instances.filter((i) => i.seriesId === weightSeriesId);
-      expect(weightsBefore).toHaveLength(0);
+      // Verify no weight instances before condition is met (only walks scheduled)
+      expect(weightsBefore).toEqual([]);
 
       // Log 7 walks
       for (let i = 1; i <= 7; i++) {
@@ -274,9 +276,10 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('multiple state transitions work correctly', async () => {
-      // Start deconditioned
+      // Start deconditioned - no weight training instances yet
       let schedule = await planner.getSchedule(date('2025-01-01'), date('2025-01-07'));
-      expect(schedule.instances.filter((i) => i.seriesId === weightSeriesId)).toHaveLength(0);
+      const initialWeights = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
+      expect(initialWeights).toEqual([]);
 
       // Move to conditioning
       for (let i = 1; i <= 7; i++) {
@@ -335,7 +338,8 @@ describe('Segment 16: Integration Tests', () => {
       // Feb 15-28 window contains no completions from Jan 2-14
       schedule = await planner.getSchedule(date('2025-02-15'), date('2025-02-21'));
       const weightsDeactivated = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
-      expect(weightsDeactivated).toHaveLength(0); // Weights pattern should be inactive
+      // Weights pattern should be inactive (walk count dropped below threshold)
+      expect(weightsDeactivated).toEqual([]);
 
       // Step 4: Reactivate by logging 7 new walks
       for (let i = 1; i <= 7; i++) {
@@ -752,7 +756,9 @@ describe('Segment 16: Integration Tests', () => {
       await planner.removeConstraint(constraintId);
 
       const conflicts = await planner.getConflicts();
-      expect(conflicts.filter((c) => c.type === 'constraintViolation')).toHaveLength(0);
+      const constraintViolations = conflicts.filter((c) => c.type === 'constraintViolation');
+      // No cantBeNextTo violations after constraint removal
+      expect(constraintViolations).toEqual([]);
     });
   });
 
@@ -871,10 +877,11 @@ describe('Segment 16: Integration Tests', () => {
         const schedule = await planner.getSchedule(date('2025-03-09'), date('2025-03-10'));
 
         // 02:30 doesn't exist on DST start, should shift to 03:00 (first valid time)
-        expect(schedule.instances).toHaveLength(1);
-        const instance = schedule.instances.find((i) => i.seriesId === id);
-        expect(instance).toBeDefined();
-        expect(instance?.time).toContain('03:00');
+        // Verify exactly one instance with correct properties
+        expect(schedule.instances.length).toBe(1);
+        expect(schedule.instances[0].seriesId).toBe(id);
+        expect(schedule.instances[0].date).toBe(date('2025-03-09'));
+        expect(schedule.instances[0].time).toContain('03:00');
       });
 
       it('other instances unaffected - adjacent days normal times', async () => {
@@ -904,11 +911,11 @@ describe('Segment 16: Integration Tests', () => {
         const schedule = await planner.getSchedule(date('2025-11-02'), date('2025-11-03'));
 
         // 01:30 occurs twice on DST end - should use first occurrence (EDT, before fall back)
-        expect(schedule.instances).toHaveLength(1);
-        const instance = schedule.instances.find((i) => i.seriesId === id);
-        expect(instance).toBeDefined();
-        expect(instance?.time).toContain('01:30');
-        // Should only have one instance, not two (uses first occurrence)
+        // Verify exactly one instance with correct properties (not duplicated)
+        expect(schedule.instances.length).toBe(1);
+        expect(schedule.instances[0].seriesId).toBe(id);
+        expect(schedule.instances[0].date).toBe(date('2025-11-02'));
+        expect(schedule.instances[0].time).toContain('01:30');
       });
     });
 
@@ -975,10 +982,12 @@ describe('Segment 16: Integration Tests', () => {
         const conflicts = await planner.getConflicts();
 
         // All-day should not conflict with timed events
-        expect(conflicts.filter((c) =>
+        const allDayTimedConflicts = conflicts.filter((c) =>
           c.instances?.some((i) => i.seriesId === allDayId) &&
           c.instances?.some((i) => i.seriesId === timedId)
-        )).toHaveLength(0);
+        );
+        // All-day events are excluded from time-based conflict detection
+        expect(allDayTimedConflicts).toEqual([]);
       });
     });
   });
@@ -1007,7 +1016,9 @@ describe('Segment 16: Integration Tests', () => {
 
     it('12:55 - no pending reminders', async () => {
       const reminders = await planner.getPendingReminders(datetime('2025-01-15T12:55:00'));
-      expect(reminders.filter((r) => r.seriesId === seriesIdValue)).toHaveLength(0);
+      const seriesReminders = reminders.filter((r) => r.seriesId === seriesIdValue);
+      // Neither the 60-min nor 10-min reminder has triggered yet (task at 14:00)
+      expect(seriesReminders).toEqual([]);
     });
 
     it('13:00 - prepare (60 min) pending', async () => {
@@ -1283,9 +1294,10 @@ describe('Segment 16: Integration Tests', () => {
         patterns: [{ type: 'yearly', month: 2, dayOfMonth: 29, time: time('09:00') }],
       });
 
-      // 2023 is not a leap year
+      // 2023 is not a leap year - Feb 29 does not exist
       const schedule = await planner.getSchedule(date('2023-02-01'), date('2023-03-01'));
-      expect(schedule.instances.filter((i) => i.seriesId === id)).toHaveLength(0);
+      const leapDayInstances = schedule.instances.filter((i) => i.seriesId === id);
+      expect(leapDayInstances).toEqual([]);
     });
   });
 
@@ -1365,7 +1377,9 @@ describe('Segment 16: Integration Tests', () => {
       const conflicts = await planner.getConflicts();
 
       expect(schedule.instances.length).toBeGreaterThanOrEqual(2);
-      expect(conflicts.filter((c) => c.type === 'error')).toHaveLength(0);
+      const errorConflicts = conflicts.filter((c) => c.type === 'error');
+      // No error-type conflicts in complex multi-feature scenario
+      expect(errorConflicts).toEqual([]);
     });
 
     it('E2E 2: state consistency - query after any operation', async () => {
@@ -1469,7 +1483,10 @@ describe('Segment 16: Integration Tests', () => {
       expect(series?.title).toBe('Persistent Series');
 
       const completions = await planner2.getCompletions(id);
-      expect(completions).toHaveLength(1);
+      // Verify the completion data was persisted correctly
+      expect(completions.length).toBe(1);
+      expect(completions[0].seriesId).toBe(id);
+      expect(completions[0].date).toBe(date('2025-01-15'));
     });
 
     it('E2E 7: error recovery consistent - fail and verify state', async () => {

@@ -4264,7 +4264,7 @@ describe('Schedule Generation Tests', () => {
     const result = ScheduleSolver.solve(items, [])
 
     expect(result.success).toBe(true)
-    expect(result.solution).toHaveLength(1)
+    expect(result.solution).toSatisfy((s: NonNullable<typeof result.solution>) => s.length === 1 && s[0].itemId === 'solo')
     expect(result.solution![0].start).toBe(600)
     expect(result.solution![0].end).toBe(660)
   })
@@ -4299,7 +4299,8 @@ describe('Schedule Generation Tests', () => {
 
     // Should be solvable, but barely
     expect(result.success).toBe(true)
-    expect(result.solution).toHaveLength(5)
+    const itemIds = result.solution!.map(s => s.itemId).sort()
+    expect(itemIds).toEqual(['fixed-1', 'fixed-2', 'fixed-3', 'flex-1', 'flex-2'])
   })
 
   it('Property #470: genHighlyConstrainedSchedule still solvable', () => {

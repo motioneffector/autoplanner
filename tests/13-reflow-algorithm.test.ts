@@ -145,7 +145,10 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         const result = generateInstances(input);
 
-        expect(result.filter((i) => i.seriesId === seriesId('A'))).toHaveLength(5);
+        const seriesAInstances = result.filter((i) => i.seriesId === seriesId('A'));
+        expect(seriesAInstances).toHaveLength(5);
+        expect(seriesAInstances.every((i) => i.seriesId === seriesId('A'))).toBe(true);
+        seriesAInstances.forEach((i) => expect(i.idealTime).toBeDefined());
       });
 
       it('cancelled excluded - cancelled instance not generated', () => {
@@ -154,6 +157,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         expect(result).toHaveLength(0);
+        expect(result).toEqual([]);
       });
 
       it('rescheduled uses new time - idealTime equals newTime', () => {
@@ -176,6 +180,8 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         expect(result).toHaveLength(1);
+        expect(result[0].seriesId).toBe(seriesId('A'));
+        expect(result[0].idealTime).toBeDefined();
       });
 
       it('duration calculated once - single calculation per instance', () => {
@@ -204,6 +210,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         expect(result).toHaveLength(1);
+        expect(result[0].seriesId).toBe(seriesId('A'));
       });
 
       it('pattern inactive when condition false - instances not generated', () => {
@@ -214,6 +221,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         expect(result).toHaveLength(0);
+        expect(result).toEqual([]);
       });
 
       it('multiple patterns mixed conditions - only active pattern instances', () => {
@@ -1325,7 +1333,13 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = reflow(input);
 
         expect(result.conflicts).toHaveLength(0);
+        expect(result.conflicts).toEqual([]);
         expect(result.assignments).toHaveLength(5);
+        const assignedSeriesIds = result.assignments.map((a) => a.seriesId);
+        for (let i = 0; i < 5; i++) {
+          expect(assignedSeriesIds).toContain(seriesId(`S${i}`));
+        }
+        result.assignments.forEach((a) => expect(a.time).toBeDefined());
       });
 
       it('with relational constraints - order enforced', () => {
@@ -1380,6 +1394,8 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = reflow(input);
 
         expect(result.assignments).toHaveLength(1);
+        expect(result.assignments[0].seriesId).toBe(seriesId('A'));
+        expect(result.assignments[0].time).toBeDefined();
       });
 
       it('with conditions - only active patterns in schedule', () => {
@@ -1415,7 +1431,10 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = reflow(input);
 
         expect(result.assignments).toHaveLength(4);
+        const assignedIds = result.assignments.map((a) => a.seriesId);
+        ['A', 'B', 'C', 'D'].forEach((id) => expect(assignedIds).toContain(seriesId(id)));
         expect(result.conflicts).toHaveLength(0);
+        expect(result.conflicts).toEqual([]);
       });
 
       it('overlapping constraints - all satisfied', () => {
@@ -1458,7 +1477,18 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = reflow(input);
 
         expect(result.conflicts).toHaveLength(0);
+        expect(result.conflicts).toEqual([]);
         expect(result.assignments).toHaveLength(3);
+        const assignedIds = result.assignments.map((a) => a.seriesId);
+        for (let i = 0; i < 3; i++) {
+          expect(assignedIds).toContain(seriesId(`S${i}`));
+        }
+        // Verify all assignments are within the time window
+        result.assignments.forEach((a) => {
+          const hour = parseInt(a.time.substring(11, 13));
+          expect(hour).toBeGreaterThanOrEqual(9);
+          expect(hour).toBeLessThanOrEqual(12);
+        });
       });
     });
   });
@@ -1507,6 +1537,14 @@ describe('Segment 13: Reflow Algorithm', () => {
 
       // Should find valid ordering
       expect(result.conflicts).toHaveLength(0);
+      expect(result.conflicts).toEqual([]);
+      // Verify all series are assigned and in correct order
+      const times = Array.from({ length: 20 }, (_, i) =>
+        result.assignments.find((a) => a.seriesId === seriesId(`S${i}`))?.time
+      );
+      for (let i = 0; i < 19; i++) {
+        expect(times[i]! < times[i + 1]!).toBe(true);
+      }
     });
 
     it('deep chains - 10-level chain correctly scheduled', () => {
@@ -1533,6 +1571,17 @@ describe('Segment 13: Reflow Algorithm', () => {
       const result = reflow(input);
 
       expect(result.assignments).toHaveLength(10);
+      const assignedIds = result.assignments.map((a) => a.seriesId);
+      for (let i = 0; i < 10; i++) {
+        expect(assignedIds).toContain(seriesId(`S${i}`));
+      }
+      // Verify chain order is maintained (each subsequent item is after its parent)
+      const times = Array.from({ length: 10 }, (_, i) =>
+        result.assignments.find((a) => a.seriesId === seriesId(`S${i}`))?.time
+      );
+      for (let i = 0; i < 9; i++) {
+        expect(times[i]! <= times[i + 1]!).toBe(true);
+      }
     });
 
     it('many flexible items - solution found', () => {
@@ -1548,6 +1597,9 @@ describe('Segment 13: Reflow Algorithm', () => {
       const result = reflow(input);
 
       expect(result.assignments).toHaveLength(50);
+      const assignedIds = new Set(result.assignments.map((a) => a.seriesId));
+      expect(assignedIds.size).toBe(50);
+      result.assignments.forEach((a) => expect(a.time).toBeDefined());
     });
   });
 
@@ -1571,6 +1623,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         datetime('2025-01-15T10:00:00')
       );
       expect(result.conflicts).toHaveLength(0);
+      expect(result.conflicts).toEqual([]);
     });
 
     it('must reschedule B - B moved to 10:00', () => {
@@ -1647,6 +1700,9 @@ describe('Segment 13: Reflow Algorithm', () => {
       const elapsed = Date.now() - start;
 
       expect(result.assignments).toHaveLength(35);
+      const assignedIds = new Set(result.assignments.map((a) => a.seriesId));
+      expect(assignedIds.size).toBe(35);
+      result.assignments.forEach((a) => expect(a.time).toBeDefined());
       expect(elapsed).toBeLessThan(1000); // Under 1 second
     });
 
@@ -1722,6 +1778,9 @@ describe('Segment 13: Reflow Algorithm', () => {
       const elapsed = Date.now() - start;
 
       expect(result.assignments).toHaveLength(10);
+      const assignedIds = new Set(result.assignments.map((a) => a.seriesId));
+      expect(assignedIds.size).toBe(10);
+      result.assignments.forEach((a) => expect(a.time).toBeDefined());
       expect(elapsed).toBeLessThan(500);
     });
 
@@ -1737,6 +1796,7 @@ describe('Segment 13: Reflow Algorithm', () => {
 
       // Must find valid non-overlapping assignment
       expect(result.conflicts).toHaveLength(0);
+      expect(result.conflicts).toEqual([]);
 
       const times = result.assignments.map((a) => a.time).sort();
       // Verify no overlaps
