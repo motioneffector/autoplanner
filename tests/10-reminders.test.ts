@@ -203,7 +203,7 @@ describe('Segment 10: Reminders', () => {
         // Verify deletion via collection - deleted reminder should not appear
         const reminders = await getRemindersBySeries(adapter, testSeriesId);
         const deletedReminder = reminders.filter(r => r.id === createResult.value.id);
-        expect(deletedReminder).toEqual([]);
+        expect(deletedReminder).toHaveLength(0); // Correctly empty after deletion
       });
 
       it('delete cascades acknowledgments', async () => {
@@ -224,7 +224,7 @@ describe('Segment 10: Reminders', () => {
         // Verify deletion via collection - deleted reminder should not appear
         const reminders = await getRemindersBySeries(adapter, testSeriesId);
         const deletedReminder = reminders.filter(r => r.id === createResult.value.id);
-        expect(deletedReminder).toEqual([]);
+        expect(deletedReminder).toHaveLength(0); // Correctly empty after deletion
       });
 
       it('series delete cascades reminders', async () => {
@@ -237,7 +237,7 @@ describe('Segment 10: Reminders', () => {
         await deleteSeries(adapter, testSeriesId);
 
         reminders = await getRemindersBySeries(adapter, testSeriesId);
-        expect(reminders).toEqual([]);
+        expect(reminders).toHaveLength(0); // Correctly empty after cascade delete
       });
     });
   });
@@ -263,7 +263,7 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forOurInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forOurInstance.length).toBe(0);
+        expect(forOurInstance).toHaveLength(0); // Not yet due - correctly excluded
       });
 
       it('reminder exactly due', async () => {
@@ -323,7 +323,7 @@ describe('Segment 10: Reminders', () => {
         const forOurInstance = pending.filter(p =>
           p.instanceDate === parseDate('2024-01-15') && p.reminderId === createResult.value.id
         );
-        expect(forOurInstance.length).toBe(0);
+        expect(forOurInstance).toHaveLength(0); // Acknowledged - correctly excluded
       });
 
       it('unacknowledged in pending', async () => {
@@ -359,7 +359,7 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forCancelled = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forCancelled.length).toBe(0);
+        expect(forCancelled).toHaveLength(0); // Cancelled instance - correctly excluded
       });
 
       it('completed instance excluded', async () => {
@@ -382,7 +382,7 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forCompleted = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forCompleted.length).toBe(0);
+        expect(forCompleted).toHaveLength(0); // Completed instance - correctly excluded
       });
 
       it('rescheduled instance included', async () => {
@@ -757,7 +757,7 @@ describe('Segment 10: Reminders', () => {
 
         // Should NOT be pending yet (new fire time is 09:45)
         const forInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forInstance).toEqual([]);
+        expect(forInstance).toHaveLength(0); // Not yet due with rescheduled time
       });
     });
 
@@ -892,7 +892,7 @@ describe('Segment 10: Reminders', () => {
       });
 
       const forCancelled = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-      expect(forCancelled).toEqual([]);
+      expect(forCancelled).toHaveLength(0); // Cancelled - correctly excluded
     });
 
     it('B6: all-day minutesBefore 0', async () => {
@@ -1059,7 +1059,7 @@ describe('Segment 10: Reminders', () => {
         });
 
         const forInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forInstance).toEqual([]);
+        expect(forInstance).toHaveLength(0); // Not yet due - correctly excluded
       });
 
       it('acknowledge dismisses', async () => {
@@ -1083,7 +1083,7 @@ describe('Segment 10: Reminders', () => {
         const forInstance = pending.filter(
           p => p.reminderId === createResult.value.id && p.instanceDate === parseDate('2024-01-15')
         );
-        expect(forInstance).toEqual([]);
+        expect(forInstance).toHaveLength(0); // Acknowledged - correctly excluded
       });
     });
 

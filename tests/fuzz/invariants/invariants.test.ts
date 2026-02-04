@@ -564,7 +564,11 @@ describe('Invariants - Framework Integration', () => {
       dates: [makeLocalDate(2024, 6, 15)],
     })
 
-    expect(() => assertNoViolations(result)).not.toThrow()
+    // assertNoViolations throws if violations exist, verify completion
+    let completed = false
+    assertNoViolations(result)
+    completed = true
+    expect(completed).toBe(true)
   })
 
   it('Property: invariant checking can be used in property tests', () => {

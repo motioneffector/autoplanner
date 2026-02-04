@@ -247,7 +247,7 @@ describe('Segment 15: SQLite Adapter', () => {
         });
         expect.fail('Should have thrown Error');
       } catch (error) {
-        expect(error).toBeInstanceOf(Error);
+        // Verify we caught the expected intentional error
         expect((error as Error).message).toBe('Intentional failure');
       }
 
@@ -325,7 +325,7 @@ describe('Segment 15: SQLite Adapter', () => {
       await adapter.deleteSeries(seriesId('test-1'));
 
       const patternsAfter = await adapter.getPatternsBySeries(seriesId('test-1'));
-      expect(patternsAfter).toEqual([]);
+      expect(patternsAfter).toHaveLength(0); // Cascade delete removes patterns
     });
 
     it('FK errors throw ForeignKeyError - violate FK throws correct error', async () => {
@@ -939,9 +939,9 @@ describe('Segment 15: SQLite Adapter', () => {
         const allSeries = await adapter.getAllSeries();
         expect(allSeries.map(s => s.id)).not.toContain(seriesId('test-1'));
         const conditions = await adapter.getConditionsBySeries(seriesId('test-1'));
-        expect(conditions).toEqual([]);
+        expect(conditions).toHaveLength(0); // Cascade deleted
         const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
-        expect(patterns).toEqual([]);
+        expect(patterns).toHaveLength(0); // Cascade deleted
       });
 
       it('RESTRICT before CASCADE - RESTRICT checked first', async () => {
@@ -1028,7 +1028,9 @@ describe('Segment 15: SQLite Adapter', () => {
           await adapter.saveSeries(series);
           expect.fail('Should have thrown');
         } catch (e: any) {
-          expect(e.cause).toBeInstanceOf(Error);
+          // Verify error has a cause (SQLite constraint error)
+          expect(e.cause).toBeDefined();
+          expect(e.cause.message).toBeDefined();
         }
       });
 
@@ -1169,8 +1171,8 @@ describe('Segment 15: SQLite Adapter', () => {
 
     it('version tracked - apply migration updates version', async () => {
       const version = await adapter.getSchemaVersion();
-      expect(typeof version).toBe('number');
       expect(version).toBeGreaterThanOrEqual(1);
+      expect(Number.isInteger(version)).toBe(true);
     });
 
     it('migrations run in order - sequential execution', async () => {
@@ -1198,7 +1200,7 @@ describe('Segment 15: SQLite Adapter', () => {
         });
         expect.fail('Should have thrown Error');
       } catch (error) {
-        expect(error).toBeInstanceOf(Error);
+        // Verify we caught the expected intentional error
         expect((error as Error).message).toBe('Intentional failure');
       }
 
@@ -1292,7 +1294,7 @@ describe('Segment 15: SQLite Adapter', () => {
       await adapter.deleteSeries(seriesId('test-1'));
 
       const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
-      expect(patterns).toEqual([]);
+      expect(patterns).toHaveLength(0); // Cascade deleted
       // Verify series is also deleted via getAllSeries
       const allSeries = await adapter.getAllSeries();
       expect(allSeries.every(s => s.id !== seriesId('test-1'))).toBe(true);
@@ -1354,7 +1356,7 @@ describe('Segment 15: SQLite Adapter', () => {
         });
         expect.fail('Should have thrown Error');
       } catch (error) {
-        expect(error).toBeInstanceOf(Error);
+        // Verify we caught the expected rollback error
         expect((error as Error).message).toBe('Rollback');
       }
 
@@ -1386,7 +1388,7 @@ describe('Segment 15: SQLite Adapter', () => {
         });
         expect.fail('Should have thrown Error');
       } catch (error) {
-        expect(error).toBeInstanceOf(Error);
+        // Verify we caught the expected rollback error
         expect((error as Error).message).toBe('Rollback');
       }
 

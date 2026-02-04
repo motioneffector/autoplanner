@@ -281,7 +281,8 @@ describe('pattern generators', () => {
       const types = new Map<string, number>()
       const samples = fc.sample(realisticPatternGen(), 1000)
       samples.forEach((p) => {
-        types.set(p.type, (types.get(p.type) ?? 0) + 1)
+        expect(p.type).toBeDefined()
+        types.set(p.type, (types.get(p.type) || 0) + 1)
       })
 
       // Daily and weekly should be more common

@@ -160,7 +160,7 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         const result = generateInstances(input);
 
-        expect(result).toEqual([]);
+        expect(result).toHaveLength(0); // Cancelled instances correctly excluded
       });
 
       it('rescheduled uses new time - idealTime equals newTime', () => {
@@ -195,8 +195,8 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         // Duration should be fixed at generation time, not recalculated
-        expect(typeof result[0].duration).toBe('number');
         expect(result[0].duration).toBeGreaterThan(0);
+        expect(Number.isFinite(result[0].duration)).toBe(true);
 
         // Verify duration is deterministic - same input produces same duration
         const result2 = generateInstances(input);
@@ -222,7 +222,7 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         const result = generateInstances(input);
 
-        expect(result).toEqual([]);
+        expect(result).toHaveLength(0); // Condition false - correctly excluded
       });
 
       it('multiple patterns mixed conditions - only active pattern instances', () => {
@@ -283,10 +283,12 @@ describe('Segment 13: Reflow Algorithm', () => {
         ] as Instance[];
 
         const domains = computeDomains(instances);
-        const domain = domains.get(instances[0]) ?? [];
+        const domain = domains.get(instances[0]);
+        expect(domain).toBeDefined();
+        expect(domain!.length).toBeGreaterThan(0);
 
         // Domain should span 3 days (Jan 14, 15, 16)
-        const days = new Set(domain.map((dt) => dt.substring(0, 10)));
+        const days = new Set(domain!.map((dt) => dt.substring(0, 10)));
         expect(days.size).toBe(3);
       });
 
@@ -301,10 +303,12 @@ describe('Segment 13: Reflow Algorithm', () => {
         ] as Instance[];
 
         const domains = computeDomains(instances);
-        const domain = domains.get(instances[0]) ?? [];
+        const domain = domains.get(instances[0]);
+        expect(domain).toBeDefined();
+        expect(domain!.length).toBeGreaterThan(0);
 
         // All slots should be between 08:00 and 10:00
-        domain.forEach((dt) => {
+        domain!.forEach((dt) => {
           const hour = parseInt(dt.substring(11, 13));
           expect(hour).toBeGreaterThanOrEqual(8);
           expect(hour).toBeLessThanOrEqual(10);
@@ -322,10 +326,12 @@ describe('Segment 13: Reflow Algorithm', () => {
         ] as Instance[];
 
         const domains = computeDomains(instances);
-        const domain = domains.get(instances[0]) ?? [];
+        const domain = domains.get(instances[0]);
+        expect(domain).toBeDefined();
+        expect(domain!.length).toBeGreaterThan(0);
 
         // All slots should have minutes divisible by 5
-        domain.forEach((dt) => {
+        domain!.forEach((dt) => {
           const minutes = parseInt(dt.substring(14, 16));
           expect(minutes % 5).toBe(0);
         });
@@ -1328,8 +1334,8 @@ describe('Segment 13: Reflow Algorithm', () => {
       const constraints = [{ type: 'chain', parent, child }];
       const result = backtrackSearch([parent, child], domains, constraints);
 
-      // Should not find solution because child is outside bounds - result must be null
-      expect(result).toBe(null);
+      // Should not find solution because child is outside bounds
+      expect(result).toBeNull(); // No valid assignment possible
     });
 
     it('INV 4: deterministic output - same inputs same output', () => {
@@ -1376,7 +1382,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         const input = createReflowInput(series);
         const result = reflow(input);
 
-        expect(result.conflicts).toEqual([]);
+        expect(result.conflicts).toHaveLength(0); // Non-overlapping - no conflicts expected
         const assignedSeriesIds = result.assignments.map((a) => a.seriesId);
         expect(assignedSeriesIds).toEqual(expect.arrayContaining([
           seriesId('S0'), seriesId('S1'), seriesId('S2'), seriesId('S3'), seriesId('S4'),
@@ -1481,7 +1487,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         expect(assignedIds).toEqual(expect.arrayContaining([
           seriesId('A'), seriesId('B'), seriesId('C'), seriesId('D'),
         ]));
-        expect(result.conflicts).toEqual([]);
+        expect(result.conflicts).toHaveLength(0); // All constraints satisfied
       });
 
       it('overlapping constraints - all satisfied', () => {
@@ -1523,7 +1529,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         const input = createReflowInput(series);
         const result = reflow(input);
 
-        expect(result.conflicts).toEqual([]);
+        expect(result.conflicts).toHaveLength(0); // Tight fit but solution exists
         const assignedIds = result.assignments.map((a) => a.seriesId);
         expect(assignedIds).toEqual(expect.arrayContaining([
           seriesId('S0'), seriesId('S1'), seriesId('S2'),
@@ -1586,7 +1592,7 @@ describe('Segment 13: Reflow Algorithm', () => {
       const result = reflow(input);
 
       // Should find valid ordering
-      expect(result.conflicts).toEqual([]);
+      expect(result.conflicts).toHaveLength(0); // Valid ordering exists
       const assignedIds = new Set(result.assignments.map((a) => a.seriesId));
       expect(assignedIds.size).toBe(20);
       // Verify all series are assigned and in correct order
@@ -1671,7 +1677,7 @@ describe('Segment 13: Reflow Algorithm', () => {
       expect(result.assignments.find((a) => a.seriesId === seriesId('B'))?.time).toBe(
         datetime('2025-01-15T10:00:00')
       );
-      expect(result.conflicts).toEqual([]);
+      expect(result.conflicts).toHaveLength(0); // Non-overlapping - no conflicts
     });
 
     it('must reschedule B - B moved to 10:00', () => {
@@ -1778,10 +1784,14 @@ describe('Segment 13: Reflow Algorithm', () => {
       const constraints = [{ type: 'noOverlap', instances }];
       const domainsAfter = propagateConstraints(domainsBefore, constraints);
 
-      const sizeBefore = domainsBefore.get(instances[1])?.length ?? 0;
-      const sizeAfter = domainsAfter.get(instances[1])?.length ?? 0;
+      const domainBefore = domainsBefore.get(instances[1]);
+      const domainAfter = domainsAfter.get(instances[1]);
+      expect(domainBefore).toBeDefined();
+      expect(domainBefore!.length).toBe(5); // 5 slots before propagation
+      expect(domainAfter).toBeDefined();
 
-      expect(sizeAfter).toBeLessThan(sizeBefore);
+      // After propagation, domain should be reduced (fewer valid slots)
+      expect(domainAfter!.length).toBeLessThan(5);
     });
 
     it('MRV finds conflicts early - fast failure on unsolvable', () => {
@@ -1810,7 +1820,7 @@ describe('Segment 13: Reflow Algorithm', () => {
       const elapsed = Date.now() - start;
 
       // No solution exists when all items must be at the same time with no-overlap constraints
-      expect(result).toBe(null);
+      expect(result).toBeNull(); // Unsolvable - correctly returns null
       expect(elapsed).toBeLessThan(100); // Should fail fast
     });
 
@@ -1850,7 +1860,7 @@ describe('Segment 13: Reflow Algorithm', () => {
       const result = reflow(input);
 
       // Must find valid non-overlapping assignment
-      expect(result.conflicts).toEqual([]);
+      expect(result.conflicts).toHaveLength(0); // Valid assignment exists
       const assignedIds = new Set(result.assignments.map((a) => a.seriesId));
       expect(assignedIds.size).toBe(3);
 

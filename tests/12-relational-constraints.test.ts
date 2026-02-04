@@ -184,7 +184,9 @@ describe('Segment 12: Relational Constraints', () => {
         await deleteConstraint(adapter, createResult.value.id);
 
         // Verify the constraint ID is no longer retrievable from collection
-        const allConstraints = await adapter.getConstraints?.() ?? [];
+        expect(adapter.getConstraints).toBeDefined();
+        const allConstraints = await adapter.getConstraints!();
+        expect(allConstraints).toBeDefined();
         expect(allConstraints.map((c: any) => c.id)).not.toContain(createResult.value.id);
         // Also verify direct lookup returns null
         const constraint = await getConstraint(adapter, createResult.value.id);

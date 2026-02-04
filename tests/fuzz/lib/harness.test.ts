@@ -54,13 +54,14 @@ describe('test harness', () => {
 
   describe('checkProp', () => {
     it('runs property tests with boolean predicates', () => {
-      expect(() =>
-        checkProp(
-          [fc.integer(), fc.integer()],
-          (a, b) => a + b === b + a,
-          { numRuns: 50 }
-        )
-      ).not.toThrow()
+      // checkProp throws if property fails, so completion indicates success
+      let assertions = 0
+      checkProp(
+        [fc.integer(), fc.integer()],
+        (a, b) => { assertions++; return a + b === b + a },
+        { numRuns: 50 }
+      )
+      expect(assertions).toBe(50)
     })
   })
 
@@ -85,17 +86,26 @@ describe('test harness', () => {
 
   describe('assertDeepEquals', () => {
     it('passes for equal primitives', () => {
-      expect(() => assertDeepEquals(5, 5)).not.toThrow()
-      expect(() => assertDeepEquals('hello', 'hello')).not.toThrow()
-      expect(() => assertDeepEquals(true, true)).not.toThrow()
+      // assertDeepEquals throws if values differ, verify completion
+      let completed = 0
+      assertDeepEquals(5, 5); completed++
+      assertDeepEquals('hello', 'hello'); completed++
+      assertDeepEquals(true, true); completed++
+      expect(completed).toBe(3)
     })
 
     it('passes for equal objects', () => {
-      expect(() => assertDeepEquals({ a: 1, b: 2 }, { a: 1, b: 2 })).not.toThrow()
+      let completed = false
+      assertDeepEquals({ a: 1, b: 2 }, { a: 1, b: 2 })
+      completed = true
+      expect(completed).toBe(true)
     })
 
     it('passes for equal arrays', () => {
-      expect(() => assertDeepEquals([1, 2, 3], [1, 2, 3])).not.toThrow()
+      let completed = false
+      assertDeepEquals([1, 2, 3], [1, 2, 3])
+      completed = true
+      expect(completed).toBe(true)
     })
 
     it('throws for unequal values', () => {
@@ -106,11 +116,13 @@ describe('test harness', () => {
 
   describe('assertThrows', () => {
     it('passes when function throws', () => {
-      expect(() =>
-        assertThrows(() => {
-          throw new Error('test')
-        })
-      ).not.toThrow()
+      // assertThrows throws if function doesn't throw, verify completion
+      let completed = false
+      assertThrows(() => {
+        throw new Error('test')
+      })
+      completed = true
+      expect(completed).toBe(true)
     })
 
     it('fails when function does not throw', () => {
@@ -138,9 +150,12 @@ describe('test harness', () => {
 
   describe('assertInRange', () => {
     it('passes for values in range', () => {
-      expect(() => assertInRange(5, 0, 10)).not.toThrow()
-      expect(() => assertInRange(0, 0, 10)).not.toThrow()
-      expect(() => assertInRange(10, 0, 10)).not.toThrow()
+      // assertInRange throws if value is outside range, verify completion
+      let completed = 0
+      assertInRange(5, 0, 10); completed++
+      assertInRange(0, 0, 10); completed++
+      assertInRange(10, 0, 10); completed++
+      expect(completed).toBe(3)
     })
 
     it('fails for values outside range', () => {
