@@ -1006,7 +1006,7 @@ describe('Boolean Algebra Properties', () => {
 
     for (const c of conditions) {
       const result = evaluateCondition(c, store, asOf)
-      expect(typeof result).toBe('boolean')
+      expect([true, false]).toContain(result)
     }
   })
 
@@ -1115,7 +1115,7 @@ describe('Invariants', () => {
     const store = createStore([])
     // Should complete without hanging
     const result = evaluateCondition(condition, store, asOf)
-    expect(typeof result).toBe('boolean')
+    expect([true, false]).toContain(result)
   })
 
   it('INV 2: Evaluation is deterministic', () => {

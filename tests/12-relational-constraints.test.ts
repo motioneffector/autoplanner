@@ -73,8 +73,7 @@ describe('Segment 12: Relational Constraints', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-          expect(result.value.id).toBeDefined();
-          expect(typeof result.value.id).toBe('string');
+          expect(result.value.id).toEqual(expect.any(String));
         }
       });
 
@@ -969,8 +968,7 @@ describe('Segment 12: Relational Constraints', () => {
         dest: { type: 'seriesId', seriesId: resultB.value.id },
       }, { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') });
 
-      expect(violations[0].description).toBeDefined();
-      expect(typeof violations[0].description).toBe('string');
+      expect(violations[0].description).toEqual(expect.any(String));
     });
   });
 

@@ -116,7 +116,7 @@ describe('Segment 14: Public API', () => {
         const planner = createAutoplanner(config);
 
         expect(planner).toBeDefined();
-        expect(typeof planner.createSeries).toBe('function');
+        expect(planner.createSeries).toBeInstanceOf(Function);
       });
 
       it('uses provided adapter - operations use adapter', async () => {
@@ -678,7 +678,7 @@ describe('Segment 14: Public API', () => {
           });
           expect.fail('Should have thrown');
         } catch (e: any) {
-          expect(typeof e.message).toBe('string');
+          expect(e.message).toEqual(expect.any(String));
           expect(e.message.length).toBeGreaterThan(0);
         }
       });
@@ -856,7 +856,7 @@ describe('Segment 14: Public API', () => {
 
     it('adapter transaction support - adapter provides transaction method', () => {
       const adapter = createMockAdapter();
-      expect(typeof adapter.transaction).toBe('function');
+      expect(adapter.transaction).toBeInstanceOf(Function);
     });
   });
 
@@ -1028,7 +1028,7 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
-        expect(id).toBeDefined();
+        expect(id).toMatch(/^[0-9a-f-]{36}$/);
       });
     });
   });
@@ -1047,8 +1047,7 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
-        expect(id).toBeDefined();
-        expect(typeof id).toBe('string');
+        expect(id).toMatch(/^[0-9a-f-]{36}$/);
       });
 
       it('getSeries returns series - series data returned', async () => {
@@ -1238,7 +1237,7 @@ describe('Segment 14: Public API', () => {
           secondSeries: id2,
         });
 
-        expect(constraintId).toBeDefined();
+        expect(constraintId).toMatch(/^[0-9a-f-]{36}$/);
       });
 
       it('removeConstraint removes - constraint gone', async () => {
@@ -1427,7 +1426,7 @@ describe('Segment 14: Public API', () => {
           days: [1, 2, 3, 4, 5],
         }, date('2025-01-15')); // Wednesday
 
-        expect(typeof result).toBe('boolean');
+        expect([true, false]).toContain(result);
       });
 
       it('getActiveConditions returns - active patterns per series', async () => {
@@ -1443,8 +1442,7 @@ describe('Segment 14: Public API', () => {
 
         const active = await planner.getActiveConditions(id, date('2025-01-15')); // Wednesday
 
-        expect(active).toBeDefined();
-        expect(Array.isArray(active)).toBe(true);
+        expect(active).toEqual(expect.any(Array));
       });
     });
   });

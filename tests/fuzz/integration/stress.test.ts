@@ -2124,7 +2124,7 @@ describe('SQLite Data Type Tests', () => {
           // Retrieve and verify
           const stored = validator.get('completions', 'c1')
           expect(stored?.instanceDate).toBe(dateStr)
-          expect(typeof stored?.instanceDate).toBe('string')
+          expect(stored?.instanceDate).toEqual(expect.any(String))
         }
       ),
       { numRuns: 50 }
@@ -2198,7 +2198,7 @@ describe('SQLite Data Type Tests', () => {
 
         const stored = validator.get('series', 's1')
         expect(stored?.isFixed).toBe(intValue)
-        expect(typeof stored?.isFixed).toBe('number')
+        expect(stored?.isFixed).toEqual(expect.any(Number))
         expect(Number.isInteger(stored?.isFixed)).toBe(true)
       }),
       { numRuns: 20 }

@@ -807,7 +807,7 @@ describe('Spec 1: Temporal Types - Timezone Configuration', () => {
           expect(result.timezone).toBe(timezone)
 
           // UTC offset should be a valid number
-          expect(typeof result.utcOffset).toBe('number')
+          expect(result.utcOffset).toEqual(expect.any(Number))
           expect(result.utcOffset).toBeGreaterThanOrEqual(-12)
           expect(result.utcOffset).toBeLessThanOrEqual(14)
         }

@@ -132,7 +132,7 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(andConditionGen(), (condition) => {
           expect(condition.type).toBe('and')
-          expect(Array.isArray(condition.conditions)).toBe(true)
+          expect(condition.conditions).toEqual(expect.any(Array))
         })
       )
     })
@@ -143,7 +143,7 @@ describe('condition generators', () => {
       fc.assert(
         fc.property(orConditionGen(), (condition) => {
           expect(condition.type).toBe('or')
-          expect(Array.isArray(condition.conditions)).toBe(true)
+          expect(condition.conditions).toEqual(expect.any(Array))
         })
       )
     })
@@ -255,7 +255,7 @@ describe('series component generators', () => {
         fc.property(cyclingConfigGen(), (cycling) => {
           expect(cycling.items.length).toBeGreaterThanOrEqual(1)
           expect(['sequential', 'random']).toContain(cycling.mode)
-          expect(typeof cycling.gapLeap).toBe('boolean')
+          expect([true, false]).toContain(cycling.gapLeap)
           expect(cycling.currentIndex).toBeGreaterThanOrEqual(0)
           expect(cycling.currentIndex).toBeLessThan(cycling.items.length)
         })
@@ -438,7 +438,7 @@ describe('constraint generators', () => {
     it('generates sets of non-conflicting constraints', () => {
       fc.assert(
         fc.property(solvableConstraintSetGen(), (constraints) => {
-          expect(Array.isArray(constraints)).toBe(true)
+          expect(constraints).toEqual(expect.any(Array))
           // All constraints should be valid
           constraints.forEach((c) => {
             expect(VALID_CONSTRAINT_TYPES).toContain(c.type)

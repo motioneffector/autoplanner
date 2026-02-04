@@ -186,8 +186,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         // Duration should be fixed at generation time, not recalculated
-        expect(result[0].duration).toBeDefined();
-        expect(typeof result[0].duration).toBe('number');
+        expect(result[0].duration).toEqual(expect.any(Number));
         expect(result[0].duration).toBeGreaterThan(0);
 
         // Verify duration is deterministic - same input produces same duration

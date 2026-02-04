@@ -80,8 +80,7 @@ describe('Segment 11: Links (Chains)', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-          expect(result.value.id).toBeDefined();
-          expect(typeof result.value.id).toBe('string');
+          expect(result.value.id).toEqual(expect.any(String));
         }
       });
 

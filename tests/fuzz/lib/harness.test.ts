@@ -43,7 +43,7 @@ describe('test harness', () => {
         'array length matches',
         [fc.array(fc.integer()), fc.nat({ max: 10 })],
         (arr, _n) => {
-          expect(Array.isArray(arr)).toBe(true)
+          expect(arr).toEqual(expect.any(Array))
         },
         { numRuns: 50 }
       )
@@ -66,7 +66,7 @@ describe('test harness', () => {
     it('generates the requested number of values', () => {
       const values = sample(fc.integer(), 5)
       expect(values).toHaveLength(5)
-      values.forEach((v) => expect(typeof v).toBe('number'))
+      values.forEach((v) => expect(v).toEqual(expect.any(Number)))
     })
 
     it('defaults to 10 values', () => {
@@ -78,7 +78,7 @@ describe('test harness', () => {
   describe('generate', () => {
     it('generates a single value', () => {
       const value = generate(fc.integer())
-      expect(typeof value).toBe('number')
+      expect(value).toEqual(expect.any(Number))
     })
   })
 
@@ -149,7 +149,7 @@ describe('test harness', () => {
   describe('getNumRuns', () => {
     it('returns a positive number', () => {
       const runs = getNumRuns()
-      expect(typeof runs).toBe('number')
+      expect(runs).toEqual(expect.any(Number))
       expect(runs).toBeGreaterThan(0)
     })
   })

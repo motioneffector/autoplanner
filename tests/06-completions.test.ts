@@ -64,9 +64,7 @@ describe('Segment 06: Completions', () => {
 
         expect(result.ok).toBe(true);
         if (result.ok) {
-          expect(result.value.id).toBeDefined();
-          expect(typeof result.value.id).toBe('string');
-          expect(result.value.id.length).toBeGreaterThan(0);
+          expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/);
         }
       });
 
@@ -119,7 +117,6 @@ describe('Segment 06: Completions', () => {
 
         const completion = await getCompletion(adapter, result.value.id);
         expect(completion).not.toBeNull();
-        expect(completion!.createdAt).toBeDefined();
         const createdAtMs = new Date(completion!.createdAt).getTime();
         expect(createdAtMs).toBeGreaterThanOrEqual(before);
         expect(createdAtMs).toBeLessThanOrEqual(after);

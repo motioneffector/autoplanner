@@ -87,7 +87,7 @@ describe('Create Series', () => {
     })
 
     it('createdAt set on create', async () => {
-      const before = new Date().toISOString()
+      const testStartTime = Date.now()
       const input: SeriesInput = {
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
@@ -95,12 +95,13 @@ describe('Create Series', () => {
         duration: 30,
       }
       const id = await createSeries(adapter, input)
-      const after = new Date().toISOString()
       const series = await getSeries(adapter, id)
-      expect(series?.createdAt).toBeDefined()
+      expect(new Date(series!.createdAt).getTime()).toBeGreaterThanOrEqual(testStartTime - 1000)
+      expect(new Date(series!.createdAt).getTime()).toBeLessThanOrEqual(Date.now())
     })
 
     it('updatedAt set on create', async () => {
+      const testStartTime = Date.now()
       const input: SeriesInput = {
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
@@ -109,7 +110,8 @@ describe('Create Series', () => {
       }
       const id = await createSeries(adapter, input)
       const series = await getSeries(adapter, id)
-      expect(series?.updatedAt).toBeDefined()
+      expect(new Date(series!.updatedAt).getTime()).toBeGreaterThanOrEqual(testStartTime - 1000)
+      expect(new Date(series!.updatedAt).getTime()).toBeLessThanOrEqual(Date.now())
     })
 
     it('locked defaults to false', async () => {
@@ -233,7 +235,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('empty title rejected', async () => {
@@ -266,7 +268,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('invalid startDate format rejected', async () => {
@@ -288,7 +290,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('endDate before startDate rejected', async () => {
@@ -311,7 +313,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('count and endDate both set rejected', async () => {
@@ -346,7 +348,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('negative count rejected', async () => {
@@ -370,7 +372,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('allDay timeOfDay accepted', async () => {
@@ -381,7 +383,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 'allDay',
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('invalid time format rejected', async () => {
@@ -422,7 +424,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 'allDay',
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
   })
 
@@ -435,7 +437,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('zero duration rejected', async () => {
@@ -466,7 +468,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 'allDay',
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('adaptive duration valid accepted', async () => {
@@ -481,7 +483,7 @@ describe('Precondition Validation (Create)', () => {
         },
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('adaptive duration fallback < 1 rejected', async () => {
@@ -528,7 +530,7 @@ describe('Precondition Validation (Create)', () => {
         },
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
   })
 
@@ -542,7 +544,7 @@ describe('Precondition Validation (Create)', () => {
         patterns: [{ type: 'daily' }, { type: 'weekly' }],
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('invalid pattern object rejected', async () => {
@@ -567,7 +569,7 @@ describe('Precondition Validation (Create)', () => {
         wiggle: { daysBefore: 1, daysAfter: 2 },
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('negative daysBefore rejected', async () => {
@@ -606,7 +608,7 @@ describe('Precondition Validation (Create)', () => {
         },
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('invalid timeWindow order rejected', async () => {
@@ -647,7 +649,7 @@ describe('Precondition Validation (Create)', () => {
         wiggle: undefined,
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('fixed with zero wiggle accepted', async () => {
@@ -660,7 +662,7 @@ describe('Precondition Validation (Create)', () => {
         wiggle: { daysBefore: 0, daysAfter: 0 },
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
   })
 
@@ -674,7 +676,7 @@ describe('Precondition Validation (Create)', () => {
         reminders: [{ minutes: 15 }],
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('negative reminder minutes rejected', async () => {
@@ -697,7 +699,7 @@ describe('Precondition Validation (Create)', () => {
         reminders: [{ minutes: 0 }],
       }
       const id = await createSeries(adapter, input)
-      expect(id).toBeDefined()
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
   })
 })
@@ -1146,7 +1148,6 @@ describe('Series Splitting', () => {
         duration: 30,
       })
       const newId = await splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
-      expect(newId).toBeDefined()
       expect(newId).toMatch(/^[0-9a-f-]{36}$/)
     })
 

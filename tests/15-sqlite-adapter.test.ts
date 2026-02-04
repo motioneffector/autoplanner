@@ -1102,7 +1102,7 @@ describe('Segment 15: SQLite Adapter', () => {
 
     it('version tracked - apply migration updates version', async () => {
       const version = await adapter.getSchemaVersion();
-      expect(typeof version).toBe('number');
+      expect(version).toEqual(expect.any(Number));
       expect(version).toBeGreaterThanOrEqual(1);
     });
 
@@ -1152,10 +1152,10 @@ describe('Segment 15: SQLite Adapter', () => {
     it('all Segment 4 tests pass - run adapter tests', async () => {
       // This would import and run Segment 4 tests
       // For now, verify key interface methods exist
-      expect(typeof adapter.getSeries).toBe('function');
-      expect(typeof adapter.saveSeries).toBe('function');
-      expect(typeof adapter.deleteSeries).toBe('function');
-      expect(typeof adapter.transaction).toBe('function');
+      expect(adapter.getSeries).toBeInstanceOf(Function);
+      expect(adapter.saveSeries).toBeInstanceOf(Function);
+      expect(adapter.deleteSeries).toBeInstanceOf(Function);
+      expect(adapter.transaction).toBeInstanceOf(Function);
     });
 
     it('transaction semantics match - same behavior as mock', async () => {
