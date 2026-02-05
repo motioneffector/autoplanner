@@ -1059,6 +1059,13 @@ describe('Instance Exception Operations', () => {
     await adapter.deleteSeries('series-1')
     const exceptions = await adapter.getExceptionsBySeries('series-1')
     expect(exceptions).toEqual([])
+    // Also verify via range query that exception is gone
+    const rangeExceptions = await adapter.getExceptionsInRange(
+      'series-1',
+      '2024-01-01' as LocalDate,
+      '2024-01-31' as LocalDate
+    )
+    expect(rangeExceptions.find(e => e.id === 'exc-1')).toBeUndefined()
   })
 })
 
