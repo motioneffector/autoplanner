@@ -1618,22 +1618,33 @@ describe('Segment 16: Integration Tests', () => {
         title: 'Parent Task',
         patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(60) }],
       });
+      expect(parentId).toBeDefined();
 
       const childId = await planner.createSeries({
         title: 'Child Task',
         patterns: [{ type: 'daily', time: time('10:30') }],
         cycling: { mode: 'sequential', items: ['Part A', 'Part B'] },
       });
+      expect(childId).toBeDefined();
 
       await planner.linkSeries(parentId, childId, { distance: 30 });
+      // Verify link exists
+      const child = await planner.getSeries(childId);
+      expect(child?.parentId).toBe(parentId);
       await planner.createReminder(parentId, { type: 'before', offset: minutes(15) });
 
       const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
       const conflicts = await planner.getConflicts();
 
       expect(schedule.instances.length).toBeGreaterThanOrEqual(2);
+      const parentInstance = schedule.instances.find((i) => i.seriesId === parentId);
+      const childInstance = schedule.instances.find((i) => i.seriesId === childId);
+      expect(parentInstance).toBeDefined();
+      expect(childInstance).toBeDefined();
+
       const errorConflicts = conflicts.filter((c) => c.type === 'error');
       // No error-type conflicts in complex multi-feature scenario
+      expect(errorConflicts).toHaveLength(0);
       expect(errorConflicts).toEqual([]);
     });
 

@@ -187,8 +187,15 @@ describe('pattern generators', () => {
       fc.assert(
         fc.property(customPatternGen(), (pattern) => {
           expect(pattern.type).toBe('custom')
-          expect(pattern.dates.length >= 1).toBe(true)
-          expect(typeof pattern.dates[0]).toBe('string')
+          expect(Array.isArray(pattern.dates)).toBe(true)
+          expect(pattern.dates.length).toBeGreaterThanOrEqual(1)
+          // Verify all dates are valid
+          pattern.dates.forEach((date) => {
+            expect(typeof date).toBe('string')
+            expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+            const { year, month, day } = parseLocalDate(date)
+            expect(isValidDate(year, month, day)).toBe(true)
+          })
         })
       )
     })
@@ -212,9 +219,19 @@ describe('pattern generators', () => {
       fc.assert(
         fc.property(activeOnDatesPatternGen(), (pattern) => {
           expect(pattern.type).toBe('activeOnDates')
+          expect(pattern.base).toBeDefined()
           expect(typeof pattern.base.type).toBe('string')
+          const VALID_TYPES = ['daily', 'everyNDays', 'weekly', 'everyNWeeks', 'monthly', 'nthWeekdayOfMonth', 'lastDayOfMonth', 'yearly', 'weekdays', 'oneOff', 'custom']
+          expect(VALID_TYPES).toContain(pattern.base.type)
           expect(pattern.dates.length >= 1).toBe(true)
-          expect(typeof pattern.dates[0]).toBe('string')
+          // Verify ALL dates are valid, not just the first
+          expect(Array.isArray(pattern.dates)).toBe(true)
+          pattern.dates.forEach((date) => {
+            expect(typeof date).toBe('string')
+            expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+            const { year, month, day } = parseLocalDate(date)
+            expect(isValidDate(year, month, day)).toBe(true)
+          })
         })
       )
     })
@@ -225,9 +242,19 @@ describe('pattern generators', () => {
       fc.assert(
         fc.property(inactiveOnDatesPatternGen(), (pattern) => {
           expect(pattern.type).toBe('inactiveOnDates')
+          expect(pattern.base).toBeDefined()
           expect(typeof pattern.base.type).toBe('string')
+          const VALID_TYPES = ['daily', 'weekly', 'monthly', 'everyNDays', 'everyNWeeks', 'custom', 'oneOff', 'yearly', 'nthWeekdayOfMonth', 'lastDayOfMonth', 'weekdays']
+          expect(VALID_TYPES).toContain(pattern.base.type)
           expect(pattern.dates.length >= 1).toBe(true)
-          expect(typeof pattern.dates[0]).toBe('string')
+          // Verify ALL dates are valid, not just the first
+          expect(Array.isArray(pattern.dates)).toBe(true)
+          pattern.dates.forEach((date) => {
+            expect(typeof date).toBe('string')
+            expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+            const { year, month, day } = parseLocalDate(date)
+            expect(isValidDate(year, month, day)).toBe(true)
+          })
         })
       )
     })

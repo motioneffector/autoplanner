@@ -443,12 +443,15 @@ describe('constraint generators', () => {
         fc.property(relationalConstraintGen(), (constraint) => {
           expect(constraint.id).toMatch(/^constraint-/)
           expect(VALID_CONSTRAINT_TYPES).toContain(constraint.type)
+          expect(constraint.sourceTarget).toBeDefined()
+          expect(constraint.destTarget).toBeDefined()
           // withinMinutes required iff type = mustBeWithin
           if (constraint.type === 'mustBeWithin') {
             expect(typeof constraint.withinMinutes === 'number' && constraint.withinMinutes >= 1).toBe(true)
           } else {
             // Verify withinMinutes is not present for non-mustBeWithin constraints
             expect(constraint).not.toHaveProperty('withinMinutes')
+            expect(constraint.withinMinutes).toBeUndefined()
           }
         })
       )
