@@ -24,6 +24,7 @@ import {
 import {
   createSeries,
   deleteSeries,
+  getSeries,
 } from '../src/series-crud';
 import {
   logCompletion,
@@ -279,11 +280,24 @@ describe('Segment 11: Links (Chains)', () => {
         targetDistance: 15,
       });
 
+      // Verify link exists before unlink
+      const allLinksBefore = await getAllLinks(adapter);
+      const linksBefore = allLinksBefore.filter(l => l.childSeriesId === childId);
+      expect(linksBefore).toHaveLength(1);
+      expect(linksBefore[0].parentSeriesId).toBe(parentId);
+
+      const linkByChild = await getLinkByChild(adapter, childId);
+      expect(linkByChild).not.toBeNull();
+
       await unlinkSeries(adapter, childId);
 
       const allLinks = await getAllLinks(adapter);
       const childLinks = allLinks.filter(l => l.childSeriesId === childId);
       expect(childLinks).toEqual([]);
+
+      // Verify getLinkByChild also returns null (LAW 4)
+      const linkByChildAfter = await getLinkByChild(adapter, childId);
+      expect(linkByChildAfter).toBeNull();
     });
 
     it('unlinked child independent', async () => {
@@ -296,12 +310,21 @@ describe('Segment 11: Links (Chains)', () => {
         targetDistance: 15,
       });
 
+      // Verify child is linked before unlink
+      const linkBefore = await getLinkByChild(adapter, childId);
+      expect(linkBefore).not.toBeNull();
+      expect(linkBefore?.parentSeriesId).toBe(parentId);
+
       await unlinkSeries(adapter, childId);
 
       // Child should schedule independently now
       const allLinks = await getAllLinks(adapter);
       const childLinks = allLinks.filter(l => l.childSeriesId === childId);
       expect(childLinks).toEqual([]);
+
+      // Also verify via getLinkByChild
+      const linkAfter = await getLinkByChild(adapter, childId);
+      expect(linkAfter).toBeNull();
     });
 
     it('unlink non-linked child', async () => {
@@ -816,7 +839,17 @@ describe('Segment 11: Links (Chains)', () => {
 
       await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: childId, targetDistance: 15 });
 
+      // Verify link exists before deletion
+      const allLinksBefore = await getAllLinks(adapter);
+      const linksBefore = allLinksBefore.filter(l => l.childSeriesId === childId);
+      expect(linksBefore).toHaveLength(1);
+      expect(linksBefore[0].parentSeriesId).toBe(parentId);
+
       await deleteSeries(adapter, childId);
+
+      // Verify deletion succeeded
+      const childAfter = await getSeries(adapter, childId);
+      expect(childAfter).toBeNull();
 
       const allLinks = await getAllLinks(adapter);
       const childLinks = allLinks.filter(l => l.childSeriesId === childId);
