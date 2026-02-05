@@ -4271,11 +4271,23 @@ describe('Schedule Generation Tests', () => {
           const inputItemIds = new Set(items.map(i => i.id))
           for (const slot of result.solution!) {
             // Verify itemId references an actual input item
-            expect(inputItemIds.has(slot.itemId)).toBe(true)
-            // Verify time values are valid minutes in day range
-            expect(slot.start).toBeGreaterThanOrEqual(480) // 8 AM
-            expect(slot.end).toBeLessThanOrEqual(1080)     // 6 PM
-            expect(slot.end).toBeGreaterThan(slot.start)   // Duration positive
+            const inputItem = items.find(i => i.id === slot.itemId)
+            expect(inputItem).toBeDefined()
+
+            // Verify start is valid integer in day range
+            expect(Number.isInteger(slot.start)).toBe(true)
+            expect(slot.start).toBeGreaterThanOrEqual(480)  // 8 AM
+            expect(slot.start).toBeLessThan(slot.end)       // Positive duration
+
+            // Verify respects item's earliest start constraint
+            expect(slot.start).toBeGreaterThanOrEqual(inputItem!.earliestStart ?? 480)
+
+            // Verify end is valid integer within window
+            expect(Number.isInteger(slot.end)).toBe(true)
+            expect(slot.end).toBeLessThanOrEqual(1080)      // 6 PM
+
+            // Verify correct duration calculation
+            expect(slot.end - slot.start).toBe(inputItem!.duration)
           }
           // Verify solution has at least all fixed items placed
           const placedFixedItems = result.solution!.filter(s =>
@@ -4294,10 +4306,13 @@ describe('Schedule Generation Tests', () => {
     const result = ScheduleSolver.solve(items, constraints)
 
     expect(result.success).toBe(false)
+    expect(result.conflicts).toBeDefined()
+    expect(result.conflicts!.length).toBeGreaterThan(0)
+
     // Verify conflicts array with specific conflict content
     expect(result.conflicts![0]).toMatch(/Item|slot|duration/)
-    expect(typeof result.conflicts![0]).toBe('string')
-    expect(typeof contradiction).toBe('string')
+
+    // Verify contradiction message is meaningful
     expect(contradiction).toContain('must')
   })
 
@@ -4342,9 +4357,9 @@ describe('Schedule Generation Tests', () => {
     expect(result.success).toBe(false)
     // Conflicts should be descriptive strings describing the problem
     for (const conflict of result.conflicts!) {
-      expect(typeof conflict).toBe('string')
       // Each conflict should describe what went wrong (item reference or time constraint)
-      expect(conflict).toMatch(/Item|earliest|latest|duration|slot|exceeds/)
+      expect(conflict).toMatch(/Item|earliest|latest|duration|slot|exceeds|overlap/)
+      expect(conflict.length).toBeGreaterThan(10) // Minimum meaningful message
     }
     // Verify at least one conflict was generated
     expect(result.conflicts!.some(c => c.includes('Item'))).toBe(true)
@@ -4649,10 +4664,8 @@ describe('SQLite Error Mapping Tests', () => {
         (sqliteCode, message) => {
           const domainError = SQLiteErrorMapper.mapError(sqliteCode, message)
 
-          // Domain error should always have type and message
-          expect(typeof domainError.type).toBe('string')
-          expect(typeof domainError.message).toBe('string')
-          // Verify message contains meaningful content
+          // Verify message is meaningful
+          expect(domainError.message.length).toBeGreaterThan(5)
           expect(domainError.message).toMatch(/\w+/)
 
           // Details should include original info

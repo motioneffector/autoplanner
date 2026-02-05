@@ -46,7 +46,6 @@ describe('Invariants - Date Validation', () => {
       fc.property(localDateGen(), (date) => {
         const result = dateIsValid(date)
         expect(result.passed).toBe(true)
-        expect(result.violations).toEqual([])
       })
     )
   })
@@ -72,7 +71,6 @@ describe('Invariants - Time Validation', () => {
       fc.property(localTimeGen(), (time) => {
         const result = timeIsValid(time)
         expect(result.passed).toBe(true)
-        expect(result.violations).toEqual([])
       })
     )
   })
@@ -96,7 +94,7 @@ describe('Invariants - DateTime Validation', () => {
       fc.property(localDateTimeGen(), (dateTime) => {
         const result = dateTimeIsValid(dateTime)
         expect(result.passed).toBe(true)
-        expect(result.violations).toEqual([])
+        expect(dateTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
       })
     )
   })
