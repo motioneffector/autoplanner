@@ -1322,13 +1322,13 @@ describe('Tag Operations', () => {
   it('create tag returns ID', async () => {
     const id = await adapter.createTag('work')
     expect(id).toMatch(/^[a-zA-Z0-9-]+$/)
-    expect(id.length).toBeGreaterThanOrEqual(1)
+    expect(id.length).toBeGreaterThanOrEqual(8)  // Reasonable minimum for ID formats
     // Verify the tag was actually created
     const tag = await adapter.getTagByName('work')
-    expect(tag).toEqual(expect.objectContaining({
+    expect(tag).toEqual({
       id: id,
       name: 'work',
-    }))
+    })
   })
 
   it('create existing returns same ID', async () => {
@@ -1375,6 +1375,12 @@ describe('Tag Operations', () => {
 
   it('series delete cascades tag associations', async () => {
     await adapter.addTagToSeries('series-1', 'work')
+
+    // Verify association exists before deletion
+    const seriesBeforeDeletion = await adapter.getSeriesByTag('work')
+    expect(seriesBeforeDeletion).toHaveLength(1)
+    expect(seriesBeforeDeletion[0].id).toBe('series-1')
+
     await adapter.deleteSeries('series-1')
     // Tag still exists, just association is removed
     const tag = await adapter.getTagByName('work')
@@ -1384,6 +1390,10 @@ describe('Tag Operations', () => {
     // But the association was removed (series is gone) - returns empty as expected
     const seriesWithTag = await adapter.getSeriesByTag('work')
     expect(seriesWithTag).toHaveLength(0)
+
+    // Also verify via getAllSeriesTags
+    const allAssociations = await adapter.getAllSeriesTags()
+    expect(allAssociations.some(st => st.series_id === 'series-1')).toBe(false)
   })
 
   it('tag delete cascades associations', async () => {
@@ -1494,10 +1504,19 @@ describe('Reminder Operations', () => {
     })
     // Verify reminder exists before deletion
     const remindersBefore = await adapter.getRemindersBySeries('series-1')
-    expect(remindersBefore.length).toBe(1)
+    expect(remindersBefore).toHaveLength(1)
+    expect(remindersBefore[0]).toMatchObject({
+      id: 'rem-1',
+      seriesId: 'series-1',
+      minutesBefore: 15,
+      label: 'Test',
+    })
     await adapter.deleteSeries('series-1')
     const reminders = await adapter.getRemindersBySeries('series-1')
     expect(reminders).toEqual([])
+    // Also verify via global query
+    const allReminders = await adapter.getAllReminders()
+    expect(allReminders.find(r => r.id === 'rem-1')).toBeUndefined()
   })
 })
 
@@ -1540,9 +1559,18 @@ describe('Reminder Acknowledgment Operations', () => {
 
   it('reminder delete cascades acks', async () => {
     await adapter.acknowledgeReminder('rem-1', '2024-01-15' as LocalDate, '2024-01-15T09:45:00' as LocalDateTime)
-    // Verify ack exists before deletion
+    // Verify ack exists with correct properties before deletion
     const acksBefore = await adapter.getReminderAcksInRange('2024-01-01' as LocalDate, '2024-01-31' as LocalDate)
-    expect(acksBefore.length).toBe(1)
+    expect(acksBefore).toHaveLength(1)
+    expect(acksBefore[0]).toMatchObject({
+      reminderId: 'rem-1',
+      instanceDate: '2024-01-15',
+    })
+
+    // Verify via isReminderAcknowledged
+    const wasAcked = await adapter.isReminderAcknowledged('rem-1', '2024-01-15' as LocalDate)
+    expect(wasAcked).toBe(true)
+
     await adapter.deleteReminder('rem-1')
     const acks = await adapter.getReminderAcksInRange('2024-01-01' as LocalDate, '2024-01-31' as LocalDate)
     expect(acks).toEqual([])
@@ -2050,6 +2078,11 @@ describe('Invariants', () => {
       conditionId: null,
     } as Pattern)
     await adapter.setPatternWeekdays('p1', ['mon', 'wed'])
+
+    // Verify weekdays exist before deletion
+    const weekdaysBefore = await adapter.getPatternWeekdays('p1')
+    expect(weekdaysBefore).toEqual(['mon', 'wed'])
+
     await adapter.deleteSeries('s1')
 
     // No orphaned patterns or weekdays - returns empty as expected after cascade delete
@@ -2057,5 +2090,9 @@ describe('Invariants', () => {
     expect(allPatterns.map(p => p.id)).not.toContain('p1')
     const weekdays = await adapter.getPatternWeekdays('p1')
     expect(weekdays).toHaveLength(0)
+
+    // Also verify via global query
+    const allWeekdays = await adapter.getAllPatternWeekdays()
+    expect(allWeekdays.filter(w => w.pattern_id === 'p1')).toHaveLength(0)
   })
 })

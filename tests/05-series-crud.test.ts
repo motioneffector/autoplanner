@@ -1066,9 +1066,22 @@ describe('Delete Series', () => {
       duration: 30,
       reminders: [{ minutes: 15 }],
     })
+
+    // Verify reminder exists before deletion
+    const remindersBefore = await adapter.getRemindersBySeries(id)
+    expect(remindersBefore).toHaveLength(1)
+    expect(remindersBefore[0]).toMatchObject({
+      series_id: id,
+      minutes_before: 15,
+    })
+
     await deleteSeries(adapter, id)
     const reminders = await adapter.getRemindersBySeries(id)
-    expect(reminders.length).toBe(0)
+    expect(reminders).toEqual([])
+
+    // Also verify via global query
+    const allReminders = await adapter.getAllReminders()
+    expect(allReminders.find(r => r.series_id === id)).toBeUndefined()
   })
 })
 
