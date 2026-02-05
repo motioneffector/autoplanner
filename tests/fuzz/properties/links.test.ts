@@ -245,19 +245,27 @@ describe('Spec 11: Links - Hierarchy', () => {
 
         const manager = new LinkManager()
 
-        manager.createLink({
+        const created = manager.createLink({
           parentSeriesId: parentId,
           childSeriesId: childId,
           targetDistance: 30,
           earlyWobble: 5,
           lateWobble: 5,
         })
+        expect(created).toBe(true)
 
-        // Unlink first
-        manager.deleteLink(childId)
+        // Before deletion - verify child is in parent's children
+        expect(manager.getChildren(parentId)).toContain(childId)
+        expect(manager.hasLink(childId)).toBe(true)
 
-        // Now parent has no children
-        expect(manager.getChildren(parentId).length).toBe(0)
+        // Delete the link
+        const deleted = manager.deleteLink(childId)
+        expect(deleted).toBe(true)
+
+        // After deletion - verify parent has no children
+        expect(manager.getChildren(parentId)).toEqual([])
+        expect(manager.hasLink(childId)).toBe(false)
+        expect(manager.getParent(childId)).toBeUndefined()
       })
     )
   })

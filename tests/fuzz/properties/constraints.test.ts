@@ -406,7 +406,10 @@ describe('Spec 10: Constraints - Boundary Values', () => {
         expect(hasDestTag || hasDestSeriesId).toBe(true)
 
         if (constraint.type === 'mustBeWithin') {
-          expect(typeof constraint.withinMinutes).toBe('number')
+          // Verify withinMinutes exists and is valid
+          expect(constraint.withinMinutes).toBeDefined()
+          expect(constraint.withinMinutes).toBeGreaterThanOrEqual(1)
+          expect(constraint.withinMinutes).toBeLessThanOrEqual(1440)
         }
       }),
       { numRuns: 200 }

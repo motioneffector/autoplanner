@@ -245,14 +245,25 @@ describe('Spec 7: Conditions - CRUD Operations', () => {
         fc.array(countConditionGen(), { minLength: 1, maxLength: 5 }),
         (seriesId, conditions) => {
           const manager = new ConditionManager()
+          const conditionIds: string[] = []
 
           for (const condition of conditions) {
-            manager.createCondition(seriesId, condition)
+            conditionIds.push(manager.createCondition(seriesId, condition))
           }
+
+          // Verify conditions exist before deletion
+          expect(manager.getConditionsForSeries(seriesId)).toHaveLength(conditions.length)
 
           const deleted = manager.deleteConditionsForSeries(seriesId)
           expect(deleted).toBe(conditions.length)
-          expect(manager.getConditionsForSeries(seriesId).length).toBe(0)
+
+          // Verify conditions are gone from series
+          expect(manager.getConditionsForSeries(seriesId)).toEqual([])
+
+          // Verify individual conditions are gone from main map
+          for (const id of conditionIds) {
+            expect(manager.getCondition(id)).toBeUndefined()
+          }
         }
       )
     )
@@ -282,13 +293,15 @@ describe('Pattern/Condition - Cross Reference', () => {
 
           // Series 1 has pattern but no condition
           const series1Patterns = patternManager.getPatternsForSeries(series1)
-          expect(series1Patterns.length === 1 && series1Patterns[0].type === pattern.type).toBe(true)
-          expect(conditionManager.getConditionsForSeries(series1).length).toBe(0)
+          expect(series1Patterns).toHaveLength(1)
+          expect(series1Patterns[0].type).toBe(pattern.type)
+          expect(conditionManager.getConditionsForSeries(series1)).toEqual([])
 
           // Series 2 has condition but no pattern
-          expect(patternManager.getPatternsForSeries(series2).length).toBe(0)
+          expect(patternManager.getPatternsForSeries(series2)).toEqual([])
           const series2Conditions = conditionManager.getConditionsForSeries(series2)
-          expect(series2Conditions.length === 1 && series2Conditions[0].type === condition.type).toBe(true)
+          expect(series2Conditions).toHaveLength(1)
+          expect(series2Conditions[0].type).toBe(condition.type)
         }
       )
     )

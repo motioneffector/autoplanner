@@ -115,14 +115,18 @@ describe('Spec 5: Instances - Cancellation', () => {
 
         // Before cancellation
         const scheduleBefore = manager.getSchedule(seriesId)
-        expect(scheduleBefore.length === 1 && scheduleBefore[0].seriesId === seriesId).toBe(true)
+        expect(scheduleBefore).toHaveLength(1)
+        expect(scheduleBefore[0].seriesId).toBe(seriesId)
         expect(scheduleBefore[0].instanceDate).toBe(date)
+        expect(scheduleBefore[0].isCancelled).toBe(false)
 
         manager.cancelInstance(seriesId, date)
 
         // After cancellation
-        expect(manager.getSchedule(seriesId).length).toBe(0)
-        expect(manager.getInstance(seriesId, date)?.isCancelled).toBe(true)
+        expect(manager.getSchedule(seriesId)).toEqual([])
+        const instance = manager.getInstance(seriesId, date)
+        expect(instance).toBeDefined()
+        expect(instance?.isCancelled).toBe(true)
       })
     )
   })
@@ -221,13 +225,18 @@ describe('Spec 5: Instances - Restoration', () => {
         manager.cancelInstance(seriesId, date)
 
         expect(manager.getInstance(seriesId, date)?.isCancelled).toBe(true)
-        expect(manager.getSchedule(seriesId).length).toBe(0)
+        expect(manager.getSchedule(seriesId)).toEqual([])
 
         manager.restoreInstance(seriesId, date)
 
-        expect(manager.getInstance(seriesId, date)?.isCancelled).toBe(false)
+        const restoredInstance = manager.getInstance(seriesId, date)
+        expect(restoredInstance).toBeDefined()
+        expect(restoredInstance?.isCancelled).toBe(false)
+        expect(restoredInstance?.rescheduledTo).toBeUndefined()
+
         const schedule = manager.getSchedule(seriesId)
-        expect(schedule.length === 1 && schedule[0].seriesId === seriesId).toBe(true)
+        expect(schedule).toHaveLength(1)
+        expect(schedule[0].seriesId).toBe(seriesId)
         expect(schedule[0].instanceDate).toBe(date)
       })
     )
@@ -347,12 +356,19 @@ describe('Spec 5: Instances - Bounds', () => {
           manager.scheduleInstance(seriesId, instanceDate, time, 60)
 
           const withinBounds = manager.getScheduleWithinBounds(seriesId)
+          const isOutsideBounds = instanceDate < startDate || instanceDate > endDate
 
           // If instance date is outside bounds, it shouldn't appear
-          if (instanceDate < startDate || instanceDate > endDate) {
-            expect(withinBounds.length).toBe(0)
+          if (isOutsideBounds) {
+            // Verify no instances appear when outside bounds
+            expect(withinBounds).toEqual([])
+
+            // Verify the instance still exists but is filtered
+            const allInstances = manager.getSchedule(seriesId)
+            expect(allInstances).toHaveLength(1)
           } else {
-            expect(withinBounds.length === 1 && withinBounds[0].seriesId === seriesId).toBe(true)
+            expect(withinBounds).toHaveLength(1)
+            expect(withinBounds[0].seriesId).toBe(seriesId)
             expect(withinBounds[0].instanceDate).toBe(instanceDate)
           }
         }
@@ -371,13 +387,22 @@ describe('Spec 5: Instances - Bounds', () => {
           // No bounds set - all dates valid
           manager.scheduleInstance(seriesId, date, time, 60)
 
+          // Before cancellation - verify instance is visible
           const scheduleBefore = manager.getScheduleWithinBounds(seriesId)
-          expect(scheduleBefore.length === 1 && scheduleBefore[0].seriesId === seriesId).toBe(true)
+          expect(scheduleBefore).toHaveLength(1)
+          expect(scheduleBefore[0].seriesId).toBe(seriesId)
           expect(scheduleBefore[0].instanceDate).toBe(date)
+          expect(scheduleBefore[0].isCancelled).toBe(false)
 
           manager.cancelInstance(seriesId, date)
 
-          expect(manager.getScheduleWithinBounds(seriesId).length).toBe(0)
+          // After cancellation - verify schedule is empty
+          expect(manager.getScheduleWithinBounds(seriesId)).toEqual([])
+
+          // Verify instance still exists but is cancelled
+          const instance = manager.getInstance(seriesId, date)
+          expect(instance).toBeDefined()
+          expect(instance?.isCancelled).toBe(true)
         }
       )
     )
