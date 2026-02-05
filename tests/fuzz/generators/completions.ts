@@ -130,10 +130,28 @@ export function completionForInstanceGen(seriesId: SeriesId, instanceDate: Local
 export function boundaryCompletionGen(): Arbitrary<Completion> {
   return fc.oneof(
     // Minimum duration (1 minute)
-    completionValidGen().map((c) => ({
-      ...c,
-      actualDuration: 1 as Duration,
-    })),
+    fc.tuple(completionIdGen(), seriesIdGen(), localDateGen(), fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 })).map(([id, seriesId, date, startHour, startMinute]) => {
+      const { year, month, day } = parseLocalDate(date)
+      const startTime = makeLocalDateTime(makeLocalDate(year, month, day), makeLocalTime(startHour, startMinute))
+
+      // Calculate end time for exactly 1 minute
+      const startDate = new Date(Date.UTC(year, month - 1, day, startHour, startMinute))
+      const endDate = new Date(startDate.getTime() + 1 * 60 * 1000)
+      const endTime = makeLocalDateTime(
+        makeLocalDate(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, endDate.getUTCDate()),
+        makeLocalTime(endDate.getUTCHours(), endDate.getUTCMinutes())
+      )
+
+      return {
+        id,
+        seriesId,
+        instanceDate: date,
+        startTime,
+        endTime,
+        actualDuration: 1 as Duration,
+        notes: undefined,
+      }
+    }),
 
     // Very long duration (full day)
     fc

@@ -40,12 +40,17 @@ describe('test harness', () => {
 
     it('handles multiple arbitraries', () => {
       testProp(
-        'array length matches',
-        [fc.array(fc.integer()), fc.nat({ max: 10 })],
-        (arr, _n) => {
-          // Verify arr is an array of integers by checking length and every element
-          expect(arr.length).toBeGreaterThanOrEqual(0);
+        'array and constraint work together',
+        [fc.array(fc.integer(), { maxLength: 10 }), fc.nat({ max: 10 })],
+        (arr, n) => {
+          // Verify arr is an array with meaningful constraints
+          expect(Array.isArray(arr)).toBe(true);
+          expect(arr.length).toBeLessThanOrEqual(10);
           arr.forEach((x) => expect(Number.isInteger(x)).toBe(true));
+
+          // Use n for something meaningful
+          expect(n).toBeGreaterThanOrEqual(0);
+          expect(n).toBeLessThanOrEqual(10);
         },
         { numRuns: 50 }
       )

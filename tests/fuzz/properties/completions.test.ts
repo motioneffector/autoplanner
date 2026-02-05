@@ -328,12 +328,53 @@ describe('Spec 6: Completions - Boundary Values', () => {
   it('boundary completions are well-formed', () => {
     fc.assert(
       fc.property(boundaryCompletionGen(), (completion) => {
-        expect(typeof completion.id).toBe('string')
-        expect(typeof completion.seriesId).toBe('string')
-        expect(typeof completion.instanceDate).toBe('string')
-        expect(typeof completion.startTime).toBe('string')
-        expect(typeof completion.endTime).toBe('string')
-        expect(completion.actualDuration > 0).toBe(true)
+        // Verify non-empty string IDs
+        expect(completion.id).toBeTruthy()
+        expect(completion.id.length).toBeGreaterThan(0)
+
+        expect(completion.seriesId).toBeTruthy()
+        expect(completion.seriesId.length).toBeGreaterThan(0)
+
+        // Verify date format (YYYY-MM-DD)
+        expect(completion.instanceDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+
+        // Verify date is parseable
+        const parsed = parseLocalDate(completion.instanceDate)
+        expect(parsed.year).toBeGreaterThanOrEqual(1970)
+        expect(parsed.year).toBeLessThanOrEqual(2100)
+        expect(parsed.month).toBeGreaterThanOrEqual(1)
+        expect(parsed.month).toBeLessThanOrEqual(12)
+        expect(parsed.day).toBeGreaterThanOrEqual(1)
+        expect(parsed.day).toBeLessThanOrEqual(31)
+
+        // Verify ISO 8601 format for times (contains 'T' separator)
+        expect(completion.startTime).toContain('T')
+        expect(completion.endTime).toContain('T')
+
+        // Verify times are parseable
+        const startParsed = parseLocalDateTime(completion.startTime)
+        const endParsed = parseLocalDateTime(completion.endTime)
+
+        expect(startParsed.hours).toBeGreaterThanOrEqual(0)
+        expect(startParsed.hours).toBeLessThanOrEqual(23)
+        expect(startParsed.minutes).toBeGreaterThanOrEqual(0)
+        expect(startParsed.minutes).toBeLessThanOrEqual(59)
+
+        expect(endParsed.hours).toBeGreaterThanOrEqual(0)
+        expect(endParsed.hours).toBeLessThanOrEqual(23)
+        expect(endParsed.minutes).toBeGreaterThanOrEqual(0)
+        expect(endParsed.minutes).toBeLessThanOrEqual(59)
+
+        // Verify time ordering (critical invariant)
+        expect(completion.endTime >= completion.startTime).toBe(true)
+
+        // Verify duration with meaningful bounds
+        expect(completion.actualDuration).toBeGreaterThan(0)
+        expect(completion.actualDuration).toBeLessThanOrEqual(1440) // max 24 hours
+
+        // Verify duration consistency: calculated duration matches stored actualDuration
+        const calculatedDuration = calculateDuration(completion.startTime, completion.endTime)
+        expect(calculatedDuration).toBe(completion.actualDuration)
       }),
       { numRuns: 100 }
     )
