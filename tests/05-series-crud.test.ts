@@ -1375,9 +1375,27 @@ describe('Series Splitting', () => {
         startTime: '2024-01-05T13:30:00' as LocalDateTime,
         endTime: '2024-01-05T14:00:00' as LocalDateTime,
       })
+
+      // Verify completion exists before split
+      const completionsBefore = await adapter.getCompletionsBySeries(id)
+      expect(completionsBefore).toHaveLength(1)
+      expect(completionsBefore[0]).toMatchObject({
+        id: 'comp-1',
+        series_id: id,
+      })
+
       const newId = await splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
+
+      // Verify new series ID is different
+      expect(newId).not.toBe(id)
+
       const completions = await adapter.getCompletionsBySeries(newId)
-      expect(completions.length).toBe(0)
+      expect(completions).toEqual([])
+
+      // Verify original series still has completions (LAW 18)
+      const originalCompletions = await adapter.getCompletionsBySeries(id)
+      expect(originalCompletions).toHaveLength(1)
+      expect(originalCompletions[0].id).toBe('comp-1')
     })
   })
 

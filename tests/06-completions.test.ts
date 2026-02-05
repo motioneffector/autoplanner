@@ -473,12 +473,17 @@ describe('Segment 06: Completions', () => {
           endTime: parseDateTime('2024-01-10T09:30:00'),
         });
 
+        // Verify completion exists (was actually logged)
+        const allCompletions = await adapter.getCompletionsBySeries(testSeriesId);
+        expect(allCompletions).toHaveLength(1);
+        expect(allCompletions[0].date).toBe(addDays(asOf, -10));
+
         const completions = await getCompletionsByTarget(adapter, {
           target: { type: 'seriesId', seriesId: testSeriesId },
           windowDays: 7,
           asOf,
         });
-        expect(completions.length).toBe(0);
+        expect(completions).toEqual([]);
       });
 
       it('target by tag', async () => {
@@ -654,6 +659,8 @@ describe('Segment 06: Completions', () => {
       expect(logResult.ok).toBe(true);
       if (!logResult.ok) throw new Error(`'getByInstance after delete' setup failed: ${logResult.error.type}`);
 
+      const completionId = logResult.value.id;
+
       // Verify completion exists before deletion
       const beforeDelete = await getCompletionByInstance(adapter, testSeriesId, instanceDate);
       expect(beforeDelete).toEqual(expect.objectContaining({
@@ -662,11 +669,24 @@ describe('Segment 06: Completions', () => {
         durationMinutes: 30,
       }));
 
-      await deleteCompletion(adapter, logResult.value.id);
+      // Also verify via getCompletionsBySeries
+      const beforeDeleteAll = await getCompletionsBySeries(adapter, testSeriesId);
+      expect(beforeDeleteAll).toHaveLength(1);
+      expect(beforeDeleteAll[0].id).toBe(completionId);
+
+      await deleteCompletion(adapter, completionId);
+
+      // LAW 10: After delete, getCompletionByInstance returns null
+      const afterDelete = await getCompletionByInstance(adapter, testSeriesId, instanceDate);
+      expect(afterDelete).toBeNull();
 
       // Verify the completion was actually removed from the collection
       const allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
       expect(allCompletions).toEqual([]);
+
+      // Also verify via getAllCompletions
+      const globalCompletions = await adapter.getAllCompletions();
+      expect(globalCompletions.find(c => c.id === completionId)).toBeUndefined();
     });
 
     it('delete non-existent', async () => {

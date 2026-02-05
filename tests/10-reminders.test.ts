@@ -197,13 +197,36 @@ describe('Segment 10: Reminders', () => {
         expect(createResult.ok).toBe(true);
         if (!createResult.ok) throw new Error(`'delete existing reminder' setup failed: ${createResult.error.type}`);
 
-        const deleteResult = await deleteReminder(adapter, createResult.value.id);
+        const reminderId = createResult.value.id;
+
+        // Verify reminder exists before deletion
+        const beforeDelete = await getReminder(adapter, reminderId);
+        expect(beforeDelete).not.toBeNull();
+        expect(beforeDelete).toMatchObject({
+          id: reminderId,
+          seriesId: testSeriesId,
+          minutesBefore: 15,
+          tag: 'test',
+        });
+
+        // Also verify via getRemindersBySeries
+        const beforeDeleteBySeries = await getRemindersBySeries(adapter, testSeriesId);
+        expect(beforeDeleteBySeries.some(r => r.id === reminderId)).toBe(true);
+
+        const deleteResult = await deleteReminder(adapter, reminderId);
         expect(deleteResult.ok).toBe(true);
+
+        // Verify deletion via getReminder - should return null
+        const afterDelete = await getReminder(adapter, reminderId);
+        expect(afterDelete).toBeNull();
 
         // Verify deletion via collection - deleted reminder should not appear
         const reminders = await getRemindersBySeries(adapter, testSeriesId);
-        const deletedReminder = reminders.filter(r => r.id === createResult.value.id);
-        expect(deletedReminder).toHaveLength(0); // Correctly empty after deletion
+        expect(reminders.find(r => r.id === reminderId)).toBeUndefined();
+
+        // Also verify via getAllReminders
+        const allReminders = await adapter.getAllReminders();
+        expect(allReminders.find(r => r.id === reminderId)).toBeUndefined();
       });
 
       it('delete cascades acknowledgments', async () => {
@@ -215,29 +238,64 @@ describe('Segment 10: Reminders', () => {
         expect(createResult.ok).toBe(true);
         if (!createResult.ok) throw new Error(`'delete cascades acknowledgments' setup failed: ${createResult.error.type}`);
 
+        const reminderId = createResult.value.id;
+        const instanceDate = parseDate('2024-01-15');
+
         // Acknowledge the reminder
-        await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
+        await acknowledgeReminder(adapter, reminderId, instanceDate);
+
+        // Verify acknowledgment exists before deletion
+        const isAckedBefore = await isReminderAcknowledged(adapter, reminderId, instanceDate);
+        expect(isAckedBefore).toBe(true);
+
+        // Also verify via range query
+        const acksBefore = await adapter.getAcknowledgedRemindersInRange(
+          parseDate('2024-01-01'),
+          parseDate('2024-01-31')
+        );
+        expect(acksBefore.some(a => a.reminder_id === reminderId && a.instance_date === instanceDate)).toBe(true);
 
         // Delete the reminder
-        await deleteReminder(adapter, createResult.value.id);
+        await deleteReminder(adapter, reminderId);
 
-        // Verify deletion via collection - deleted reminder should not appear
+        // LAW 56: Verify reminder is deleted
+        const reminder = await getReminder(adapter, reminderId);
+        expect(reminder).toBeNull();
+
+        // Verify reminder not in series list
         const reminders = await getRemindersBySeries(adapter, testSeriesId);
-        const deletedReminder = reminders.filter(r => r.id === createResult.value.id);
-        expect(deletedReminder).toHaveLength(0); // Correctly empty after deletion
+        expect(reminders.find(r => r.id === reminderId)).toBeUndefined();
+
+        // LAW 56: Verify acknowledgment was cascaded
+        const acksAfter = await adapter.getAcknowledgedRemindersInRange(
+          parseDate('2024-01-01'),
+          parseDate('2024-01-31')
+        );
+        expect(acksAfter.find(a => a.reminder_id === reminderId)).toBeUndefined();
       });
 
       it('series delete cascades reminders', async () => {
-        await createReminder(adapter, { seriesId: testSeriesId, minutesBefore: 15, tag: 'a' });
-        await createReminder(adapter, { seriesId: testSeriesId, minutesBefore: 30, tag: 'b' });
+        const result1 = await createReminder(adapter, { seriesId: testSeriesId, minutesBefore: 15, tag: 'a' });
+        const result2 = await createReminder(adapter, { seriesId: testSeriesId, minutesBefore: 30, tag: 'b' });
+        if (!result1.ok || !result2.ok) throw new Error('Setup failed');
+
+        const reminderId1 = result1.value.id;
+        const reminderId2 = result2.value.id;
 
         let reminders = await getRemindersBySeries(adapter, testSeriesId);
+        expect(reminders).toHaveLength(2);
         expect(reminders.map(r => r.tag).sort()).toEqual(['a', 'b']);
 
         await deleteSeries(adapter, testSeriesId);
 
+        // LAW 3: Verify cascade
         reminders = await getRemindersBySeries(adapter, testSeriesId);
-        expect(reminders).toHaveLength(0); // Correctly empty after cascade delete
+        expect(reminders).toEqual([]);
+
+        // Cross-verify via getAllReminders
+        const allReminders = await adapter.getAllReminders();
+        expect(allReminders.find(r => r.id === reminderId1)).toBeUndefined();
+        expect(allReminders.find(r => r.id === reminderId2)).toBeUndefined();
       });
     });
   });
@@ -249,11 +307,18 @@ describe('Segment 10: Reminders', () => {
   describe('2. Get Pending Reminders', () => {
     describe('2.1 Fire Time Filtering', () => {
       it('reminder not yet due', async () => {
-        await createReminder(adapter, {
+        const createResult = await createReminder(adapter, {
           seriesId: testSeriesId,
           minutesBefore: 15,
           tag: 'test',
         });
+        expect(createResult.ok).toBe(true);
+        if (!createResult.ok) throw new Error('Setup failed');
+
+        // Verify reminder exists
+        const reminder = await getReminder(adapter, createResult.value.id);
+        expect(reminder).not.toBeNull();
+        expect(reminder?.minutesBefore).toBe(15);
 
         // Instance at 09:00, reminder fires at 08:45
         // Query at 08:30 - not yet due
@@ -262,8 +327,18 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
+        // LAW 5: fireTime > asOf → not in pending
         const forOurInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forOurInstance).toHaveLength(0); // Not yet due - correctly excluded
+        expect(forOurInstance).toEqual([]);
+
+        // Boundary test: verify it DOES appear at fire time
+        const onTimeQuery = await getPendingReminders(adapter, {
+          asOf: parseDateTime('2024-01-15T08:45:00'),  // Fire time
+          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+        });
+        const atFireTime = onTimeQuery.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(atFireTime).toHaveLength(1);
+        expect(atFireTime[0].tag).toBe('test');
       });
 
       it('reminder exactly due', async () => {
