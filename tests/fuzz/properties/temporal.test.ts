@@ -806,10 +806,20 @@ describe('Spec 1: Temporal Types - Timezone Configuration', () => {
           // The configured timezone should be used
           expect(result.timezone).toBe(timezone)
 
-          // UTC offset should be a valid number within range
-          expect(typeof result.utcOffset).toBe('number')
+          // UTC offset should be within valid range
           expect(result.utcOffset).toBeGreaterThanOrEqual(-12)
           expect(result.utcOffset).toBeLessThanOrEqual(14)
+
+          // Verify offset matches expected for this timezone
+          const expectedOffsets: Record<string, number> = {
+            'America/New_York': -5,
+            'America/Chicago': -6,
+            'America/Denver': -7,
+            'America/Los_Angeles': -8,
+            UTC: 0,
+            'Europe/London': 0,
+          }
+          expect(result.utcOffset).toBe(expectedOffsets[timezone])
         }
       )
     )

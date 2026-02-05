@@ -1436,8 +1436,14 @@ describe('Spec 12: Reflow - Completeness', () => {
 
           // Since we designed non-overlapping slots, it must find a solution
           expect(result.success).toBe(true)
-          expect(result.assignments.length).toBe(itemCount)
-          expect(result.unassigned.length).toBe(0)
+          expect(result.assignments).toHaveLength(itemCount)
+          expect(result.unassigned).toEqual([])
+
+          // Verify all items are assigned
+          const assignedSeriesIds = result.assignments.map(a => a.seriesId)
+          for (let i = 0; i < itemCount; i++) {
+            expect(assignedSeriesIds).toContain(`series-${i}`)
+          }
         }
       )
     )

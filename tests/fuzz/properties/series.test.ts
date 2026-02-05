@@ -1139,11 +1139,24 @@ describe('Spec 3: Series - Cascade Deletion (Series Tags)', () => {
             manager.addTag(id, tag)
           }
 
-          expect(manager.getTagsForSeries(id).length).toBe(uniqueTags.length)
+          // Verify tags exist before deletion
+          const tagsBefore = manager.getTagsForSeries(id)
+          expect(tagsBefore).toHaveLength(uniqueTags.length)
+          for (const tag of uniqueTags) {
+            expect(tagsBefore).toContain(tag)
+          }
 
-          manager.deleteSeriesWithCascade(id)
+          // Delete series with cascade
+          const deleted = manager.deleteSeriesWithCascade(id)
+          expect(deleted).toBe(true)
 
-          expect(manager.getTagsForSeries(id).length).toBe(0)
+          // Verify all tags are removed from series
+          expect(manager.getTagsForSeries(id)).toEqual([])
+
+          // Verify series is removed from tag lookup (bidirectional cleanup)
+          for (const tag of uniqueTags) {
+            expect(manager.getSeriesByTag(tag)).not.toContain(id)
+          }
         }
       )
     )
