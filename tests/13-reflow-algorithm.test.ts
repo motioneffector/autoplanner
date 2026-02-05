@@ -216,6 +216,15 @@ describe('Segment 13: Reflow Algorithm', () => {
       });
 
       it('pattern inactive when condition false - instances not generated', () => {
+        // First verify active condition generates instances
+        const activeInput = createReflowInput([
+          createBasicSeries('A', { conditionSatisfied: true }),
+        ]);
+        const activeResult = generateInstances(activeInput);
+        expect(activeResult.length).toBeGreaterThan(0);
+        expect(activeResult[0].seriesId).toBe(seriesId('A'));
+
+        // Now verify condition=false does NOT generate instances
         const input = createReflowInput([
           createBasicSeries('A', { conditionSatisfied: false }),
         ]);
@@ -223,6 +232,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         const result = generateInstances(input);
 
         expect(result).toHaveLength(0); // Condition false - correctly excluded
+        expect(result.filter(i => i.seriesId === seriesId('A'))).toEqual([]);
       });
 
       it('multiple patterns mixed conditions - only active pattern instances', () => {
@@ -285,11 +295,15 @@ describe('Segment 13: Reflow Algorithm', () => {
         const domains = computeDomains(instances);
         const domain = domains.get(instances[0]);
         expect(domain).toBeDefined();
-        expect(domain!.length).toBeGreaterThan(0);
 
         // Domain should span 3 days (Jan 14, 15, 16)
         const days = new Set(domain!.map((dt) => dt.substring(0, 10)));
         expect(days.size).toBe(3);
+
+        // Verify the exact days
+        expect(days.has('2025-01-14')).toBe(true);
+        expect(days.has('2025-01-15')).toBe(true);
+        expect(days.has('2025-01-16')).toBe(true);
       });
 
       it('domain bounded by time window - only those hours', () => {
@@ -305,7 +319,6 @@ describe('Segment 13: Reflow Algorithm', () => {
         const domains = computeDomains(instances);
         const domain = domains.get(instances[0]);
         expect(domain).toBeDefined();
-        expect(domain!.length).toBeGreaterThan(0);
 
         // All slots should be between 08:00 and 10:00
         domain!.forEach((dt) => {
@@ -313,6 +326,11 @@ describe('Segment 13: Reflow Algorithm', () => {
           expect(hour).toBeGreaterThanOrEqual(8);
           expect(hour).toBeLessThanOrEqual(10);
         });
+
+        // Verify specific hours are covered
+        const hours = new Set(domain!.map(dt => parseInt(dt.substring(11, 13))));
+        expect(hours.has(8)).toBe(true);
+        expect(hours.has(9)).toBe(true);
       });
 
       it('domain discretized - 5-minute increments', () => {
@@ -328,13 +346,22 @@ describe('Segment 13: Reflow Algorithm', () => {
         const domains = computeDomains(instances);
         const domain = domains.get(instances[0]);
         expect(domain).toBeDefined();
-        expect(domain!.length).toBeGreaterThan(0);
+
+        // 1-hour window at 5-min granularity = ~12-13 slots
+        expect(domain!.length).toBeGreaterThanOrEqual(12);
+        expect(domain!.length).toBeLessThanOrEqual(13);
 
         // All slots should have minutes divisible by 5
         domain!.forEach((dt) => {
           const minutes = parseInt(dt.substring(14, 16));
           expect(minutes % 5).toBe(0);
         });
+
+        // Verify specific expected slots exist
+        const minuteSet = new Set(domain!.map(dt => dt.substring(14, 16)));
+        expect(minuteSet.has('00')).toBe(true);
+        expect(minuteSet.has('05')).toBe(true);
+        expect(minuteSet.has('10')).toBe(true);
       });
     });
 

@@ -181,16 +181,20 @@ describe('Segment 12: Relational Constraints', () => {
         expect(createResult.ok).toBe(true);
         if (!createResult.ok) throw new Error(`'delete constraint' setup failed: ${createResult.error.type}`);
 
+        // Verify constraint exists before deletion
+        const beforeDelete = await getConstraint(adapter, createResult.value.id);
+        expect(beforeDelete).not.toBeNull();
+        expect(beforeDelete!.id).toBe(createResult.value.id);
+        expect(beforeDelete!.type).toBe('mustBeBefore');
+
         await deleteConstraint(adapter, createResult.value.id);
 
         // Verify the constraint ID is no longer retrievable from collection
-        expect(adapter.getConstraints).toBeDefined();
         const allConstraints = await adapter.getConstraints!();
-        expect(allConstraints).toBeDefined();
         expect(allConstraints.map((c: any) => c.id)).not.toContain(createResult.value.id);
         // Also verify direct lookup returns null
         const constraint = await getConstraint(adapter, createResult.value.id);
-        expect(constraint).toBe(null);
+        expect(constraint).toBeNull();
       });
 
       it('series delete doesnt delete constraint', async () => {
@@ -975,9 +979,15 @@ describe('Segment 12: Relational Constraints', () => {
         dest: { type: 'seriesId', seriesId: resultB.value.id },
       }, { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') });
 
+      // Verify we have exactly one violation
+      expect(violations).toHaveLength(1);
+
       expect(typeof violations[0].description).toBe('string');
-      // Verify description contains meaningful content
-      expect(violations[0].description).toMatch(/^.+$/);
+      // Verify description is non-empty
+      expect(violations[0].description.length).toBeGreaterThan(0);
+
+      // Verify description contains meaningful content about the violation
+      expect(violations[0].description).toMatch(/before|11:00|09:00/i);
     });
   });
 
@@ -1105,9 +1115,15 @@ describe('Segment 12: Relational Constraints', () => {
       // Should either ignore withinMinutes or error
       if (result.ok) {
         const constraint = await getConstraint(adapter, result.value.id);
+        expect(constraint).not.toBeNull();
+        expect(constraint!.id).toBe(result.value.id);
+        expect(constraint!.source).toEqual({ type: 'seriesId', seriesId: seriesA });
+        expect(constraint!.dest).toEqual({ type: 'seriesId', seriesId: seriesB });
         // For non-mustBeWithin constraints, withinMinutes should not be present
         expect(constraint!.type).toBe('mustBeBefore');
         expect(constraint).not.toHaveProperty('withinMinutes');
+        // Double-check with explicit undefined check
+        expect((constraint as any).withinMinutes).toBeUndefined();
       }
     });
 
