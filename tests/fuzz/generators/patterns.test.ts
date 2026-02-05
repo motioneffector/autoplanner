@@ -293,10 +293,27 @@ describe('pattern generators', () => {
 
   describe('boundaryPatternGen', () => {
     it('generates valid boundary patterns', () => {
+      const VALID_PATTERN_TYPES = [
+        'daily',
+        'everyNDays',
+        'weekly',
+        'everyNWeeks',
+        'monthly',
+        'nthWeekdayOfMonth',
+        'lastDayOfMonth',
+        'yearly',
+        'weekdays',
+        'oneOff',
+        'custom',
+        'activeOnDates',
+        'inactiveOnDates',
+      ]
+
       fc.assert(
         fc.property(boundaryPatternGen(), (pattern) => {
           expect(typeof pattern.type).toBe('string')
           expect(pattern.type.length > 0).toBe(true)
+          expect(VALID_PATTERN_TYPES).toContain(pattern.type)
         }),
         { numRuns: 200 }
       )
@@ -305,10 +322,16 @@ describe('pattern generators', () => {
 
   describe('realisticPatternGen', () => {
     it('generates valid patterns with realistic distribution', () => {
+      const VALID_PATTERN_TYPES = [
+        'daily', 'weekly', 'weekdays', 'monthly', 'everyNDays', 'everyNWeeks',
+        'yearly', 'oneOff', 'nthWeekdayOfMonth', 'lastDayOfMonth', 'custom'
+      ]
+
       const types = new Map<string, number>()
       const samples = fc.sample(realisticPatternGen(), 1000)
       samples.forEach((p) => {
         expect(p.type).toBeDefined()
+        expect(VALID_PATTERN_TYPES).toContain(p.type)
         types.set(p.type, (types.get(p.type) || 0) + 1)
       })
 

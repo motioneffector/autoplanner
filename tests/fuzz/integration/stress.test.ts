@@ -418,7 +418,8 @@ describe('Stress Tests - Edge Cases', () => {
     // Should report the conflict, not schedule the item
     expect(result.scheduled).toBe(false)
     expect(result.conflict).toContain('No valid slot')
-    expect(typeof result.conflict).toBe('string')
+    expect(result.conflict).toContain('120') // duration mentioned
+    expect(manager.getScheduledSlots().has('flexible-task' as SeriesId)).toBe(false)
   })
 
   it('Property #481: chain spanning midnight', () => {
@@ -1781,7 +1782,6 @@ describe('Split Series Tests', () => {
           // Split the series
           const splitResult = manager.splitSeries(originalId, '2024-01-15' as LocalDate)
           expect(splitResult.success).toBe(true)
-          expect(typeof splitResult.newSeriesId).toBe('string')
           expect(splitResult.newSeriesId).toMatch(/^series-/)
 
           // Original should keep all completions
@@ -1791,7 +1791,8 @@ describe('Split Series Tests', () => {
 
           // New series should have NO completions
           const newCompletions = manager.getCompletionsForSeries(splitResult.newSeriesId!)
-          expect(newCompletions.length).toBe(0)
+          expect(newCompletions).toHaveLength(0)
+          expect(newCompletions).toEqual([])
 
           // Both series should exist
           const original = manager.getSeries(originalId)
@@ -1868,6 +1869,8 @@ describe('Split Series Tests', () => {
     expect(5 in originalCompletions).toBe(false) // Only 5 completions
     const newCompletions = manager.getCompletionsForSeries(result.newSeriesId!)
     // New series should have no completions - verify empty array
+    expect(Array.isArray(newCompletions)).toBe(true)
+    expect(newCompletions).toHaveLength(0)
     expect(newCompletions).toEqual([])
   })
 })
@@ -2185,7 +2188,6 @@ describe('SQLite Data Type Tests', () => {
           // Retrieve and verify
           const stored = validator.get('completions', 'c1')
           expect(stored?.instanceDate).toBe(dateStr)
-          expect(typeof stored?.instanceDate).toBe('string')
         }
       ),
       { numRuns: 50 }
@@ -2259,8 +2261,8 @@ describe('SQLite Data Type Tests', () => {
 
         const stored = validator.get('series', 's1')
         expect(stored?.isFixed).toBe(intValue)
-        expect(typeof stored?.isFixed).toBe('number')
         expect(Number.isInteger(stored?.isFixed)).toBe(true)
+        expect([0, 1]).toContain(stored?.isFixed)
       }),
       { numRuns: 20 }
     )
@@ -3124,15 +3126,18 @@ describe('Cycling Advancement Tests', () => {
           expect(manager.getCurrentIndex(seriesId)).toBe(1 % items.length)
 
           // Try to get item on inactive day
+          const indexBeforeInactive = manager.getCurrentIndex(seriesId)
           const itemOnInactive = manager.getCurrentItem(seriesId, inactiveDates[0])
 
           if (gapLeap) {
             // gapLeap: inactive returns null, index not advanced - expected absence
             // This tests the "inactive date with gapLeap" code path
-            expect(itemOnInactive).toBeNull();
+            expect(itemOnInactive).toBeNull()
+            expect(manager.getCurrentIndex(seriesId)).toBe(indexBeforeInactive) // Index NOT advanced
           } else {
             // No gapLeap: returns item, index would advance on completion
             expect(itemOnInactive).toBe(items[1 % items.length])
+            expect(manager.getCurrentIndex(seriesId)).toBe(indexBeforeInactive) // Index stays same until completion
           }
 
           // Skip the inactive day
@@ -4263,10 +4268,14 @@ describe('Schedule Generation Tests', () => {
           const result = ScheduleSolver.solve(items, constraints)
           expect(result.success).toBe(true)
           // Verify solution items have required properties
+          const inputItemIds = new Set(items.map(i => i.id))
           for (const slot of result.solution!) {
-            expect(typeof slot.itemId).toBe('string')
-            expect(typeof slot.start).toBe('number')
-            expect(typeof slot.end).toBe('number')
+            // Verify itemId references an actual input item
+            expect(inputItemIds.has(slot.itemId)).toBe(true)
+            // Verify time values are valid minutes in day range
+            expect(slot.start).toBeGreaterThanOrEqual(480) // 8 AM
+            expect(slot.end).toBeLessThanOrEqual(1080)     // 6 PM
+            expect(slot.end).toBeGreaterThan(slot.start)   // Duration positive
           }
           // Verify solution has at least all fixed items placed
           const placedFixedItems = result.solution!.filter(s =>
