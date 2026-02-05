@@ -302,9 +302,14 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('conditions update immediately after completion', async () => {
+      // Verify weight series exists
+      const weightSeries = await planner.getSeries(weightSeriesId);
+      expect(weightSeries).toBeDefined();
+
       const scheduleBefore = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
       const weightsBefore = scheduleBefore.instances.filter((i) => i.seriesId === weightSeriesId);
       // Verify no weight instances before condition is met (only walks scheduled)
+      expect(weightsBefore).toHaveLength(0);
       expect(weightsBefore).toEqual([]);
 
       // Log 7 walks
@@ -321,9 +326,14 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('multiple state transitions work correctly', async () => {
+      // Verify weight series exists
+      const weightSeries = await planner.getSeries(weightSeriesId);
+      expect(weightSeries).toBeDefined();
+
       // Start deconditioned - no weight training instances yet
       let schedule = await planner.getSchedule(date('2025-01-01'), date('2025-01-07'));
       const initialWeights = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
+      expect(initialWeights).toHaveLength(0);
       expect(initialWeights).toEqual([]);
 
       // Move to conditioning
@@ -405,6 +415,7 @@ describe('Segment 16: Integration Tests', () => {
       schedule = await planner.getSchedule(date('2025-02-15'), date('2025-02-21'));
       const weightsDeactivated = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
       // Weights pattern should be inactive (walk count dropped below threshold)
+      expect(weightsDeactivated).toHaveLength(0);
       expect(weightsDeactivated).toEqual([]);
 
       // Step 4: Reactivate by logging 7 new walks
@@ -916,11 +927,17 @@ describe('Segment 16: Integration Tests', () => {
         target: { type: 'tag', tag: 'heavy' },
       });
 
+      // Verify constraint violation exists before removal
+      const conflictsBefore = await planner.getConflicts();
+      const violationsBefore = conflictsBefore.filter((c) => c.type === 'constraintViolation');
+      expect(violationsBefore.length).toBeGreaterThan(0);
+
       await planner.removeConstraint(constraintId);
 
       const conflicts = await planner.getConflicts();
       const constraintViolations = conflicts.filter((c) => c.type === 'constraintViolation');
       // No cantBeNextTo violations after constraint removal
+      expect(constraintViolations).toHaveLength(0);
       expect(constraintViolations).toEqual([]);
     });
   });
@@ -1155,6 +1172,12 @@ describe('Segment 16: Integration Tests', () => {
           patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(60), fixed: true }],
         });
 
+        // Verify both series exist
+        const allDaySeries = await planner.getSeries(allDayId);
+        expect(allDaySeries?.patterns[0].allDay).toBe(true);
+        const timedSeries = await planner.getSeries(timedId);
+        expect(timedSeries?.patterns[0].time).toBe(time('09:00'));
+
         const conflicts = await planner.getConflicts();
 
         // All-day should not conflict with timed events
@@ -1163,6 +1186,7 @@ describe('Segment 16: Integration Tests', () => {
           c.instances?.some((i) => i.seriesId === timedId)
         );
         // All-day events are excluded from time-based conflict detection
+        expect(allDayTimedConflicts).toHaveLength(0);
         expect(allDayTimedConflicts).toEqual([]);
       });
     });
@@ -1191,9 +1215,15 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('12:55 - no pending reminders', async () => {
+      // Verify task exists at 14:00 with reminders
+      const series = await planner.getSeries(seriesIdValue);
+      expect(series?.reminderOffsets).toContain(60);
+      expect(series?.reminderOffsets).toContain(10);
+
       const reminders = await planner.getPendingReminders(datetime('2025-01-15T12:55:00'));
       const seriesReminders = reminders.filter((r) => r.seriesId === seriesIdValue);
       // Neither the 60-min nor 10-min reminder has triggered yet (task at 14:00)
+      expect(seriesReminders).toHaveLength(0);
       expect(seriesReminders).toEqual([]);
     });
 
@@ -1205,6 +1235,8 @@ describe('Segment 16: Integration Tests', () => {
     it('after ack - prepare not pending', async () => {
       const reminders = await planner.getPendingReminders(datetime('2025-01-15T13:00:00'));
       const prepareReminder = reminders.find((r) => r.seriesId === seriesIdValue);
+      expect(prepareReminder).toBeDefined();
+      expect(prepareReminder?.offsetMinutes).toBe(60);
 
       if (prepareReminder) {
         await planner.acknowledgeReminder(prepareReminder.id, datetime('2025-01-15T13:05:00'));
@@ -1217,6 +1249,7 @@ describe('Segment 16: Integration Tests', () => {
         r.seriesId === seriesIdValue && r.instanceDate === date('2025-01-15')
       );
       // At 13:10, the prepare reminder (60 min) was acknowledged, urgent (10 min before 14:00 = 13:50) not yet triggered
+      expect(seriesRemindersAfter).toHaveLength(0);
       expect(seriesRemindersAfter.length).toBe(0);
     });
 
@@ -1253,6 +1286,16 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('cancel Monday - that Monday not in schedule', async () => {
+      // Verify instance exists before cancellation
+      const scheduleBefore = await planner.getSchedule(date('2025-01-20'), date('2025-01-21'));
+      const allInstancesBefore = scheduleBefore.instances.filter((i) => i.date === date('2025-01-20'));
+      expect(allInstancesBefore).toHaveLength(1);
+      const instanceBefore = scheduleBefore.instances.find((i) =>
+        i.seriesId === seriesIdValue && i.date === date('2025-01-20')
+      );
+      expect(instanceBefore).toBeDefined();
+      expect(instanceBefore?.title).toBe('Weekly Meeting');
+
       await planner.cancelInstance(seriesIdValue, date('2025-01-20')); // Monday
 
       const schedule = await planner.getSchedule(date('2025-01-20'), date('2025-01-21'));
@@ -1261,9 +1304,12 @@ describe('Segment 16: Integration Tests', () => {
       const instancesOnCancelledDate = schedule.instances.filter(
         (i) => i.seriesId === seriesIdValue && i.date === date('2025-01-20')
       );
+      expect(instancesOnCancelledDate).toHaveLength(0);
       expect(instancesOnCancelledDate).toEqual([]);
       // Verify the schedule has no instances on that date
-      expect(schedule.instances.filter((i) => i.date === date('2025-01-20'))).toEqual([]);
+      const allInstancesOnDate = schedule.instances.filter((i) => i.date === date('2025-01-20'));
+      expect(allInstancesOnDate).toHaveLength(0);
+      expect(allInstancesOnDate).toEqual([]);
     });
 
     it('check other Mondays - still scheduled', async () => {
@@ -1293,6 +1339,14 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('check original Monday - slot free', async () => {
+      // Verify instance exists on Monday before reschedule
+      const scheduleBefore = await planner.getSchedule(date('2025-01-20'), date('2025-01-22'));
+      const instanceBefore = scheduleBefore.instances.find((i) =>
+        i.seriesId === seriesIdValue && i.date === date('2025-01-20')
+      );
+      expect(instanceBefore).toBeDefined();
+      expect(instanceBefore?.time).toContain('09:00');
+
       await planner.rescheduleInstance(seriesIdValue, date('2025-01-20'), datetime('2025-01-21T14:00:00'));
 
       const schedule = await planner.getSchedule(date('2025-01-20'), date('2025-01-22'));
@@ -1301,6 +1355,7 @@ describe('Segment 16: Integration Tests', () => {
       const instancesOnOriginalDate = schedule.instances.filter((i) =>
         i.seriesId === seriesIdValue && i.date === date('2025-01-20')
       );
+      expect(instancesOnOriginalDate).toHaveLength(0);
       expect(instancesOnOriginalDate).toEqual([]);
       // Verify the instance moved to Tuesday
       const rescheduledInstance = schedule.instances.find((i) =>
