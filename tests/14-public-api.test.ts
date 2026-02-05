@@ -704,7 +704,9 @@ describe('Segment 14: Public API', () => {
           });
           expect.fail('Should have thrown');
         } catch (e: any) {
+          expect(e.message).toBeDefined();
           expect(typeof e.message).toBe('string');
+          expect(e.message.length).toBeGreaterThan(0);
           expect(e.message).toContain('title');
         }
       });
@@ -1281,12 +1283,22 @@ describe('Segment 14: Public API', () => {
         await planner.unlinkSeries(childId);
 
         const child = await planner.getSeries(childId);
+
+        // Child should still exist
+        expect(child).toBeDefined();
+        expect(child).not.toBeNull();
+
         // Verify parentId is not set after unlinking - the child should exist but without a parent link
         expect(child).toEqual(expect.objectContaining({
           id: childId,
           title: 'Child',
         }));
         expect(child).not.toHaveProperty('parentId');
+
+        // Parent should be unaffected
+        const parent = await planner.getSeries(parentId);
+        expect(parent).toBeDefined();
+        expect(parent?.title).toBe('Parent');
       });
     });
 
@@ -1425,9 +1437,16 @@ describe('Segment 14: Public API', () => {
         });
 
         const completionId = await planner.logCompletion(id, date('2025-01-15'));
+
+        // Verify completion exists before deletion
+        const completionsBefore = await planner.getCompletions(id);
+        expect(completionsBefore).toHaveLength(1);
+        expect(completionsBefore[0].id).toBe(completionId);
+
         await planner.deleteCompletion(completionId);
 
         const completions = await planner.getCompletions(id);
+        expect(completions).toHaveLength(0);
         expect(completions).toEqual([]);
       });
     });
@@ -1695,15 +1714,20 @@ describe('Segment 14: Public API', () => {
           ],
         });
 
+        // Verify series was created with correct condition
+        const series = await planner.getSeries(id);
+        expect(series?.patterns[0].condition).toEqual({ type: 'weekday', days: [1, 2, 3, 4, 5] });
+
         // Wednesday (weekday) - should appear
         const weekdaySchedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
-        expect(weekdaySchedule.instances.some((i) => i.seriesId === id)).toBe(true);
-        expect(weekdaySchedule.instances.some((i) => i.title === 'Weekday Only')).toBe(true);
-        expect(weekdaySchedule.instances.some((i) => i.date === date('2025-01-15'))).toBe(true);
+        const weekdayInstances = weekdaySchedule.instances.filter((i) => i.seriesId === id);
+        expect(weekdayInstances).toHaveLength(1);
+        expect(weekdayInstances[0].date).toEqual(date('2025-01-15'));
 
         // Saturday (weekend) - should not appear
         const weekendSchedule = await planner.getSchedule(date('2025-01-18'), date('2025-01-19'));
         const weekendInstances = weekendSchedule.instances.filter((i) => i.seriesId === id);
+        expect(weekendInstances).toHaveLength(0);
         expect(weekendInstances).toEqual([]);
       });
 

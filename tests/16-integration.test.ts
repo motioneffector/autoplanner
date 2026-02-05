@@ -141,6 +141,11 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('initial state - walks every other day, no weights', async () => {
+      // Verify weight series exists but is condition-blocked
+      const weightSeries = await planner.getSeries(weightSeriesId);
+      expect(weightSeries).toBeDefined();
+      expect(weightSeries?.patterns[0].condition).toBeDefined();
+
       const schedule = await planner.getSchedule(date('2025-01-01'), date('2025-01-14'));
 
       // Only walks should appear, every other day
@@ -158,6 +163,7 @@ describe('Segment 16: Integration Tests', () => {
         expect(instance.duration).toBe(minutes(30));
       });
       // Verify no weight instances exist - condition not met yet
+      expect(weightInstances).toHaveLength(0);
       expect(weightInstances).toEqual([]);
     });
 

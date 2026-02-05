@@ -942,6 +942,7 @@ describe('Segment 15: SQLite Adapter', () => {
         expect(conditions).toHaveLength(0); // Cascade deleted
         const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
         expect(patterns).toHaveLength(0); // Cascade deleted
+        expect(patterns).toEqual([]);
       });
 
       it('RESTRICT before CASCADE - RESTRICT checked first', async () => {
@@ -1030,7 +1031,10 @@ describe('Segment 15: SQLite Adapter', () => {
         } catch (e: any) {
           // Verify error has a cause (SQLite constraint error)
           expect(e.cause).toBeDefined();
+          expect(e.cause).not.toBeNull();
           expect(e.cause.message).toBeDefined();
+          expect(e.cause.message.length).toBeGreaterThan(0);
+          expect(e.cause.message.toLowerCase()).toMatch(/constraint|unique/);
         }
       });
 
@@ -1291,10 +1295,16 @@ describe('Segment 15: SQLite Adapter', () => {
         time: time('09:00'),
       });
 
+      // Verify pattern exists before deletion
+      const patternsBefore = await adapter.getPatternsBySeries(seriesId('test-1'));
+      expect(patternsBefore).toHaveLength(1);
+      expect(patternsBefore[0].id).toBe(patternId('p1'));
+
       await adapter.deleteSeries(seriesId('test-1'));
 
       const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
       expect(patterns).toHaveLength(0); // Cascade deleted
+      expect(patterns).toEqual([]);
       // Verify series is also deleted via getAllSeries
       const allSeries = await adapter.getAllSeries();
       expect(allSeries.every(s => s.id !== seriesId('test-1'))).toBe(true);
