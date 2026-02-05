@@ -1354,12 +1354,20 @@ describe('Segment 13: Reflow Algorithm', () => {
         lateWobble: minutes(0),
       } as Instance;
 
-      const domains = new Map<Instance, LocalDateTime[]>();
-      domains.set(parent, [datetime('2025-01-15T09:00:00')]);
-      domains.set(child, [datetime('2025-01-15T11:00:00')]); // Outside chain bounds
+      // First verify valid configuration succeeds
+      const validDomains = new Map<Instance, LocalDateTime[]>();
+      validDomains.set(parent, [datetime('2025-01-15T09:00:00')]);
+      validDomains.set(child, [datetime('2025-01-15T10:00:00')]); // Within bounds
+      const validResult = backtrackSearch([parent, child], validDomains, [{ type: 'chain', parent, child }]);
+      expect(validResult).not.toBeNull();
+
+      // Now test that invalid configuration fails
+      const invalidDomains = new Map<Instance, LocalDateTime[]>();
+      invalidDomains.set(parent, [datetime('2025-01-15T09:00:00')]);
+      invalidDomains.set(child, [datetime('2025-01-15T11:00:00')]); // Outside chain bounds
 
       const constraints = [{ type: 'chain', parent, child }];
-      const result = backtrackSearch([parent, child], domains, constraints);
+      const result = backtrackSearch([parent, child], invalidDomains, constraints);
 
       // Should not find solution because child is outside bounds
       expect(result).toBeNull(); // No valid assignment possible
@@ -1409,7 +1417,11 @@ describe('Segment 13: Reflow Algorithm', () => {
         const input = createReflowInput(series);
         const result = reflow(input);
 
+        // First verify all 5 series are assigned
+        expect(result.assignments).toHaveLength(5);
+
         expect(result.conflicts).toHaveLength(0); // Non-overlapping - no conflicts expected
+        expect(result.conflicts).toEqual([]);
         const assignedSeriesIds = result.assignments.map((a) => a.seriesId);
         expect(assignedSeriesIds).toEqual(expect.arrayContaining([
           seriesId('S0'), seriesId('S1'), seriesId('S2'), seriesId('S3'), seriesId('S4'),
@@ -1510,11 +1522,19 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         const result = reflow(input);
 
+        // All 4 series should be assigned
+        expect(result.assignments).toHaveLength(4);
+
         const assignedIds = result.assignments.map((a) => a.seriesId);
         expect(assignedIds).toEqual(expect.arrayContaining([
           seriesId('A'), seriesId('B'), seriesId('C'), seriesId('D'),
         ]));
         expect(result.conflicts).toHaveLength(0); // All constraints satisfied
+
+        // Verify chain relationships
+        const getTime = (id: string) => result.assignments.find(a => a.seriesId === seriesId(id))!.time;
+        expect(getTime('A') < getTime('B')).toBe(true);
+        expect(getTime('C') < getTime('D')).toBe(true);
       });
 
       it('overlapping constraints - all satisfied', () => {
@@ -1556,6 +1576,9 @@ describe('Segment 13: Reflow Algorithm', () => {
         const input = createReflowInput(series);
         const result = reflow(input);
 
+        // All 3 series should be assigned
+        expect(result.assignments).toHaveLength(3);
+
         expect(result.conflicts).toHaveLength(0); // Tight fit but solution exists
         const assignedIds = result.assignments.map((a) => a.seriesId);
         expect(assignedIds).toEqual(expect.arrayContaining([
@@ -1567,6 +1590,14 @@ describe('Segment 13: Reflow Algorithm', () => {
           expect(hour).toBeGreaterThanOrEqual(9);
           expect(hour).toBeLessThanOrEqual(12);
         });
+
+        // Verify tasks don't overlap
+        const sortedTimes = result.assignments.map(a => a.time).sort();
+        for (let i = 0; i < sortedTimes.length - 1; i++) {
+          const thisEnd = parseInt(sortedTimes[i].substring(11, 13)) + 1; // +1 hour
+          const nextStart = parseInt(sortedTimes[i + 1].substring(11, 13));
+          expect(thisEnd).toBeLessThanOrEqual(nextStart);
+        }
       });
     });
   });
@@ -1617,6 +1648,9 @@ describe('Segment 13: Reflow Algorithm', () => {
 
       const input = createReflowInput(series, { constraints });
       const result = reflow(input);
+
+      // All 20 series should be assigned
+      expect(result.assignments).toHaveLength(20);
 
       // Should find valid ordering
       expect(result.conflicts).toHaveLength(0); // Valid ordering exists
@@ -1698,13 +1732,17 @@ describe('Segment 13: Reflow Algorithm', () => {
 
       const result = reflow(input);
 
+      // Both series should be assigned
+      expect(result.assignments).toHaveLength(2);
+
       expect(result.assignments.find((a) => a.seriesId === seriesId('A'))?.time).toBe(
         datetime('2025-01-15T09:00:00')
       );
       expect(result.assignments.find((a) => a.seriesId === seriesId('B'))?.time).toBe(
         datetime('2025-01-15T10:00:00')
       );
-      expect(result.conflicts).toHaveLength(0); // Non-overlapping - no conflicts
+      expect(result.conflicts).toHaveLength(0);
+      expect(result.conflicts).toEqual([]);
     });
 
     it('must reschedule B - B moved to 10:00', () => {
@@ -1814,11 +1852,23 @@ describe('Segment 13: Reflow Algorithm', () => {
       const domainBefore = domainsBefore.get(instances[1]);
       const domainAfter = domainsAfter.get(instances[1]);
       expect(domainBefore).toBeDefined();
-      expect(domainBefore!.length).toBe(5); // 5 slots before propagation
+      expect(domainBefore).toEqual([
+        datetime('2025-01-15T08:00:00'),
+        datetime('2025-01-15T08:30:00'),
+        datetime('2025-01-15T09:00:00'),
+        datetime('2025-01-15T09:30:00'),
+        datetime('2025-01-15T10:00:00'),
+      ]);
       expect(domainAfter).toBeDefined();
 
       // After propagation, domain should be reduced (fewer valid slots)
-      expect(domainAfter!.length).toBeLessThan(5);
+      // Exactly 3 slots should remain (08:00, 08:30, 10:00)
+      expect(domainAfter).toHaveLength(3);
+      expect(domainAfter).toContainEqual(datetime('2025-01-15T08:00:00'));
+      expect(domainAfter).toContainEqual(datetime('2025-01-15T08:30:00'));
+      expect(domainAfter).toContainEqual(datetime('2025-01-15T10:00:00'));
+      expect(domainAfter).not.toContainEqual(datetime('2025-01-15T09:00:00'));
+      expect(domainAfter).not.toContainEqual(datetime('2025-01-15T09:30:00'));
     });
 
     it('MRV finds conflicts early - fast failure on unsolvable', () => {
@@ -1841,6 +1891,13 @@ describe('Segment 13: Reflow Algorithm', () => {
           constraints.push({ type: 'noOverlap', instances: [instances[i], instances[j]] });
         }
       }
+
+      // First verify that a solvable problem succeeds
+      const solvableInstances = [instances[0]];
+      const solvableDomains = new Map<Instance, LocalDateTime[]>();
+      solvableDomains.set(instances[0], [datetime('2025-01-15T09:00:00')]);
+      const solvableResult = backtrackSearch(solvableInstances, solvableDomains, []);
+      expect(solvableResult).not.toBeNull();
 
       const start = Date.now();
       const result = backtrackSearch(instances, domains, constraints);
@@ -1886,16 +1943,29 @@ describe('Segment 13: Reflow Algorithm', () => {
 
       const result = reflow(input);
 
+      // CRITICAL: All 3 series should be assigned
+      expect(result.assignments).toHaveLength(3);
+
       // Must find valid non-overlapping assignment
       expect(result.conflicts).toHaveLength(0); // Valid assignment exists
+      expect(result.conflicts).toEqual([]);
+
       const assignedIds = new Set(result.assignments.map((a) => a.seriesId));
       expect(assignedIds.size).toBe(3);
+      // Verify each series is assigned
+      expect(assignedIds.has(seriesId('A'))).toBe(true);
+      expect(assignedIds.has(seriesId('B'))).toBe(true);
+      expect(assignedIds.has(seriesId('C'))).toBe(true);
 
       const times = result.assignments.map((a) => a.time).sort();
       // Verify no overlaps
       for (let i = 0; i < times.length - 1; i++) {
         expect(times[i]! < times[i + 1]!).toBe(true);
       }
+
+      // Verify A is at its fixed time
+      const timeA = result.assignments.find((a) => a.seriesId === seriesId('A'))?.time;
+      expect(timeA).toBe(datetime('2025-01-15T09:00:00'));
     });
   });
 });
