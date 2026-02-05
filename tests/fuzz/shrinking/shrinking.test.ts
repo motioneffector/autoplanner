@@ -132,7 +132,7 @@ describe('Shrinkers - Duration', () => {
 
   it('minimum duration produces no shrinks', () => {
     const shrinks = Array.from(shrinkDuration(1 as Duration))
-    expect(shrinks.length).toBe(0)
+    expect(shrinks).toEqual([])
   })
 })
 
@@ -163,7 +163,9 @@ describe('Shrinkers - SeriesArray', () => {
   it('single element produces no shrinks', () => {
     const series: Series[] = [{ id: 's1' as SeriesId, title: 'Series 1' } as Series]
     const shrinks = Array.from(shrinkSeriesArray(series))
-    expect(shrinks).toEqual([])
+    // Single element cannot be shrunk - it's already minimal
+    expect(Array.isArray(shrinks)).toBe(true)
+    expect(shrinks).toHaveLength(0)
   })
 })
 
@@ -196,7 +198,7 @@ describe('Shrinkers - Pattern', () => {
   it('daily pattern produces no shrinks', () => {
     const pattern: Pattern = { type: 'daily' }
     const shrinks = Array.from(shrinkPattern(pattern))
-    expect(shrinks.length).toBe(0)
+    expect(shrinks).toEqual([])
   })
 
   it('weekly pattern shrinks to single day', () => {
@@ -319,7 +321,7 @@ describe('Shrinkers - ConstraintSet', () => {
       { id: 'c1' as ConstraintId, type: 'mustBeBefore', sourceTarget: {}, destTarget: {} },
     ]
     const shrinks = Array.from(shrinkConstraintSet(constraints))
-    expect(shrinks.length).toBe(0)
+    expect(shrinks).toEqual([])
   })
 })
 
@@ -362,8 +364,13 @@ describe('Shrinkers - LinkChain', () => {
     const links: Link[] = [
       { parentSeriesId: 's0' as SeriesId, childSeriesId: 's1' as SeriesId, targetDistance: 30, earlyWobble: 5, lateWobble: 5 },
     ]
+
+    // Single link cannot be shrunk - it's the minimal non-empty chain
     const shrinks = Array.from(shrinkLinkChain(links))
-    expect(shrinks).toEqual([])
+
+    // Verify type and emptiness explicitly
+    expect(Array.isArray(shrinks)).toBe(true)
+    expect(shrinks).toHaveLength(0)
   })
 })
 
@@ -433,7 +440,7 @@ describe('Shrinkers - OperationSequence', () => {
   it('single operation produces no shrinks', () => {
     const ops = [{ type: 'createSeries', series: { id: 's1' } }]
     const shrinks = Array.from(shrinkOperationSequence(ops))
-    expect(shrinks.length).toBe(0)
+    expect(shrinks).toEqual([])
   })
 })
 

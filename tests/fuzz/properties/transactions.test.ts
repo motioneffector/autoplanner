@@ -859,7 +859,7 @@ describe('Spec 13: Transactions - Nested Transactions', () => {
           // Rollback clears everything
           manager.rollback()
           expect(manager.getTransactionDepth()).toBe(0)
-          expect(manager.getAllSeries().length).toBe(0)
+          expect(manager.getAllSeries()).toEqual([])
         }
       )
     )
@@ -893,7 +893,7 @@ describe('Spec 13: Transactions - Nested Transactions', () => {
 
     // Rollback level 1 clears everything
     manager.rollback()
-    expect(manager.getAllSeries().length).toBe(0)
+    expect(manager.getAllSeries()).toEqual([])
   })
 
   it('changes at each level accumulate correctly', () => {
