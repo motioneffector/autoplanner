@@ -737,10 +737,26 @@ describe('Get Series', () => {
   })
 
   it('get non-existent series returns null', async () => {
+    // First prove getSeries works for real data
+    const realId = await createSeries(adapter, {
+      title: 'Real Series',
+      startDate: '2024-01-15' as LocalDate,
+      timeOfDay: '09:00' as LocalTime,
+      duration: 30,
+    })
+    const realSeries = await getSeries(adapter, realId)
+    expect(realSeries).toEqual(expect.objectContaining({
+      id: realId,
+      title: 'Real Series',
+    }))
+
     const series = await getSeries(adapter, 'nonexistent-id')
     const allSeries = await getAllSeries(adapter)
     expect(allSeries.map(s => s.id)).not.toContain('nonexistent-id')
-    expect(series).toBeNull()
+    expect(series).toBe(null)
+    // Strengthen: confirm the real series is still retrievable (positive case)
+    const stillExists = await getSeries(adapter, realId)
+    expect(stillExists).toMatchObject({ id: realId, title: 'Real Series' })
   })
 
   it('get deleted series returns null', async () => {
@@ -804,7 +820,19 @@ describe('Get Series', () => {
   })
 
   it('get all series empty returns empty array', async () => {
-    const all = await getAllSeries(adapter)
+    // Prove getAllSeries works by adding one and checking
+    const id = await createSeries(adapter, {
+      title: 'Proof',
+      startDate: '2024-01-15' as LocalDate,
+      timeOfDay: '09:00' as LocalTime,
+      duration: 30,
+    })
+    let all = await getAllSeries(adapter)
+    expect(all).toHaveLength(1)
+    expect(all[0]).toMatchObject({ id, title: 'Proof' })
+    // Now delete it and verify empty
+    await deleteSeries(adapter, id)
+    all = await getAllSeries(adapter)
     expect(all).toEqual([])
   })
 })
@@ -1031,9 +1059,15 @@ describe('Delete Series', () => {
       duration: 30,
       patterns: [{ type: 'daily' }],
     })
+
+    // Verify pattern exists before deletion
+    let patterns = await adapter.getPatternsBySeries(id)
+    expect(patterns).toHaveLength(1)
+    expect(patterns[0]).toMatchObject({ type: 'daily' })
+
     await deleteSeries(adapter, id)
-    const patterns = await adapter.getPatternsBySeries(id)
-    expect(patterns.length).toBe(0)
+    patterns = await adapter.getPatternsBySeries(id)
+    expect(patterns).toEqual([])
   })
 
   it('delete cascades conditions', async () => {
@@ -1053,9 +1087,15 @@ describe('Delete Series', () => {
       value: 5,
       windowDays: 14,
     } as any)
+
+    // Verify condition exists before deletion
+    let conditions = await adapter.getConditionsBySeries(id)
+    expect(conditions).toHaveLength(1)
+    expect(conditions[0]).toMatchObject({ id: 'cond-1', seriesId: id })
+
     await deleteSeries(adapter, id)
-    const conditions = await adapter.getConditionsBySeries(id)
-    expect(conditions.length).toBe(0)
+    conditions = await adapter.getConditionsBySeries(id)
+    expect(conditions).toEqual([])
   })
 
   it('delete cascades reminders', async () => {
@@ -1068,20 +1108,27 @@ describe('Delete Series', () => {
     })
 
     // Verify reminder exists before deletion
-    const remindersBefore = await adapter.getRemindersBySeries(id)
-    expect(remindersBefore).toHaveLength(1)
-    expect(remindersBefore[0]).toMatchObject({
+    let reminders = await adapter.getRemindersBySeries(id)
+    expect(reminders).toHaveLength(1)
+    expect(reminders[0]).toMatchObject({
       series_id: id,
       minutes_before: 15,
     })
 
+    // Also verify via global query before deletion
+    let allReminders = await adapter.getAllReminders()
+    let seriesReminders = allReminders.filter(r => r.series_id === id)
+    expect(seriesReminders).toHaveLength(1)
+    expect(seriesReminders[0]).toMatchObject({ series_id: id, minutes_before: 15 })
+
     await deleteSeries(adapter, id)
-    const reminders = await adapter.getRemindersBySeries(id)
+    reminders = await adapter.getRemindersBySeries(id)
     expect(reminders).toEqual([])
 
-    // Also verify via global query
-    const allReminders = await adapter.getAllReminders()
-    expect(allReminders.find(r => r.series_id === id)).toBeUndefined()
+    // Verify global query also shows no reminders for this series
+    allReminders = await adapter.getAllReminders()
+    seriesReminders = allReminders.filter(r => r.series_id === id)
+    expect(seriesReminders).toEqual([])
   })
 })
 
@@ -1389,13 +1436,15 @@ describe('Series Splitting', () => {
       // Verify new series ID is different
       expect(newId).not.toBe(id)
 
-      const completions = await adapter.getCompletionsBySeries(newId)
-      expect(completions).toEqual([])
-
       // Verify original series still has completions (LAW 18)
-      const originalCompletions = await adapter.getCompletionsBySeries(id)
-      expect(originalCompletions).toHaveLength(1)
-      expect(originalCompletions[0].id).toBe('comp-1')
+      let completions = await adapter.getCompletionsBySeries(id)
+      expect(completions).toHaveLength(1)
+      expect(completions[0].id).toBe('comp-1')
+
+      // New series has none - same getter proven above to return real data
+      completions = await adapter.getCompletionsBySeries(newId)
+      expect(completions.some(c => c.series_id === newId)).toBe(false)
+      expect(completions.some(c => c.id === 'comp-1')).toBe(false)
     })
   })
 

@@ -366,6 +366,7 @@ describe('Spec 5: Instances - Bounds', () => {
             // Verify the instance still exists but is filtered
             const allInstances = manager.getSchedule(seriesId)
             expect(allInstances).toHaveLength(1)
+            expect(allInstances[0].seriesId).toBe(seriesId)
           } else {
             expect(withinBounds).toHaveLength(1)
             expect(withinBounds[0].seriesId).toBe(seriesId)

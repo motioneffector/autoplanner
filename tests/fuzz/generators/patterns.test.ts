@@ -330,7 +330,6 @@ describe('pattern generators', () => {
       const types = new Map<string, number>()
       const samples = fc.sample(realisticPatternGen(), 1000)
       samples.forEach((p) => {
-        expect(p.type).toBeDefined()
         expect(VALID_PATTERN_TYPES).toContain(p.type)
         types.set(p.type, (types.get(p.type) || 0) + 1)
       })

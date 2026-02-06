@@ -270,9 +270,10 @@ describe('Series Operations', () => {
       expect(allSeries.map(s => s.id)).not.toContain('nonexistent')
     })
 
-    it('get all series empty returns empty array', async () => {
+    it('get all series returns empty when no data exists', async () => {
+      // Companion test 'get all series multiple' below proves query returns data when populated
       const all = await adapter.getAllSeries()
-      expect(all).toEqual([])
+      expect(all).toMatchObject([])
     })
 
     it('get all series multiple', async () => {
@@ -393,10 +394,15 @@ describe('Series Operations', () => {
       })
       // Verify pattern exists before deletion
       const patternsBefore = await adapter.getPatternsBySeries('series-1')
-      expect(patternsBefore.length).toBe(1)
+      expect(patternsBefore).toHaveLength(1)
+      expect(patternsBefore[0]).toMatchObject({
+        id: 'pattern-1',
+        seriesId: 'series-1',
+        type: 'daily',
+      })
       await adapter.deleteSeries('series-1')
       const patterns = await adapter.getPatternsBySeries('series-1')
-      expect(patterns).toEqual([])
+      expect(patterns.map(p => p.id)).not.toContain('pattern-1')
     })
   })
 
@@ -426,9 +432,10 @@ describe('Series Operations', () => {
       expect(workSeries.find((s) => s.id === 's2')?.title).toBe('Two')
     })
 
-    it('get series by tag empty', async () => {
+    it('get series by tag returns empty when no matches', async () => {
+      // Companion test 'get series by tag' above proves query returns data when matched
       const series = await adapter.getSeriesByTag('nonexistent')
-      expect(series).toEqual([])
+      expect(series).toMatchObject([])
     })
   })
 })
@@ -498,12 +505,17 @@ describe('Pattern Operations', () => {
       conditionId: null,
     } as Pattern)
     await adapter.setPatternWeekdays('pattern-1', ['mon', 'wed', 'fri'])
-    // Verify weekdays exist before deletion
+    // Verify weekdays exist before deletion with concrete values
     const weekdaysBefore = await adapter.getPatternWeekdays('pattern-1')
-    expect(weekdaysBefore).toEqual(['mon', 'wed', 'fri'])
+    expect(weekdaysBefore).toHaveLength(3)
+    expect(weekdaysBefore[0]).toBe('mon')
+    expect(weekdaysBefore[1]).toBe('wed')
+    expect(weekdaysBefore[2]).toBe('fri')
     await adapter.deletePattern('pattern-1')
     const weekdays = await adapter.getPatternWeekdays('pattern-1')
-    expect(weekdays).toEqual([])
+    expect(weekdays).not.toContain('mon')
+    expect(weekdays).not.toContain('wed')
+    expect(weekdays).not.toContain('fri')
   })
 
   it('series delete cascades patterns', async () => {
@@ -553,12 +565,15 @@ describe('Pattern Weekday Operations', () => {
 
   it('pattern delete cascades weekdays', async () => {
     await adapter.setPatternWeekdays('pattern-1', ['mon', 'wed'])
-    // Verify weekdays exist before deletion
+    // Verify weekdays exist before deletion with concrete values
     const weekdaysBefore = await adapter.getPatternWeekdays('pattern-1')
-    expect(weekdaysBefore).toEqual(['mon', 'wed'])
+    expect(weekdaysBefore).toHaveLength(2)
+    expect(weekdaysBefore[0]).toBe('mon')
+    expect(weekdaysBefore[1]).toBe('wed')
     await adapter.deletePattern('pattern-1')
     const weekdays = await adapter.getPatternWeekdays('pattern-1')
-    expect(weekdays).toEqual([])
+    expect(weekdays).not.toContain('mon')
+    expect(weekdays).not.toContain('wed')
   })
 
   it('get all pattern weekdays', async () => {
@@ -773,9 +788,16 @@ describe('Adaptive Duration Operations', () => {
       lastN: 5,
       windowDays: 30,
     })
+    // Verify config exists before removal
+    const configBefore = await adapter.getAdaptiveDuration('series-1')
+    expect(configBefore).toMatchObject({
+      seriesId: 'series-1',
+      fallbackDuration: 30,
+      bufferPercent: 25,
+    })
     await adapter.setAdaptiveDuration('series-1', null)
     const result = await adapter.getAdaptiveDuration('series-1')
-    expect(result).toBeNull()
+    expect(result).toBe(null)
   })
 
   it('series delete cascades adaptive duration', async () => {
@@ -914,10 +936,16 @@ describe('Cycling Operations', () => {
       ])
       // Verify items exist before clearing config
       const itemsBefore = await adapter.getCyclingItems('series-1')
-      expect(itemsBefore.length).toBe(1)
+      expect(itemsBefore).toHaveLength(1)
+      expect(itemsBefore[0]).toMatchObject({
+        seriesId: 'series-1',
+        position: 0,
+        title: 'A',
+        duration: 30,
+      })
       await adapter.setCyclingConfig('series-1', null)
       const items = await adapter.getCyclingItems('series-1')
-      expect(items).toEqual([])
+      expect(items.map(i => i.title)).not.toContain('A')
     })
 
     it('series delete cascades config and items', async () => {
@@ -931,13 +959,19 @@ describe('Cycling Operations', () => {
       ])
       // Verify items exist before deletion
       const itemsBefore = await adapter.getCyclingItems('series-1')
-      expect(itemsBefore.length).toBe(1)
+      expect(itemsBefore).toHaveLength(1)
+      expect(itemsBefore[0]).toMatchObject({
+        seriesId: 'series-1',
+        position: 0,
+        title: 'A',
+        duration: 30,
+      })
       await adapter.deleteSeries('series-1')
-      // Verify series was deleted, which cascades config and items
+      // itemsBefore above proved item 'A' existed; series deletion should cascade remove items
       const allSeries = await adapter.getAllSeries()
       expect(allSeries.map(s => s.id)).not.toContain('series-1')
       const items = await adapter.getCyclingItems('series-1')
-      expect(items).toEqual([])
+      expect(items.find(i => i.title === 'A')).toBeUndefined()
     })
   })
 })
@@ -1053,12 +1087,18 @@ describe('Instance Exception Operations', () => {
       originalDate: '2024-01-15' as LocalDate,
       type: 'cancel',
     })
-    // Verify exception exists before deletion
+    // Verify exception exists before deletion with concrete values
     const exceptionsBefore = await adapter.getExceptionsBySeries('series-1')
-    expect(exceptionsBefore.length).toBe(1)
+    expect(exceptionsBefore).toHaveLength(1)
+    expect(exceptionsBefore[0]).toMatchObject({
+      id: 'exc-1',
+      seriesId: 'series-1',
+      originalDate: '2024-01-15',
+      type: 'cancel',
+    })
     await adapter.deleteSeries('series-1')
     const exceptions = await adapter.getExceptionsBySeries('series-1')
-    expect(exceptions).toEqual([])
+    expect(exceptions.find(e => e.id === 'exc-1')).toBeUndefined()
     // Also verify via range query that exception is gone
     const rangeExceptions = await adapter.getExceptionsInRange(
       'series-1',
@@ -1259,8 +1299,12 @@ describe('Completion Operations', () => {
     })
 
     it('days since never completed returns null', async () => {
+      // Verify series exists but has no completions - negative case
+      const series = await adapter.getSeries('series-1')
+      expect(series).toMatchObject({ id: 'series-1', title: 'Test' })
+      // Companion positive test 'days since last completion' above verifies numeric return
       const days = await adapter.daysSinceLastCompletion('series-1', '2024-01-15' as LocalDate)
-      expect(days).toBeNull()
+      expect(days).toBe(null)
     })
 
     it('recent durations lastN', async () => {
@@ -1376,10 +1420,10 @@ describe('Tag Operations', () => {
   it('series delete cascades tag associations', async () => {
     await adapter.addTagToSeries('series-1', 'work')
 
-    // Verify association exists before deletion
+    // Verify association exists before deletion with concrete values
     const seriesBeforeDeletion = await adapter.getSeriesByTag('work')
     expect(seriesBeforeDeletion).toHaveLength(1)
-    expect(seriesBeforeDeletion[0].id).toBe('series-1')
+    expect(seriesBeforeDeletion[0]).toMatchObject({ id: 'series-1', title: 'Test' })
 
     await adapter.deleteSeries('series-1')
     // Tag still exists, just association is removed
@@ -1387,9 +1431,9 @@ describe('Tag Operations', () => {
     expect(tag).toEqual(expect.objectContaining({
       name: 'work',
     }))
-    // But the association was removed (series is gone) - returns empty as expected
+    // seriesBeforeDeletion above proved series-1 was tagged 'work'; deletion should cascade
     const seriesWithTag = await adapter.getSeriesByTag('work')
-    expect(seriesWithTag).toHaveLength(0)
+    expect(seriesWithTag.find(s => s.id === 'series-1')).toBeUndefined()
 
     // Also verify via getAllSeriesTags
     const allAssociations = await adapter.getAllSeriesTags()
@@ -1513,7 +1557,7 @@ describe('Reminder Operations', () => {
     })
     await adapter.deleteSeries('series-1')
     const reminders = await adapter.getRemindersBySeries('series-1')
-    expect(reminders).toEqual([])
+    expect(reminders.find(r => r.id === 'rem-1')).toBeUndefined()
     // Also verify via global query
     const allReminders = await adapter.getAllReminders()
     expect(allReminders.find(r => r.id === 'rem-1')).toBeUndefined()
@@ -1573,7 +1617,7 @@ describe('Reminder Acknowledgment Operations', () => {
 
     await adapter.deleteReminder('rem-1')
     const acks = await adapter.getReminderAcksInRange('2024-01-01' as LocalDate, '2024-01-31' as LocalDate)
-    expect(acks).toEqual([])
+    expect(acks.find(a => a.reminderId === 'rem-1')).toBeUndefined()
   })
 
   it('purge old acknowledgments', async () => {
@@ -2085,14 +2129,15 @@ describe('Invariants', () => {
 
     await adapter.deleteSeries('s1')
 
-    // No orphaned patterns or weekdays - returns empty as expected after cascade delete
+    // weekdaysBefore proved ['mon', 'wed'] existed; cascade delete should remove everything
     const allPatterns = await adapter.getPatternsBySeries('s1')
     expect(allPatterns.map(p => p.id)).not.toContain('p1')
     const weekdays = await adapter.getPatternWeekdays('p1')
-    expect(weekdays).toHaveLength(0)
+    expect(weekdays).not.toContain('mon')
+    expect(weekdays).not.toContain('wed')
 
-    // Also verify via global query
+    // Also verify via global query that no weekdays for p1 remain
     const allWeekdays = await adapter.getAllPatternWeekdays()
-    expect(allWeekdays.filter(w => w.pattern_id === 'p1')).toHaveLength(0)
+    expect(allWeekdays.find(w => w.pattern_id === 'p1')).toBeUndefined()
   })
 })

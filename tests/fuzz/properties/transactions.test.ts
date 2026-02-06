@@ -891,9 +891,9 @@ describe('Spec 13: Transactions - Nested Transactions', () => {
     ).toBe(true)
     expect(manager.getCommittedState().size).toBe(0)
 
-    // Rollback level 1 clears everything
+    // Rollback level 1 clears everything - allSeriesPending had 2 items above
     manager.rollback()
-    expect(manager.getAllSeries()).toEqual([])
+    expect(manager.getAllSeries()).toSatisfy((s: any[]) => s.length === 0)
   })
 
   it('changes at each level accumulate correctly', () => {

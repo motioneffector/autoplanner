@@ -43,9 +43,8 @@ describe('test harness', () => {
         'array and constraint work together',
         [fc.array(fc.integer(), { maxLength: 10 }), fc.nat({ max: 10 })],
         (arr, n) => {
-          // Verify arr is an array with meaningful constraints
-          expect(Array.isArray(arr)).toBe(true);
-          expect(arr.length).toBeLessThanOrEqual(10);
+          // Verify arr is an array with meaningful constraints and contents
+          expect(arr).toSatisfy((a: number[]) => Array.isArray(a) && a.length <= 10);
           arr.forEach((x) => expect(Number.isInteger(x)).toBe(true));
 
           // Use n for something meaningful

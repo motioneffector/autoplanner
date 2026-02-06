@@ -203,13 +203,14 @@ describe('Spec 6: Completions - CRUD Operations', () => {
         const manager = new CompletionManager()
         manager.addCompletion(completion)
 
-        const countBefore = manager.getCompletionsForSeries(completion.seriesId).length
-        expect(countBefore).toBe(1)
+        const beforeDelete = manager.getCompletionsForSeries(completion.seriesId)
+        expect(beforeDelete).toHaveLength(1)
+        expect(beforeDelete[0].id).toBe(completion.id)
 
         manager.deleteCompletion(completion.id)
 
-        const countAfter = manager.getCompletionsForSeries(completion.seriesId).length
-        expect(countAfter).toBe(0)
+        const afterDelete = manager.getCompletionsForSeries(completion.seriesId)
+        expect(afterDelete).toHaveLength(0)
       })
     )
   })

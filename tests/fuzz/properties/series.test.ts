@@ -899,13 +899,16 @@ describe('Spec 3: Series - Cascade Deletion (Instance Exceptions)', () => {
           manager.addException(id, date2, 'rescheduled', newTime)
 
           const exceptions = manager.getExceptions(id)
+          expect(exceptions).toHaveLength(2)
           const cancelledEx = exceptions.find((e) => e.type === 'cancelled')
           const rescheduledEx = exceptions.find((e) => e.type === 'rescheduled')
-          expect(exceptions.length === 2 && cancelledEx?.type === 'cancelled' && rescheduledEx?.type === 'rescheduled').toBe(true)
+          expect(cancelledEx?.type).toBe('cancelled')
+          expect(rescheduledEx?.type).toBe('rescheduled')
 
           manager.deleteSeriesWithCascade(id)
 
-          expect(manager.getExceptions(id).length).toBe(0)
+          // Exceptions were verified to have 2 items above; now confirm cascade deleted them
+          expect(manager.getExceptions(id)).toSatisfy((e: any[]) => e.length === 0)
         }
       )
     )

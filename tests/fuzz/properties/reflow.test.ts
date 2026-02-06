@@ -1161,7 +1161,7 @@ describe('Spec 12: Reflow - Domain Computation', () => {
 
     // 5:00 AM is before day start (6:00 AM), and 30 min late would be 5:30 AM
     // Still before 6:00 AM, so no valid slot
-    expect(domain.slots.length).toBe(0)
+    expect(domain).toMatchObject({ slots: [] })
   })
 })
 

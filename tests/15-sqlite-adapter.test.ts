@@ -315,17 +315,21 @@ describe('Segment 15: SQLite Adapter', () => {
       });
 
       // First verify pattern exists before deletion
-      const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
-      expect(patterns[0].id).toBe(patternId('p1'));
-      expect(patterns[0].seriesId).toBe(seriesId('test-1'));
-      expect(patterns[0].type).toBe('daily');
-      expect(patterns[0].time).toBe(time('09:00'));
+      let patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
+      expect(patterns).toHaveLength(1);
+      expect(patterns[0]).toMatchObject({
+        id: patternId('p1'),
+        seriesId: seriesId('test-1'),
+        type: 'daily',
+        time: time('09:00'),
+      });
 
       // Delete series - patterns should cascade
       await adapter.deleteSeries(seriesId('test-1'));
 
-      const patternsAfter = await adapter.getPatternsBySeries(seriesId('test-1'));
-      expect(patternsAfter).toHaveLength(0); // Cascade delete removes patterns
+      patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
+      expect(patterns).toHaveLength(0); // Cascade delete removes patterns
+      expect(patterns).toEqual([]);
     });
 
     it('FK errors throw ForeignKeyError - violate FK throws correct error', async () => {
@@ -593,13 +597,20 @@ describe('Segment 15: SQLite Adapter', () => {
         const series = createTestSeries('test-1');
         await adapter.saveSeries(series);
 
+        // Verify the series exists first
+        const seriesExists = await adapter.getSeries(seriesId('test-1'));
+        expect(seriesExists).toMatchObject({
+          id: seriesId('test-1'),
+          title: 'Test Series test-1',
+        });
+
         const days = await adapter.daysSinceLastCompletion(
           seriesId('test-1'),
           date('2025-01-15')
         );
 
-        // Verify null returned for no completions
-        expect(days).toBeNull();
+        // Verify null returned for no completions (series exists but has none)
+        expect(days).toBe(null);
         // Verify the series exists but has no completions
         const completions = await adapter.countCompletionsInWindow(
           seriesId('test-1'),
@@ -708,9 +719,14 @@ describe('Segment 15: SQLite Adapter', () => {
         });
         await adapter.saveCyclingItem({ seriesId: testSeriesId, index: 0, value: 'Item 1' });
 
+        // Verify item exists before deletion
+        let items = await adapter.getCyclingItems(testSeriesId);
+        expect(items).toHaveLength(1);
+        expect(items[0]).toMatchObject({ seriesId: testSeriesId, index: 0, value: 'Item 1' });
+
         await adapter.deleteSeries(testSeriesId);
 
-        const items = await adapter.getCyclingItems(testSeriesId);
+        items = await adapter.getCyclingItems(testSeriesId);
         expect(items).toEqual([]);
         // Verify the series itself is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
@@ -725,9 +741,14 @@ describe('Segment 15: SQLite Adapter', () => {
           days: [1, 2, 3],
         });
 
+        // Verify condition exists before deletion
+        let conditions = await adapter.getConditionsBySeries(testSeriesId);
+        expect(conditions).toHaveLength(1);
+        expect(conditions[0]).toMatchObject({ id: conditionId('cond1'), seriesId: testSeriesId, type: 'weekday' });
+
         await adapter.deleteSeries(testSeriesId);
 
-        const conditions = await adapter.getConditionsBySeries(testSeriesId);
+        conditions = await adapter.getConditionsBySeries(testSeriesId);
         expect(conditions).toEqual([]);
         // Verify the series itself is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
@@ -742,9 +763,14 @@ describe('Segment 15: SQLite Adapter', () => {
           time: time('09:00'),
         });
 
+        // Verify pattern exists before deletion
+        let patterns = await adapter.getPatternsBySeries(testSeriesId);
+        expect(patterns).toHaveLength(1);
+        expect(patterns[0]).toMatchObject({ id: patternId('p1'), seriesId: testSeriesId, type: 'daily', time: time('09:00') });
+
         await adapter.deleteSeries(testSeriesId);
 
-        const patterns = await adapter.getPatternsBySeries(testSeriesId);
+        patterns = await adapter.getPatternsBySeries(testSeriesId);
         expect(patterns).toEqual([]);
         // Verify the series itself is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
@@ -763,9 +789,14 @@ describe('Segment 15: SQLite Adapter', () => {
           dayOfWeek: 1,
         });
 
+        // Verify weekday exists before deletion
+        let weekdays = await adapter.getPatternWeekdays(patternId('p1'));
+        expect(weekdays).toHaveLength(1);
+        expect(weekdays[0]).toMatchObject({ patternId: patternId('p1'), dayOfWeek: 1 });
+
         await adapter.deleteSeries(testSeriesId);
 
-        const weekdays = await adapter.getPatternWeekdays(patternId('p1'));
+        weekdays = await adapter.getPatternWeekdays(patternId('p1'));
         expect(weekdays).toEqual([]);
         // Verify the series is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
@@ -791,9 +822,14 @@ describe('Segment 15: SQLite Adapter', () => {
       it('cascades series_tag - tags removed', async () => {
         await adapter.saveSeriesTag({ seriesId: testSeriesId, tag: 'test-tag' });
 
+        // Verify tag exists before deletion
+        let tags = await adapter.getSeriesTags(testSeriesId);
+        expect(tags).toHaveLength(1);
+        expect(tags[0]).toBe('test-tag');
+
         await adapter.deleteSeries(testSeriesId);
 
-        const tags = await adapter.getSeriesTags(testSeriesId);
+        tags = await adapter.getSeriesTags(testSeriesId);
         expect(tags).toEqual([]);
         // Verify the series itself is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
@@ -830,9 +866,18 @@ describe('Segment 15: SQLite Adapter', () => {
           acknowledgedAt: datetime('2025-01-15T08:45:00'),
         });
 
+        // Verify ack exists before deletion
+        let acks = await adapter.getReminderAcks(reminderId('r1'));
+        expect(acks).toHaveLength(1);
+        expect(acks[0]).toMatchObject({
+          reminderId: reminderId('r1'),
+          instanceDate: date('2025-01-15'),
+          acknowledgedAt: datetime('2025-01-15T08:45:00'),
+        });
+
         await adapter.deleteSeries(testSeriesId);
 
-        const acks = await adapter.getReminderAcks(reminderId('r1'));
+        acks = await adapter.getReminderAcks(reminderId('r1'));
         expect(acks).toEqual([]);
         // Verify the series is also deleted via getAllSeries
         const allSeries = await adapter.getAllSeries();
@@ -905,10 +950,15 @@ describe('Segment 15: SQLite Adapter', () => {
           time: time('09:00'),
         });
 
+        // Verify pattern exists before deletion
+        let patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
+        expect(patterns).toHaveLength(1);
+        expect(patterns[0]).toMatchObject({ id: patternId('p1'), seriesId: seriesId('test-1'), type: 'daily', time: time('09:00') });
+
         // Normal deletion should cascade both
         await adapter.deleteSeries(seriesId('test-1'));
 
-        const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
+        patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
         expect(patterns).toEqual([]);
         // Verify series and patterns are completely gone
         const allSeries = await adapter.getAllSeries();
@@ -932,15 +982,24 @@ describe('Segment 15: SQLite Adapter', () => {
           conditionId: conditionId('cond1'),
         });
 
+        // Verify data exists before deletion
+        let conditions = await adapter.getConditionsBySeries(seriesId('test-1'));
+        expect(conditions).toHaveLength(1);
+        expect(conditions[0]).toMatchObject({ id: conditionId('cond1'), seriesId: seriesId('test-1'), type: 'weekday' });
+        let patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
+        expect(patterns).toHaveLength(1);
+        expect(patterns[0]).toMatchObject({ id: patternId('p1'), seriesId: seriesId('test-1'), type: 'daily', time: time('09:00') });
+
         // Delete should work despite complex FK relationships
         await adapter.deleteSeries(seriesId('test-1'));
 
         // Verify all related entities are deleted
         const allSeries = await adapter.getAllSeries();
         expect(allSeries.map(s => s.id)).not.toContain(seriesId('test-1'));
-        const conditions = await adapter.getConditionsBySeries(seriesId('test-1'));
+        conditions = await adapter.getConditionsBySeries(seriesId('test-1'));
         expect(conditions).toHaveLength(0); // Cascade deleted
-        const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
+        expect(conditions).toEqual([]);
+        patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
         expect(patterns).toHaveLength(0); // Cascade deleted
         expect(patterns).toEqual([]);
       });
@@ -1030,11 +1089,8 @@ describe('Segment 15: SQLite Adapter', () => {
           expect.fail('Should have thrown');
         } catch (e: any) {
           // Verify error has a cause (SQLite constraint error)
-          expect(e.cause).toBeDefined();
-          expect(e.cause).not.toBeNull();
-          expect(e.cause.message).toBeDefined();
-          expect(e.cause.message.length).toBeGreaterThan(0);
-          expect(e.cause.message.toLowerCase()).toMatch(/constraint|unique/);
+          expect(e).toBeInstanceOf(DuplicateKeyError);
+          expect(e.cause).toMatchObject({ message: expect.stringMatching(/constraint|unique/i) });
         }
       });
 
@@ -1296,13 +1352,13 @@ describe('Segment 15: SQLite Adapter', () => {
       });
 
       // Verify pattern exists before deletion
-      const patternsBefore = await adapter.getPatternsBySeries(seriesId('test-1'));
-      expect(patternsBefore).toHaveLength(1);
-      expect(patternsBefore[0].id).toBe(patternId('p1'));
+      let patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
+      expect(patterns).toHaveLength(1);
+      expect(patterns[0].id).toBe(patternId('p1'));
 
       await adapter.deleteSeries(seriesId('test-1'));
 
-      const patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
+      patterns = await adapter.getPatternsBySeries(seriesId('test-1'));
       expect(patterns).toHaveLength(0); // Cascade deleted
       expect(patterns).toEqual([]);
       // Verify series is also deleted via getAllSeries

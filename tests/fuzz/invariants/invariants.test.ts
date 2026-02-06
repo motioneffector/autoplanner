@@ -611,9 +611,11 @@ describe('Invariants - Framework Integration', () => {
 
     const report = createViolationReport(result)
 
-    expect(report.summary).toBe('All invariants passed')
-    expect(report.totalViolations).toBe(0)
-    expect(report.details).toEqual([])
+    expect(report).toMatchObject({
+      summary: 'All invariants passed',
+      totalViolations: 0,
+      details: [],
+    })
     expect(report.violationsByInvariant.size).toBe(0)
   })
 })

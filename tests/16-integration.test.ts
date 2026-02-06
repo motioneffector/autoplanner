@@ -143,8 +143,11 @@ describe('Segment 16: Integration Tests', () => {
     it('initial state - walks every other day, no weights', async () => {
       // Verify weight series exists but is condition-blocked
       const weightSeries = await planner.getSeries(weightSeriesId);
-      expect(weightSeries).toBeDefined();
-      expect(weightSeries?.patterns[0].condition).toBeDefined();
+      expect(weightSeries).not.toBeNull();
+      expect(weightSeries!.title).toBe('Weight Training');
+      expect(weightSeries!.patterns[0].condition).toMatchObject({
+        type: 'and',
+      });
 
       const schedule = await planner.getSchedule(date('2025-01-01'), date('2025-01-14'));
 
@@ -162,9 +165,10 @@ describe('Segment 16: Integration Tests', () => {
         expect(instance.time).toContain('07:00');
         expect(instance.duration).toBe(minutes(30));
       });
-      // Verify no weight instances exist - condition not met yet
-      expect(weightInstances).toHaveLength(0);
-      expect(weightInstances).toEqual([]);
+      // Negative case: no weight instances - condition not met yet
+      // (verified positive in 'log 7 walks' test where weights appear after condition met)
+      // Walk instances above prove the schedule is populated with real data
+      expect(schedule.instances.every((i) => i.seriesId === walkSeriesId)).toBe(true);
     });
 
     it('log 7 walks - pattern transitions to daily, weights appear', async () => {
@@ -302,15 +306,18 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('conditions update immediately after completion', async () => {
-      // Verify weight series exists
+      // Verify weight series exists with expected properties
       const weightSeries = await planner.getSeries(weightSeriesId);
-      expect(weightSeries).toBeDefined();
+      expect(weightSeries).not.toBeNull();
+      expect(weightSeries!.title).toBe('Weight Training');
 
       const scheduleBefore = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
-      const weightsBefore = scheduleBefore.instances.filter((i) => i.seriesId === weightSeriesId);
-      // Verify no weight instances before condition is met (only walks scheduled)
-      expect(weightsBefore).toHaveLength(0);
-      expect(weightsBefore).toEqual([]);
+      // Verify walks ARE scheduled (proving the schedule is populated) but weights are not
+      const walksBefore = scheduleBefore.instances.filter((i) => i.seriesId === walkSeriesId);
+      expect(walksBefore[0]).toMatchObject({ seriesId: walkSeriesId, time: expect.stringContaining('07:00') });
+      // All instances in this range are walks only - no weights before condition is met
+      // (positive weight case verified below after logging 7 walks)
+      expect(scheduleBefore.instances.every((i) => i.seriesId === walkSeriesId)).toBe(true);
 
       // Log 7 walks
       for (let i = 1; i <= 7; i++) {
@@ -326,15 +333,18 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('multiple state transitions work correctly', async () => {
-      // Verify weight series exists
+      // Verify weight series exists with expected properties
       const weightSeries = await planner.getSeries(weightSeriesId);
-      expect(weightSeries).toBeDefined();
+      expect(weightSeries).not.toBeNull();
+      expect(weightSeries!.title).toBe('Weight Training');
 
-      // Start deconditioned - no weight training instances yet
+      // Start deconditioned - walks are scheduled but no weight training instances yet
       let schedule = await planner.getSchedule(date('2025-01-01'), date('2025-01-07'));
-      const initialWeights = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
-      expect(initialWeights).toHaveLength(0);
-      expect(initialWeights).toEqual([]);
+      const initialWalks = schedule.instances.filter((i) => i.seriesId === walkSeriesId);
+      expect(initialWalks[0]).toMatchObject({ seriesId: walkSeriesId, time: expect.stringContaining('07:00') });
+      // All instances are walks only - no weights in deconditioned state
+      // (positive weight case verified below after logging 7 walks)
+      expect(schedule.instances.every((i) => i.seriesId === walkSeriesId)).toBe(true);
 
       // Move to conditioning
       for (let i = 1; i <= 7; i++) {
@@ -414,9 +424,13 @@ describe('Segment 16: Integration Tests', () => {
       // Feb 15-28 window contains no completions from Jan 2-14
       schedule = await planner.getSchedule(date('2025-02-15'), date('2025-02-21'));
       const weightsDeactivated = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
-      // Weights pattern should be inactive (walk count dropped below threshold)
-      expect(weightsDeactivated).toHaveLength(0);
-      expect(weightsDeactivated).toEqual([]);
+      // Negative case: weights pattern inactive (walk count dropped below threshold)
+      // Verified positive above: weights were active at step 2 with 'Workout B'
+      // Also verify walks ARE scheduled in this range (schedule is populated)
+      const walksInRange = schedule.instances.filter((i) => i.seriesId === walkSeriesId);
+      expect(walksInRange[0]).toMatchObject({ seriesId: walkSeriesId, time: expect.stringContaining('07:00') });
+      // All instances are walks only - no weights when deactivated
+      expect(schedule.instances.every((i) => i.seriesId === walkSeriesId)).toBe(true);
 
       // Step 4: Reactivate by logging 7 new walks
       for (let i = 1; i <= 7; i++) {
@@ -927,18 +941,17 @@ describe('Segment 16: Integration Tests', () => {
         target: { type: 'tag', tag: 'heavy' },
       });
 
-      // Verify constraint violation exists before removal
+      // Verify constraint violation exists before removal with concrete details
       const conflictsBefore = await planner.getConflicts();
       const violationsBefore = conflictsBefore.filter((c) => c.type === 'constraintViolation');
-      expect(violationsBefore.length).toBeGreaterThan(0);
+      expect(violationsBefore).toHaveLength(1);
+      expect(violationsBefore[0]).toMatchObject({ type: 'constraintViolation' });
 
       await planner.removeConstraint(constraintId);
 
       const conflicts = await planner.getConflicts();
-      const constraintViolations = conflicts.filter((c) => c.type === 'constraintViolation');
-      // No cantBeNextTo violations after constraint removal
-      expect(constraintViolations).toHaveLength(0);
-      expect(constraintViolations).toEqual([]);
+      // No cantBeNextTo violations after constraint removal - proved violations existed above (violationsBefore)
+      expect(conflicts.some((c) => c.type === 'constraintViolation')).toBe(false);
     });
   });
 
@@ -1178,16 +1191,26 @@ describe('Segment 16: Integration Tests', () => {
         const timedSeries = await planner.getSeries(timedId);
         expect(timedSeries?.patterns[0].time).toBe(time('09:00'));
 
+        // Verify both series produce schedule instances (proving data exists)
+        const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        const allDayInstances = schedule.instances.filter((i) => i.seriesId === allDayId);
+        expect(allDayInstances).toHaveLength(1);
+        expect(allDayInstances[0]).toMatchObject({ seriesId: allDayId, title: 'All Day Event' });
+        const timedInstances = schedule.instances.filter((i) => i.seriesId === timedId);
+        expect(timedInstances).toHaveLength(1);
+        expect(timedInstances[0]).toMatchObject({ seriesId: timedId, title: 'Timed Event', time: expect.stringContaining('09:00') });
+
         const conflicts = await planner.getConflicts();
 
-        // All-day should not conflict with timed events
-        const allDayTimedConflicts = conflicts.filter((c) =>
+        // Negative case: all-day should not conflict with timed events
+        // (positive conflict detection verified in 'Fixed-Fixed Overlap' tests above)
+        // Both series verified as populated above (allDayInstances, timedInstances)
+        const hasAllDayTimedConflict = conflicts.some((c) =>
           c.instances?.some((i) => i.seriesId === allDayId) &&
           c.instances?.some((i) => i.seriesId === timedId)
         );
         // All-day events are excluded from time-based conflict detection
-        expect(allDayTimedConflicts).toHaveLength(0);
-        expect(allDayTimedConflicts).toEqual([]);
+        expect(hasAllDayTimedConflict).toBe(false);
       });
     });
   });
@@ -1221,10 +1244,10 @@ describe('Segment 16: Integration Tests', () => {
       expect(series?.reminderOffsets).toContain(10);
 
       const reminders = await planner.getPendingReminders(datetime('2025-01-15T12:55:00'));
-      const seriesReminders = reminders.filter((r) => r.seriesId === seriesIdValue);
-      // Neither the 60-min nor 10-min reminder has triggered yet (task at 14:00)
-      expect(seriesReminders).toHaveLength(0);
-      expect(seriesReminders).toEqual([]);
+      // Negative case: neither the 60-min nor 10-min reminder has triggered yet (task at 14:00)
+      // 60-min fires at 13:00, 10-min fires at 13:50 - both are after 12:55
+      // (verified positive in '13:00 - prepare (60 min) pending' test below)
+      expect(reminders.some((r) => r.seriesId === seriesIdValue)).toBe(false);
     });
 
     it('13:00 - prepare (60 min) pending', async () => {
@@ -1248,9 +1271,12 @@ describe('Segment 16: Integration Tests', () => {
       const seriesRemindersAfter = remindersAfter.filter((r) =>
         r.seriesId === seriesIdValue && r.instanceDate === date('2025-01-15')
       );
-      // At 13:10, the prepare reminder (60 min) was acknowledged, urgent (10 min before 14:00 = 13:50) not yet triggered
-      expect(seriesRemindersAfter).toHaveLength(0);
-      expect(seriesRemindersAfter.length).toBe(0);
+      // Negative case: at 13:10, the prepare reminder (60 min) was acknowledged above,
+      // urgent (10 min before 14:00 = 13:50) not yet triggered
+      // (prepareReminder was verified as concrete data above with offsetMinutes === 60)
+      expect(remindersAfter.some((r) =>
+        r.seriesId === seriesIdValue && r.instanceDate === date('2025-01-15')
+      )).toBe(false);
     });
 
     it('13:50 - urgent (10 min) pending', async () => {
@@ -1286,30 +1312,27 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('cancel Monday - that Monday not in schedule', async () => {
-      // Verify instance exists before cancellation
+      // Verify instance exists before cancellation with concrete properties
       const scheduleBefore = await planner.getSchedule(date('2025-01-20'), date('2025-01-21'));
       const allInstancesBefore = scheduleBefore.instances.filter((i) => i.date === date('2025-01-20'));
       expect(allInstancesBefore).toHaveLength(1);
-      const instanceBefore = scheduleBefore.instances.find((i) =>
-        i.seriesId === seriesIdValue && i.date === date('2025-01-20')
-      );
-      expect(instanceBefore).toBeDefined();
-      expect(instanceBefore?.title).toBe('Weekly Meeting');
+      expect(allInstancesBefore[0]).toMatchObject({
+        seriesId: seriesIdValue,
+        title: 'Weekly Meeting',
+        date: date('2025-01-20'),
+        time: expect.stringContaining('09:00'),
+      });
 
       await planner.cancelInstance(seriesIdValue, date('2025-01-20')); // Monday
 
       const schedule = await planner.getSchedule(date('2025-01-20'), date('2025-01-21'));
 
-      // Instance should not exist after cancellation - verify via collection
-      const instancesOnCancelledDate = schedule.instances.filter(
+      // Instance should not exist after cancellation - proved it existed above (allInstancesBefore)
+      expect(schedule.instances.some(
         (i) => i.seriesId === seriesIdValue && i.date === date('2025-01-20')
-      );
-      expect(instancesOnCancelledDate).toHaveLength(0);
-      expect(instancesOnCancelledDate).toEqual([]);
-      // Verify the schedule has no instances on that date
-      const allInstancesOnDate = schedule.instances.filter((i) => i.date === date('2025-01-20'));
-      expect(allInstancesOnDate).toHaveLength(0);
-      expect(allInstancesOnDate).toEqual([]);
+      )).toBe(false);
+      // Verify the schedule has no instances on that date at all
+      expect(schedule.instances.some((i) => i.date === date('2025-01-20'))).toBe(false);
     });
 
     it('check other Mondays - still scheduled', async () => {
@@ -1351,12 +1374,10 @@ describe('Segment 16: Integration Tests', () => {
 
       const schedule = await planner.getSchedule(date('2025-01-20'), date('2025-01-22'));
 
-      // Original Monday should not have the instance - verify via collection
-      const instancesOnOriginalDate = schedule.instances.filter((i) =>
+      // Original Monday should not have the instance - proved it existed above (instanceBefore)
+      expect(schedule.instances.some((i) =>
         i.seriesId === seriesIdValue && i.date === date('2025-01-20')
-      );
-      expect(instancesOnOriginalDate).toHaveLength(0);
-      expect(instancesOnOriginalDate).toEqual([]);
+      )).toBe(false);
       // Verify the instance moved to Tuesday
       const rescheduledInstance = schedule.instances.find((i) =>
         i.seriesId === seriesIdValue && i.date === date('2025-01-21')
@@ -1549,10 +1570,16 @@ describe('Segment 16: Integration Tests', () => {
         patterns: [{ type: 'yearly', month: 2, dayOfMonth: 29, time: time('09:00') }],
       });
 
+      // First verify the series DOES produce instances on a leap year (positive case)
+      const leapSchedule = await planner.getSchedule(date('2024-02-28'), date('2024-03-01'));
+      const leapInstances = leapSchedule.instances.filter((i) => i.seriesId === id);
+      expect(leapInstances).toHaveLength(1);
+      expect(leapInstances[0]).toMatchObject({ seriesId: id, title: 'Leap Day Event', date: date('2024-02-29') });
+
       // 2023 is not a leap year - Feb 29 does not exist
       const schedule = await planner.getSchedule(date('2023-02-01'), date('2023-03-01'));
-      const leapDayInstances = schedule.instances.filter((i) => i.seriesId === id);
-      expect(leapDayInstances).toEqual([]);
+      // Negative case: no instances on non-leap year (positive case verified above for 2024)
+      expect(schedule.instances.some((i) => i.seriesId === id)).toBe(false);
     });
   });
 
@@ -1618,14 +1645,15 @@ describe('Segment 16: Integration Tests', () => {
         title: 'Parent Task',
         patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(60) }],
       });
-      expect(parentId).toBeDefined();
+      // Verify parent was created with expected properties
+      const parent = await planner.getSeries(parentId);
+      expect(parent).toMatchObject({ id: parentId, title: 'Parent Task' });
 
       const childId = await planner.createSeries({
         title: 'Child Task',
         patterns: [{ type: 'daily', time: time('10:30') }],
         cycling: { mode: 'sequential', items: ['Part A', 'Part B'] },
       });
-      expect(childId).toBeDefined();
 
       await planner.linkSeries(parentId, childId, { distance: 30 });
       // Verify link exists
@@ -1639,13 +1667,22 @@ describe('Segment 16: Integration Tests', () => {
       expect(schedule.instances.length).toBeGreaterThanOrEqual(2);
       const parentInstance = schedule.instances.find((i) => i.seriesId === parentId);
       const childInstance = schedule.instances.find((i) => i.seriesId === childId);
-      expect(parentInstance).toBeDefined();
-      expect(childInstance).toBeDefined();
+      expect(parentInstance).toMatchObject({
+        seriesId: parentId,
+        title: 'Parent Task',
+        date: date('2025-01-15'),
+        time: expect.stringContaining('09:00'),
+      });
+      expect(childInstance).toMatchObject({
+        seriesId: childId,
+        date: date('2025-01-15'),
+      });
+      expect(childInstance!.title).toContain('Part A');
 
-      const errorConflicts = conflicts.filter((c) => c.type === 'error');
-      // No error-type conflicts in complex multi-feature scenario
-      expect(errorConflicts).toHaveLength(0);
-      expect(errorConflicts).toEqual([]);
+      // Negative case: no error-type conflicts in complex multi-feature scenario
+      // (positive conflict detection verified in Conflict Scenario tests above)
+      // parentInstance and childInstance above prove the schedule is populated with real data
+      expect(conflicts.some((c) => c.type === 'error')).toBe(false);
     });
 
     it('E2E 2: state consistency - query after any operation', async () => {

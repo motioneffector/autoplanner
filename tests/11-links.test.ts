@@ -284,20 +284,27 @@ describe('Segment 11: Links (Chains)', () => {
       const allLinksBefore = await getAllLinks(adapter);
       const linksBefore = allLinksBefore.filter(l => l.childSeriesId === childId);
       expect(linksBefore).toHaveLength(1);
-      expect(linksBefore[0].parentSeriesId).toBe(parentId);
+      expect(linksBefore[0]).toMatchObject({
+        parentSeriesId: parentId,
+        childSeriesId: childId,
+        targetDistance: 15,
+      });
 
       const linkByChild = await getLinkByChild(adapter, childId);
       expect(linkByChild).not.toBeNull();
+      expect(linkByChild!.parentSeriesId).toBe(parentId);
+      expect(linkByChild!.childSeriesId).toBe(childId);
+      expect(linkByChild!.targetDistance).toBe(15);
 
       await unlinkSeries(adapter, childId);
 
-      const allLinks = await getAllLinks(adapter);
-      const childLinks = allLinks.filter(l => l.childSeriesId === childId);
-      expect(childLinks).toEqual([]);
-
-      // Verify getLinkByChild also returns null (LAW 4)
+      // Same getLinkByChild call that returned data above now returns null
       const linkByChildAfter = await getLinkByChild(adapter, childId);
-      expect(linkByChildAfter).toBeNull();
+      expect(linkByChildAfter).toBe(null);
+
+      // Verify the link was removed from the global collection too
+      const allLinksAfter = await getAllLinks(adapter);
+      expect(allLinksAfter.map(l => l.childSeriesId)).not.toContain(childId);
     });
 
     it('unlinked child independent', async () => {
@@ -313,18 +320,19 @@ describe('Segment 11: Links (Chains)', () => {
       // Verify child is linked before unlink
       const linkBefore = await getLinkByChild(adapter, childId);
       expect(linkBefore).not.toBeNull();
-      expect(linkBefore?.parentSeriesId).toBe(parentId);
+      expect(linkBefore!.parentSeriesId).toBe(parentId);
+      expect(linkBefore!.childSeriesId).toBe(childId);
+      expect(linkBefore!.targetDistance).toBe(15);
 
       await unlinkSeries(adapter, childId);
 
-      // Child should schedule independently now
-      const allLinks = await getAllLinks(adapter);
-      const childLinks = allLinks.filter(l => l.childSeriesId === childId);
-      expect(childLinks).toEqual([]);
-
-      // Also verify via getLinkByChild
+      // Same getLinkByChild call that returned data above now returns null
       const linkAfter = await getLinkByChild(adapter, childId);
-      expect(linkAfter).toBeNull();
+      expect(linkAfter).toBe(null);
+
+      // Child should schedule independently now - no links reference this child
+      const allLinksAfter = await getAllLinks(adapter);
+      expect(allLinksAfter.map(l => l.childSeriesId)).not.toContain(childId);
     });
 
     it('unlink non-linked child', async () => {
@@ -362,12 +370,27 @@ describe('Segment 11: Links (Chains)', () => {
       }));
     });
 
-    it('get link by child none', async () => {
-      const childId = await createTestSeries('Child');
+    it('get link by child returns empty when no link exists', async () => {
+      const parentId = await createTestSeries('Parent');
+      const linkedChild = await createTestSeries('LinkedChild');
+      const unlinkedChild = await createTestSeries('UnlinkedChild');
 
+      // Create a link for linkedChild so the DB isn't empty
+      await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: linkedChild, targetDistance: 15 });
+
+      // Verify linkedChild has a link (proves getAllLinks works)
       const allLinks = await getAllLinks(adapter);
-      const childLinks = allLinks.filter(l => l.childSeriesId === childId);
-      expect(childLinks).toEqual([]);
+      const linkedChildLinks = allLinks.filter(l => l.childSeriesId === linkedChild);
+      expect(linkedChildLinks).toHaveLength(1);
+      expect(linkedChildLinks[0]).toMatchObject({
+        parentSeriesId: parentId,
+        childSeriesId: linkedChild,
+        targetDistance: 15,
+      });
+
+      // unlinkedChild should not appear in any link
+      expect(allLinks.map(l => l.childSeriesId)).not.toContain(unlinkedChild);
+      expect(allLinks.map(l => l.parentSeriesId)).not.toContain(unlinkedChild);
     });
 
     it('get links by parent', async () => {
@@ -385,11 +408,26 @@ describe('Segment 11: Links (Chains)', () => {
       expect(childIds.length === 2).toBe(true);
     });
 
-    it('get links by parent none', async () => {
-      const parentId = await createTestSeries('Parent');
+    it('get links by parent returns empty when no children linked', async () => {
+      const parentWithChildren = await createTestSeries('ParentWithChildren');
+      const childId = await createTestSeries('Child');
+      const parentWithout = await createTestSeries('ParentWithout');
 
-      const links = await getLinksByParent(adapter, parentId);
-      expect(links.length).toBe(0);
+      // Link a child to parentWithChildren so DB has data
+      await linkSeries(adapter, { parentSeriesId: parentWithChildren, childSeriesId: childId, targetDistance: 15 });
+
+      // Verify parentWithChildren has links (proves getLinksByParent works)
+      const withLinks = await getLinksByParent(adapter, parentWithChildren);
+      expect(withLinks).toHaveLength(1);
+      expect(withLinks[0]).toMatchObject({
+        parentSeriesId: parentWithChildren,
+        childSeriesId: childId,
+        targetDistance: 15,
+      });
+
+      // parentWithout should have no links
+      const links = await getLinksByParent(adapter, parentWithout);
+      expect(links.map(l => l.parentSeriesId)).not.toContain(parentWithout);
     });
 
     it('get all links', async () => {
@@ -839,21 +877,27 @@ describe('Segment 11: Links (Chains)', () => {
 
       await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: childId, targetDistance: 15 });
 
-      // Verify link exists before deletion
+      // Verify link and series exist before deletion
       const allLinksBefore = await getAllLinks(adapter);
       const linksBefore = allLinksBefore.filter(l => l.childSeriesId === childId);
       expect(linksBefore).toHaveLength(1);
       expect(linksBefore[0].parentSeriesId).toBe(parentId);
+      expect(linksBefore[0].childSeriesId).toBe(childId);
+      expect(linksBefore[0].targetDistance).toBe(15);
+
+      const childBefore = await getSeries(adapter, childId);
+      expect(childBefore).not.toBeNull();
+      expect(childBefore!.title).toBe('Child');
 
       await deleteSeries(adapter, childId);
 
-      // Verify deletion succeeded
+      // Verify series deletion succeeded (negative case - positive verified above)
       const childAfter = await getSeries(adapter, childId);
       expect(childAfter).toBeNull();
 
-      const allLinks = await getAllLinks(adapter);
-      const childLinks = allLinks.filter(l => l.childSeriesId === childId);
-      expect(childLinks).toEqual([]);
+      // Verify link was cascade-deleted: childId should not appear in any link
+      const allLinksAfter = await getAllLinks(adapter);
+      expect(allLinksAfter.map(l => l.childSeriesId)).not.toContain(childId);
     });
 
     it('delete parent blocked', async () => {

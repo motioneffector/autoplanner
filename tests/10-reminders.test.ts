@@ -141,8 +141,24 @@ describe('Segment 10: Reminders', () => {
       });
 
       it('get non-existent reminder', async () => {
-        const reminder = await getReminder(adapter, 'non-existent-id' as ReminderId);
-        expect(reminder).toBeNull();
+        // Create a real reminder to prove getReminder works
+        const createResult = await createReminder(adapter, {
+          seriesId: testSeriesId,
+          minutesBefore: 15,
+          tag: 'exists',
+        });
+        expect(createResult.ok).toBe(true);
+        if (!createResult.ok) throw new Error('Setup failed');
+
+        // Verify the real reminder is retrievable with concrete values
+        let reminder = await getReminder(adapter, createResult.value.id);
+        expect(reminder).not.toBeNull();
+        expect(reminder!.id).toBe(createResult.value.id);
+        expect(reminder!.tag).toBe('exists');
+
+        // Now verify a non-existent ID returns null
+        reminder = await getReminder(adapter, 'non-existent-id' as ReminderId);
+        expect(reminder).toStrictEqual(null);
       });
 
       it('get reminders by series', async () => {
@@ -200,9 +216,11 @@ describe('Segment 10: Reminders', () => {
 
         const reminderId = createResult.value.id;
 
-        // Verify reminder exists before deletion
+        // Verify reminder exists before deletion with concrete values
         const beforeDelete = await getReminder(adapter, reminderId);
         expect(beforeDelete).not.toBeNull();
+        expect(beforeDelete!.id).toBe(reminderId);
+        expect(beforeDelete!.tag).toBe('test');
         expect(beforeDelete).toMatchObject({
           id: reminderId,
           seriesId: testSeriesId,
@@ -328,18 +346,17 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        // LAW 5: fireTime > asOf → not in pending
-        const forOurInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forOurInstance).toEqual([]);
-
-        // Boundary test: verify it DOES appear at fire time
+        // Boundary test: verify it DOES appear at fire time (positive case first)
         const onTimeQuery = await getPendingReminders(adapter, {
           asOf: parseDateTime('2024-01-15T08:45:00'),  // Fire time
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
-        const atFireTime = onTimeQuery.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(atFireTime).toHaveLength(1);
-        expect(atFireTime[0].tag).toBe('test');
+        let forOurInstance = onTimeQuery.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(forOurInstance).toHaveLength(1);
+        expect(forOurInstance[0].tag).toBe('test');
+
+        // LAW 5: fireTime > asOf → not in pending (negative case, proven by positive above)
+        expect(pending.some(p => p.instanceDate === parseDate('2024-01-15'))).toBe(false);
       });
 
       it('reminder exactly due', async () => {
@@ -394,10 +411,11 @@ describe('Segment 10: Reminders', () => {
           asOf: parseDateTime('2024-01-15T08:50:00'),
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
-        const beforeAck = pendingBefore.filter(p =>
+        let forOurInstance = pendingBefore.filter(p =>
           p.instanceDate === parseDate('2024-01-15') && p.reminderId === createResult.value.id
         );
-        expect(beforeAck).toHaveLength(1);
+        expect(forOurInstance).toHaveLength(1);
+        expect(forOurInstance[0]).toMatchObject({ instanceDate: parseDate('2024-01-15'), tag: 'test' });
 
         await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
 
@@ -410,10 +428,10 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const forOurInstance = pending.filter(p =>
+        // Proven present before ack, now confirmed absent after ack
+        expect(pending.some(p =>
           p.instanceDate === parseDate('2024-01-15') && p.reminderId === createResult.value.id
-        );
-        expect(forOurInstance).toEqual([]);
+        )).toBe(false);
       });
 
       it('unacknowledged in pending', async () => {
@@ -446,8 +464,9 @@ describe('Segment 10: Reminders', () => {
           asOf: parseDateTime('2024-01-15T08:50:00'),
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
-        const beforeCancel = pendingBefore.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(beforeCancel).toHaveLength(1);
+        let forCancelled = pendingBefore.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(forCancelled).toHaveLength(1);
+        expect(forCancelled[0]).toMatchObject({ instanceDate: parseDate('2024-01-15'), tag: 'test' });
 
         await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
 
@@ -461,8 +480,9 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const forCancelled = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forCancelled).toEqual([]); // Cancelled instance - correctly excluded
+        // Proven present above, now confirmed absent after cancel
+        forCancelled = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(forCancelled).toEqual([]);
       });
 
       it('completed instance excluded', async () => {
@@ -477,8 +497,9 @@ describe('Segment 10: Reminders', () => {
           asOf: parseDateTime('2024-01-15T08:50:00'),
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
-        const beforeComplete = pendingBefore.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(beforeComplete).toHaveLength(1);
+        let forCompleted = pendingBefore.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(forCompleted).toHaveLength(1);
+        expect(forCompleted[0]).toMatchObject({ instanceDate: parseDate('2024-01-15'), tag: 'test' });
 
         await logCompletion(adapter, {
           seriesId: testSeriesId,
@@ -489,15 +510,15 @@ describe('Segment 10: Reminders', () => {
 
         // Verify the completion was actually recorded
         const completion = await getCompletionByInstance(adapter, testSeriesId, parseDate('2024-01-15'));
-        expect(completion).not.toBeNull();
+        expect(completion).toMatchObject({ seriesId: testSeriesId, instanceDate: parseDate('2024-01-15') });
 
         const pending = await getPendingReminders(adapter, {
           asOf: parseDateTime('2024-01-15T08:50:00'),
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const forCompleted = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forCompleted).toEqual([]); // Completed instance - correctly excluded
+        // Proven present before completion, now confirmed absent after completion
+        expect(pending.some(p => p.instanceDate === parseDate('2024-01-15'))).toBe(false);
       });
 
       it('rescheduled instance included', async () => {
@@ -594,6 +615,17 @@ describe('Segment 10: Reminders', () => {
         expect(createResult.ok).toBe(true);
         if (!createResult.ok) throw new Error(`'acknowledged removed from pending' setup failed: ${createResult.error.type}`);
 
+        // Verify reminder IS in pending before acknowledgment
+        const pendingBefore = await getPendingReminders(adapter, {
+          asOf: parseDateTime('2024-01-15T08:50:00'),
+          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+        });
+        let acknowledgedReminders = pendingBefore.filter(
+          p => p.reminderId === createResult.value.id && p.instanceDate === parseDate('2024-01-15')
+        );
+        expect(acknowledgedReminders).toHaveLength(1);
+        expect(acknowledgedReminders[0]).toMatchObject({ tag: 'test', instanceDate: parseDate('2024-01-15') });
+
         await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
 
         const pending = await getPendingReminders(adapter, {
@@ -601,10 +633,10 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const acknowledgedReminders = pending.filter(
+        // Proven present before ack, now confirmed absent after ack
+        expect(pending.some(
           p => p.reminderId === createResult.value.id && p.instanceDate === parseDate('2024-01-15')
-        );
-        expect(acknowledgedReminders).toEqual([]);
+        )).toBe(false);
       });
 
       it('acknowledge is idempotent', async () => {
@@ -868,6 +900,7 @@ describe('Segment 10: Reminders', () => {
         });
         const beforeReschedule = pendingBefore.filter(p => p.instanceDate === parseDate('2024-01-15'));
         expect(beforeReschedule).toHaveLength(1);
+        expect(beforeReschedule[0]).toMatchObject({ instanceDate: parseDate('2024-01-15'), tag: 'test' });
 
         // Original time 09:00, reschedule to 10:00
         await rescheduleInstance(adapter, testSeriesId, parseDate('2024-01-15'), parseDateTime('2024-01-15T10:00:00'));
@@ -876,23 +909,23 @@ describe('Segment 10: Reminders', () => {
         const exception = await getException(adapter, testSeriesId, parseDate('2024-01-15'));
         expect(exception?.type).toBe('rescheduled');
 
+        // Verify reminder DOES appear at new fire time (09:45) - positive case first
+        const pendingAtNew = await getPendingReminders(adapter, {
+          asOf: parseDateTime('2024-01-15T09:45:00'),
+          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+        });
+        let forInstance = pendingAtNew.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(forInstance).toHaveLength(1);
+        expect(forInstance[0]).toMatchObject({ instanceDate: parseDate('2024-01-15'), tag: 'test' });
+
         // Query at 08:50 (would be after original fire time 08:45)
         const pending = await getPendingReminders(adapter, {
           asOf: parseDateTime('2024-01-15T08:50:00'),
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        // Should NOT be pending yet (new fire time is 09:45)
-        const forInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forInstance).toEqual([]);
-
-        // Verify reminder DOES appear at new fire time (09:45)
-        const pendingAtNew = await getPendingReminders(adapter, {
-          asOf: parseDateTime('2024-01-15T09:45:00'),
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
-        });
-        const atNewTime = pendingAtNew.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(atNewTime).toHaveLength(1);
+        // Should NOT be pending yet (new fire time is 09:45) - proven present at new time above
+        expect(pending.some(p => p.instanceDate === parseDate('2024-01-15'))).toBe(false);
       });
     });
 
@@ -1024,7 +1057,9 @@ describe('Segment 10: Reminders', () => {
         asOf: parseDateTime('2024-01-15T08:50:00'),
         range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
       });
-      expect(pendingBefore.filter(p => p.instanceDate === parseDate('2024-01-15'))).toHaveLength(1);
+      let forCancelled = pendingBefore.filter(p => p.instanceDate === parseDate('2024-01-15'));
+      expect(forCancelled).toHaveLength(1);
+      expect(forCancelled[0]).toMatchObject({ instanceDate: parseDate('2024-01-15'), tag: 'test' });
 
       await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
 
@@ -1038,8 +1073,9 @@ describe('Segment 10: Reminders', () => {
         range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
       });
 
-      const forCancelled = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-      expect(forCancelled).toEqual([]); // Cancelled - correctly excluded
+      // Proven present before cancel, now confirmed absent after cancel
+      forCancelled = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
+      expect(forCancelled).toEqual([]);
     });
 
     it('B6: all-day minutesBefore 0', async () => {
@@ -1199,23 +1235,22 @@ describe('Segment 10: Reminders', () => {
           tag: 'meeting',
         });
 
-        // Query at 08:30 - not yet due
+        // Verify it DOES appear at 08:45 (fire time) - positive case first
+        const pendingOnTime = await getPendingReminders(adapter, {
+          asOf: parseDateTime('2024-01-15T08:45:00'),
+          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+        });
+        let forInstance = pendingOnTime.filter(p => p.instanceDate === parseDate('2024-01-15'));
+        expect(forInstance).toHaveLength(1);
+        expect(forInstance[0].tag).toBe('meeting');
+
+        // Query at 08:30 - not yet due (proven present at fire time above)
         const pending = await getPendingReminders(adapter, {
           asOf: parseDateTime('2024-01-15T08:30:00'),
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const forInstance = pending.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(forInstance).toEqual([]); // Not yet due - correctly excluded
-
-        // Verify it DOES appear at 08:45 (fire time)
-        const pendingOnTime = await getPendingReminders(adapter, {
-          asOf: parseDateTime('2024-01-15T08:45:00'),
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
-        });
-        const atFireTime = pendingOnTime.filter(p => p.instanceDate === parseDate('2024-01-15'));
-        expect(atFireTime).toHaveLength(1);
-        expect(atFireTime[0].tag).toBe('meeting');
+        expect(pending.some(p => p.instanceDate === parseDate('2024-01-15'))).toBe(false);
       });
 
       it('acknowledge dismisses', async () => {
@@ -1232,8 +1267,9 @@ describe('Segment 10: Reminders', () => {
           asOf: parseDateTime('2024-01-15T08:50:00'),
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
-        const beforeAck = pendingBefore.filter(p => p.reminderId === createResult.value.id);
-        expect(beforeAck).toHaveLength(1);
+        let forInstance = pendingBefore.filter(p => p.reminderId === createResult.value.id);
+        expect(forInstance).toHaveLength(1);
+        expect(forInstance[0]).toMatchObject({ tag: 'meeting', instanceDate: parseDate('2024-01-15') });
 
         // Acknowledge at 08:46
         await acknowledgeReminder(adapter, createResult.value.id, parseDate('2024-01-15'));
@@ -1248,10 +1284,10 @@ describe('Segment 10: Reminders', () => {
           range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
         });
 
-        const forInstance = pending.filter(
+        // Proven present before ack, now confirmed absent after ack
+        expect(pending.some(
           p => p.reminderId === createResult.value.id && p.instanceDate === parseDate('2024-01-15')
-        );
-        expect(forInstance).toEqual([]); // Acknowledged - correctly excluded
+        )).toBe(false);
       });
     });
 

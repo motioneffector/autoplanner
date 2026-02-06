@@ -430,10 +430,19 @@ describe('Segment 09: Instance Exceptions', () => {
       it('exception deleted', async () => {
         const targetDate = parseDate('2024-01-15');
         await rescheduleInstance(adapter, testSeriesId, targetDate, parseDateTime('2024-01-15T14:00:00'));
+
+        // Verify exception exists before restoring
+        const exceptionBefore = await getException(adapter, testSeriesId, targetDate);
+        expect(exceptionBefore).toMatchObject({
+          instanceDate: targetDate,
+          type: 'rescheduled',
+        });
+
         await restoreInstance(adapter, testSeriesId, targetDate);
 
         const exception = await getException(adapter, testSeriesId, targetDate);
-        expect(exception).toBeNull();
+        // Exception was proven to exist above (type: 'rescheduled'), now should be gone
+        expect(exception).toBe(null);
       });
     });
 
@@ -470,6 +479,15 @@ describe('Segment 09: Instance Exceptions', () => {
     });
 
     it('get non-excepted returns null', async () => {
+      // Positive case: prove getException works when exception exists
+      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-16'));
+      const existingException = await getException(adapter, testSeriesId, parseDate('2024-01-16'));
+      expect(existingException).toMatchObject({
+        instanceDate: parseDate('2024-01-16'),
+        type: 'cancelled',
+      });
+
+      // Negative case: non-excepted date returns null
       const exception = await getException(adapter, testSeriesId, parseDate('2024-01-15'));
       expect(exception).toBeNull();
     });
@@ -835,9 +853,9 @@ describe('Segment 09: Instance Exceptions', () => {
         parseDate('2024-01-16'),
       ].sort());
 
-      // Capture exception IDs for verification
-      const exceptionIds = exceptions.map(e => e.id);
-      expect(exceptionIds).toHaveLength(2);
+      // Verify both exceptions have unique IDs
+      expect(exceptions).toHaveLength(2);
+      expect(exceptions[0].id).not.toBe(exceptions[1].id);
 
       // Delete series
       await deleteSeries(adapter, testSeriesId);
@@ -1038,12 +1056,12 @@ describe('Segment 09: Instance Exceptions', () => {
         ];
 
         // Verify instances exist before cancellation
-        const beforeCancel = await getSchedule(adapter, {
+        let schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
           range: { start: dates[0], end: dates[4] },
         });
-        expect(beforeCancel).toHaveLength(5);
-        expect(beforeCancel.map(i => i.date)).toEqual(dates);
+        expect(schedule).toHaveLength(5);
+        expect(schedule.map(i => i.date)).toEqual(dates);
 
         for (const date of dates) {
           await cancelInstance(adapter, testSeriesId, date);
@@ -1058,7 +1076,7 @@ describe('Segment 09: Instance Exceptions', () => {
           )).toBe(true);
         }
 
-        const schedule = await getSchedule(adapter, {
+        schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
           range: { start: parseDate('2024-01-08'), end: parseDate('2024-01-12') },
         });
@@ -1071,6 +1089,10 @@ describe('Segment 09: Instance Exceptions', () => {
           range: { start: parseDate('2024-01-13'), end: parseDate('2024-01-14') },
         });
         expect(afterRange).toHaveLength(2);
+        expect(afterRange.map(i => i.date)).toEqual([
+          parseDate('2024-01-13'),
+          parseDate('2024-01-14'),
+        ]);
       });
 
       it('restore after vacation', async () => {
