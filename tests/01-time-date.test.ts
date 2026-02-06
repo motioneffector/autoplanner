@@ -58,114 +58,98 @@ describe('Parsing Functions', () => {
     // Valid dates (LAW P1)
     it('parses valid standard date', () => {
       const result = parseDate('2024-03-15')
-      expect(result.ok).toBe(true)
-      if (result.ok) expect(result.value).toBe('2024-03-15')
+      expect(result).toBe('2024-03-15')
     })
 
     it('parses valid leap day', () => {
       const result = parseDate('2024-02-29')
-      expect(result.ok).toBe(true)
-      if (result.ok) expect(result.value).toBe('2024-02-29')
+      expect(result).toBe('2024-02-29')
     })
 
     it('parses valid year boundary', () => {
-      const result = parseDate('2024-12-31')
-      expect(result.ok).toBe(true)
+      expect(() => parseDate('2024-12-31')).not.toThrow()
     })
 
     it('parses valid January first', () => {
-      const result = parseDate('2024-01-01')
-      expect(result.ok).toBe(true)
+      expect(() => parseDate('2024-01-01')).not.toThrow()
     })
 
     // Invalid dates (LAW P3, P4)
     it('rejects Feb 29 non-leap year', () => {
-      const result = parseDate('2023-02-29')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2023-02-29')).toThrow()
     })
 
     it('rejects Feb 30', () => {
-      const result = parseDate('2024-02-30')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024-02-30')).toThrow()
     })
 
     it('rejects month 13', () => {
-      const result = parseDate('2024-13-01')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024-13-01')).toThrow()
     })
 
     it('rejects month 00', () => {
-      const result = parseDate('2024-00-15')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024-00-15')).toThrow()
     })
 
     it('rejects day 32', () => {
-      const result = parseDate('2024-01-32')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024-01-32')).toThrow()
     })
 
     it('rejects day 00', () => {
-      const result = parseDate('2024-01-00')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024-01-00')).toThrow()
     })
 
     it('rejects unpadded month', () => {
-      const result = parseDate('2024-3-15')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024-3-15')).toThrow()
     })
 
     it('rejects unpadded day', () => {
-      const result = parseDate('2024-03-5')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024-03-5')).toThrow()
     })
 
     it('rejects wrong separator', () => {
-      const result = parseDate('2024/03/15')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024/03/15')).toThrow()
     })
 
     it('rejects empty string', () => {
-      const result = parseDate('')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('')).toThrow()
     })
 
     it('rejects garbage', () => {
-      const result = parseDate('not-a-date')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('not-a-date')).toThrow()
     })
 
     it('rejects time suffix', () => {
-      const result = parseDate('2024-03-15T10:00')
-      expect(result.ok).toBe(false)
+      expect(() => parseDate('2024-03-15T10:00')).toThrow()
     })
 
     // Month length boundaries
     it('accepts Jan 31', () => {
-      expect(parseDate('2024-01-31').ok).toBe(true)
+      expect(() => parseDate('2024-01-31')).not.toThrow()
     })
 
     it('accepts Apr 30', () => {
-      expect(parseDate('2024-04-30').ok).toBe(true)
+      expect(() => parseDate('2024-04-30')).not.toThrow()
     })
 
     it('rejects Apr 31', () => {
-      expect(parseDate('2024-04-31').ok).toBe(false)
+      expect(() => parseDate('2024-04-31')).toThrow()
     })
 
     it('accepts Feb 28 non-leap', () => {
-      expect(parseDate('2023-02-28').ok).toBe(true)
+      expect(() => parseDate('2023-02-28')).not.toThrow()
     })
 
     it('accepts Feb 29 leap', () => {
-      expect(parseDate('2024-02-29').ok).toBe(true)
+      expect(() => parseDate('2024-02-29')).not.toThrow()
     })
 
     it('rejects Feb 29 century non-leap (1900)', () => {
-      expect(parseDate('1900-02-29').ok).toBe(false)
+      expect(() => parseDate('1900-02-29')).toThrow()
     })
 
     it('accepts Feb 29 century leap (2000)', () => {
-      expect(parseDate('2000-02-29').ok).toBe(true)
+      expect(() => parseDate('2000-02-29')).not.toThrow()
     })
   })
 
@@ -173,87 +157,80 @@ describe('Parsing Functions', () => {
     // Valid times (LAW P1, P2)
     it('parses valid HH:MM', () => {
       const result = parseTime('14:30')
-      expect(result.ok).toBe(true)
-      if (result.ok) expect(result.value).toBe('14:30:00')
+      expect(result).toBe('14:30:00')
     })
 
     it('parses valid HH:MM:SS', () => {
       const result = parseTime('14:30:45')
-      expect(result.ok).toBe(true)
-      if (result.ok) expect(result.value).toBe('14:30:45')
+      expect(result).toBe('14:30:45')
     })
 
     it('parses midnight', () => {
-      const result = parseTime('00:00:00')
-      expect(result.ok).toBe(true)
+      expect(() => parseTime('00:00:00')).not.toThrow()
     })
 
     it('parses end of day', () => {
-      const result = parseTime('23:59:59')
-      expect(result.ok).toBe(true)
+      expect(() => parseTime('23:59:59')).not.toThrow()
     })
 
     // Invalid times (LAW P3)
     it('rejects hour 24', () => {
-      expect(parseTime('24:00:00').ok).toBe(false)
+      expect(() => parseTime('24:00:00')).toThrow()
     })
 
     it('rejects hour 25', () => {
-      expect(parseTime('25:00:00').ok).toBe(false)
+      expect(() => parseTime('25:00:00')).toThrow()
     })
 
     it('rejects minute 60', () => {
-      expect(parseTime('12:60:00').ok).toBe(false)
+      expect(() => parseTime('12:60:00')).toThrow()
     })
 
     it('rejects second 60', () => {
-      expect(parseTime('12:30:60').ok).toBe(false)
+      expect(() => parseTime('12:30:60')).toThrow()
     })
 
     it('rejects unpadded hour', () => {
-      expect(parseTime('9:30:00').ok).toBe(false)
+      expect(() => parseTime('9:30:00')).toThrow()
     })
 
     it('rejects wrong separator', () => {
-      expect(parseTime('14-30-00').ok).toBe(false)
+      expect(() => parseTime('14-30-00')).toThrow()
     })
 
     it('normalizes HH:MM to HH:MM:SS', () => {
       const result = parseTime('14:30')
-      expect(result.ok).toBe(true)
-      if (result.ok) expect(result.value).toBe('14:30:00')
+      expect(result).toBe('14:30:00')
     })
   })
 
   describe('parseDateTime', () => {
     it('parses valid full datetime', () => {
-      const result = parseDateTime('2024-03-15T14:30:00')
-      expect(result.ok).toBe(true)
+      expect(() => parseDateTime('2024-03-15T14:30:00')).not.toThrow()
     })
 
     it('parses valid datetime without seconds', () => {
-      const result = parseDateTime('2024-03-15T14:30')
-      expect(result.ok).toBe(true)
+      expect(() => parseDateTime('2024-03-15T14:30')).not.toThrow()
     })
 
     it('rejects space separator', () => {
-      expect(parseDateTime('2024-03-15 14:30:00').ok).toBe(false)
+      expect(() => parseDateTime('2024-03-15 14:30:00')).toThrow()
     })
 
     it('rejects invalid date', () => {
-      expect(parseDateTime('2024-02-30T14:30:00').ok).toBe(false)
+      expect(() => parseDateTime('2024-02-30T14:30:00')).toThrow()
     })
 
     it('rejects invalid time', () => {
-      expect(parseDateTime('2024-03-15T25:00:00').ok).toBe(false)
+      expect(() => parseDateTime('2024-03-15T25:00:00')).toThrow()
     })
 
     it('rejects date only', () => {
-      expect(parseDateTime('2024-03-15').ok).toBe(false)
+      expect(() => parseDateTime('2024-03-15')).toThrow()
     })
 
     it('rejects time only', () => {
-      expect(parseDateTime('14:30:00').ok).toBe(false)
+      expect(() => parseDateTime('14:30:00')).toThrow()
     })
   })
 })
@@ -316,10 +293,7 @@ describe('Round-Trip Laws', () => {
     ]
     for (const dateStr of testDates) {
       const parsed = parseDate(dateStr)
-      expect(parsed.ok).toBe(true)
-      if (parsed.ok) {
-        expect(formatDate(parsed.value)).toBe(dateStr)
-      }
+      expect(formatDate(parsed)).toBe(dateStr)
     }
   })
 
@@ -328,10 +302,7 @@ describe('Round-Trip Laws', () => {
     const testTimes = ['00:00:00', '12:30:45', '23:59:59', '14:30:00']
     for (const timeStr of testTimes) {
       const parsed = parseTime(timeStr)
-      expect(parsed.ok).toBe(true)
-      if (parsed.ok) {
-        expect(formatTime(parsed.value)).toBe(timeStr)
-      }
+      expect(formatTime(parsed)).toBe(timeStr)
     }
   })
 
@@ -344,10 +315,7 @@ describe('Round-Trip Laws', () => {
     ]
     for (const dtStr of testDTs) {
       const parsed = parseDateTime(dtStr)
-      expect(parsed.ok).toBe(true)
-      if (parsed.ok) {
-        expect(formatDateTime(parsed.value)).toBe(dtStr)
-      }
+      expect(formatDateTime(parsed)).toBe(dtStr)
     }
   })
 
@@ -355,19 +323,13 @@ describe('Round-Trip Laws', () => {
   it('LAW 4: parse-format canonicalization for dates', () => {
     // All valid date strings should produce canonical output
     const result = parseDate('2024-03-15')
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(formatDate(result.value)).toBe('2024-03-15')
-    }
+    expect(formatDate(result)).toBe('2024-03-15')
   })
 
   // LAW 5: parse-format canonicalization for times
   it('LAW 5: parse-format canonicalization for times (HH:MM → HH:MM:SS)', () => {
     const result = parseTime('14:30')
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(formatTime(result.value)).toBe('14:30:00')
-    }
+    expect(formatTime(result)).toBe('14:30:00')
   })
 })
 
@@ -1123,25 +1085,25 @@ describe('Comparison Operations', () => {
 // ============================================================================
 
 describe('Error Handling', () => {
-  it('parse functions return Result, do not throw', () => {
-    const result = parseDate('invalid')
-    expect(result.ok).toBe(false)
-    // Should not throw
+  it('parse functions throw ParseError on invalid input', () => {
+    expect(() => parseDate('invalid')).toThrow()
   })
 
   it('error includes input value', () => {
-    const result = parseDate('2024-13-01')
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.error.message).toContain('2024-13-01')
+    try {
+      parseDate('2024-13-01')
+      expect.unreachable('should have thrown')
+    } catch (e: any) {
+      expect(e.message).toContain('2024-13-01')
     }
   })
 
   it('error mentions expected constraint', () => {
-    const result = parseDate('2024-13-01')
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.error.message.toLowerCase()).toMatch(/month|invalid/)
+    try {
+      parseDate('2024-13-01')
+      expect.unreachable('should have thrown')
+    } catch (e: any) {
+      expect(e.message.toLowerCase()).toMatch(/month|invalid/)
     }
   })
 })
@@ -1157,9 +1119,9 @@ describe('System Invariants', () => {
     const time = timeOf(dt)
 
     // Date should be valid
-    expect(parseDate(date).ok).toBe(true)
+    expect(() => parseDate(date)).not.toThrow()
     // Time should be valid
-    expect(parseTime(time).ok).toBe(true)
+    expect(() => parseTime(time)).not.toThrow()
   })
 
   it('INV 5: All string representations are canonical', () => {
@@ -1167,9 +1129,7 @@ describe('System Invariants', () => {
     const dates = ['2024-03-15', '2024-01-01', '2024-12-31']
     for (const dateStr of dates) {
       const result = parseDate(dateStr)
-      if (result.ok) {
-        expect(formatDate(result.value)).toBe(dateStr)
-      }
+      expect(formatDate(result)).toBe(dateStr)
     }
   })
 })

@@ -205,6 +205,7 @@ export interface Adapter {
   getCompletionsBySeries(seriesId: string): Promise<Completion[]>
   getCompletionByInstance(seriesId: string, instanceDate: LocalDate): Promise<Completion | null>
   deleteCompletion(id: string): Promise<void>
+  getAllCompletions(): Promise<Completion[]>
   countCompletionsInWindow(seriesId: string, start: LocalDate, end: LocalDate): Promise<number>
   daysSinceLastCompletion(seriesId: string, asOf: LocalDate): Promise<number | null>
   getRecentDurations(
@@ -721,6 +722,10 @@ export function createMockAdapter(): Adapter {
       state.completions.delete(id)
     },
 
+    async getAllCompletions() {
+      return [...state.completions.values()].map(ca)
+    },
+
     async countCompletionsInWindow(seriesId: string, start: LocalDate, end: LocalDate) {
       let count = 0
       for (const c of state.completions.values()) {
@@ -1003,3 +1008,5 @@ export function createMockAdapter(): Adapter {
 
   return adapter
 }
+
+export type MockAdapter = Adapter

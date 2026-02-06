@@ -28,6 +28,7 @@ import {
   CompletionsExistError,
   LinkedChildrenExistError,
   // Types
+  type CrudResult,
   type SeriesInput,
   type SeriesUpdate,
   type Series,
@@ -44,6 +45,13 @@ beforeEach(() => {
   adapter = createMockAdapter()
 })
 
+/** Helper: unwrap a successful createSeries result into its ID */
+async function create(input: SeriesInput): Promise<string> {
+  const result = await createSeries(adapter, input)
+  if (!result.ok) throw new Error(`createSeries failed: ${result.error.message}`)
+  return result.value.id
+}
+
 // ============================================================================
 // 1. CREATE SERIES
 // ============================================================================
@@ -57,7 +65,10 @@ describe('Create Series', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      const id = result.value.id
       expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
@@ -68,7 +79,7 @@ describe('Create Series', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const series = await getSeries(adapter, id)
       expect(series).toEqual(expect.objectContaining({
         id,
@@ -86,8 +97,8 @@ describe('Create Series', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id1 = await createSeries(adapter, input)
-      const id2 = await createSeries(adapter, input)
+      const id1 = await create(input)
+      const id2 = await create(input)
       expect(id1).not.toBe(id2)
     })
 
@@ -99,7 +110,7 @@ describe('Create Series', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const series = await getSeries(adapter, id)
       expect(new Date(series!.createdAt).getTime()).toBeGreaterThanOrEqual(testStartTime - 1000)
       expect(new Date(series!.createdAt).getTime()).toBeLessThanOrEqual(Date.now())
@@ -113,7 +124,7 @@ describe('Create Series', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const series = await getSeries(adapter, id)
       expect(new Date(series!.updatedAt).getTime()).toBeGreaterThanOrEqual(testStartTime - 1000)
       expect(new Date(series!.updatedAt).getTime()).toBeLessThanOrEqual(Date.now())
@@ -126,7 +137,7 @@ describe('Create Series', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const series = await getSeries(adapter, id)
       expect(series?.locked).toBe(false)
     })
@@ -140,7 +151,7 @@ describe('Create Series', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const series = await getSeries(adapter, id)
       expect(series?.count).toBe(1)
     })
@@ -153,7 +164,7 @@ describe('Create Series', () => {
         duration: 30,
         patterns: [{ type: 'daily' }],
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const series = await getSeries(adapter, id)
       expect(series).toEqual(expect.objectContaining({
         id,
@@ -170,7 +181,7 @@ describe('Create Series', () => {
         duration: 30,
         count: 5,
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const series = await getSeries(adapter, id)
       expect(series?.count).toBe(5)
     })
@@ -183,7 +194,7 @@ describe('Create Series', () => {
         duration: 30,
         endDate: '2024-02-15' as LocalDate,
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const series = await getSeries(adapter, id)
       expect(series?.endDate).toBe('2024-02-15')
     })
@@ -198,7 +209,7 @@ describe('Create Series', () => {
         duration: 30,
         tags: ['work', 'important'],
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       const tags = await getTagsForSeries(adapter, id)
       expect(tags).toContain('work')
       expect(tags).toContain('important')
@@ -213,7 +224,7 @@ describe('Create Series', () => {
         duration: 30,
         tags: ['work'],
       }
-      await createSeries(adapter, input1)
+      await create(input1)
 
       // Create second series with same tag
       const input2: SeriesInput = {
@@ -223,7 +234,7 @@ describe('Create Series', () => {
         duration: 30,
         tags: ['work'],
       }
-      const id2 = await createSeries(adapter, input2)
+      const id2 = await create(input2)
       const tags = await getTagsForSeries(adapter, id2)
       const workTags = tags.filter((t) => t === 'work')
       expect(workTags).toEqual(['work'])
@@ -244,8 +255,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('empty title rejected', async () => {
@@ -255,7 +268,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('whitespace only title rejected', async () => {
@@ -265,7 +280,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
   })
 
@@ -277,8 +294,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('invalid startDate format rejected', async () => {
@@ -288,7 +307,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('endDate equals startDate accepted', async () => {
@@ -299,8 +320,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('endDate before startDate rejected', async () => {
@@ -311,7 +334,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('endDate after startDate accepted', async () => {
@@ -322,8 +347,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('count and endDate both set rejected', async () => {
@@ -335,7 +362,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('count = 0 rejected', async () => {
@@ -346,7 +375,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('count = 1 accepted', async () => {
@@ -357,8 +388,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('negative count rejected', async () => {
@@ -369,7 +402,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
   })
 
@@ -381,8 +416,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('allDay timeOfDay accepted', async () => {
@@ -392,8 +429,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: 'allDay',
         duration: 'allDay',
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('invalid time format rejected', async () => {
@@ -403,7 +442,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '9am' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('allDay time with non-allDay duration rejected', async () => {
@@ -413,7 +454,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: 'allDay',
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('non-allDay time with allDay duration rejected', async () => {
@@ -423,7 +466,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 'allDay',
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('allDay consistency accepted', async () => {
@@ -433,8 +478,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: 'allDay',
         duration: 'allDay',
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
   })
 
@@ -446,8 +493,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('zero duration rejected', async () => {
@@ -457,7 +506,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 0,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('negative duration rejected', async () => {
@@ -467,7 +518,9 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: -10,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('allDay duration accepted', async () => {
@@ -477,8 +530,10 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: 'allDay',
         duration: 'allDay',
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('adaptive duration valid accepted', async () => {
@@ -492,8 +547,10 @@ describe('Precondition Validation (Create)', () => {
           bufferPercent: 25,
         },
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('adaptive duration fallback < 1 rejected', async () => {
@@ -507,7 +564,9 @@ describe('Precondition Validation (Create)', () => {
           bufferPercent: 25,
         },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('adaptive min >= max rejected', async () => {
@@ -523,7 +582,9 @@ describe('Precondition Validation (Create)', () => {
           max: 30,
         },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('adaptive min < max accepted', async () => {
@@ -539,8 +600,10 @@ describe('Precondition Validation (Create)', () => {
           max: 60,
         },
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
   })
 
@@ -553,8 +616,10 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         patterns: [{ type: 'daily' }, { type: 'weekly' }],
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) throw new Error('createSeries failed')
+      expect(result.value.id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('invalid pattern object rejected', async () => {
@@ -565,7 +630,9 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         patterns: [{ invalid: true } as any],
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
   })
 
@@ -578,7 +645,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         wiggle: { daysBefore: 1, daysAfter: 2 },
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
@@ -590,7 +657,9 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         wiggle: { daysBefore: -1, daysAfter: 0 },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('negative daysAfter rejected', async () => {
@@ -601,7 +670,9 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         wiggle: { daysBefore: 0, daysAfter: -1 },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('valid timeWindow accepted', async () => {
@@ -617,7 +688,7 @@ describe('Precondition Validation (Create)', () => {
           latest: '10:00' as LocalTime,
         },
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
@@ -634,7 +705,9 @@ describe('Precondition Validation (Create)', () => {
           latest: '08:00' as LocalTime,
         },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('fixed with non-zero wiggle rejected', async () => {
@@ -646,7 +719,9 @@ describe('Precondition Validation (Create)', () => {
         fixed: true,
         wiggle: { daysBefore: 1, daysAfter: 0 },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('fixed with null wiggle accepted', async () => {
@@ -658,7 +733,7 @@ describe('Precondition Validation (Create)', () => {
         fixed: true,
         wiggle: undefined,
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
@@ -671,7 +746,7 @@ describe('Precondition Validation (Create)', () => {
         fixed: true,
         wiggle: { daysBefore: 0, daysAfter: 0 },
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
   })
@@ -685,7 +760,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         reminders: [{ minutes: 15 }],
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
@@ -697,7 +772,9 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         reminders: [{ minutes: -5 }],
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      const result = await createSeries(adapter, input)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error.type).toBe('ValidationError')
     })
 
     it('zero reminder minutes accepted', async () => {
@@ -708,7 +785,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         reminders: [{ minutes: 0 }],
       }
-      const id = await createSeries(adapter, input)
+      const id = await create(input)
       expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
   })
@@ -720,7 +797,7 @@ describe('Precondition Validation (Create)', () => {
 
 describe('Get Series', () => {
   it('get existing series', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -738,7 +815,7 @@ describe('Get Series', () => {
 
   it('get non-existent series returns null', async () => {
     // First prove getSeries works for real data
-    const realId = await createSeries(adapter, {
+    const realId = await create({
       title: 'Real Series',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -760,7 +837,7 @@ describe('Get Series', () => {
   })
 
   it('get deleted series returns null', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -772,7 +849,7 @@ describe('Get Series', () => {
   })
 
   it('get series by tag returns matching', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -784,7 +861,7 @@ describe('Get Series', () => {
   })
 
   it('get series by tag excludes non-matching', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -796,19 +873,19 @@ describe('Get Series', () => {
   })
 
   it('get all series returns all', async () => {
-    await createSeries(adapter, {
+    await create({
       title: 'A',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
       duration: 30,
     })
-    await createSeries(adapter, {
+    await create({
       title: 'B',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
       duration: 30,
     })
-    await createSeries(adapter, {
+    await create({
       title: 'C',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -821,7 +898,7 @@ describe('Get Series', () => {
 
   it('get all series empty returns empty array', async () => {
     // Prove getAllSeries works by adding one and checking
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Proof',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -844,7 +921,7 @@ describe('Get Series', () => {
 describe('Update Series', () => {
   describe('Basic Update Tests', () => {
     it('update title', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Original',
         startDate: '2024-01-15' as LocalDate,
         timeOfDay: '09:00' as LocalTime,
@@ -856,7 +933,7 @@ describe('Update Series', () => {
     })
 
     it('update preserves other fields', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Original',
         description: 'Keep me',
         startDate: '2024-01-15' as LocalDate,
@@ -869,7 +946,7 @@ describe('Update Series', () => {
     })
 
     it('update sets updatedAt', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
         timeOfDay: '09:00' as LocalTime,
@@ -891,7 +968,7 @@ describe('Update Series', () => {
 
   describe('Locked Series Tests', () => {
     it('update locked series fails', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
         timeOfDay: '09:00' as LocalTime,
@@ -904,7 +981,7 @@ describe('Update Series', () => {
     })
 
     it('unlocking locked series allowed', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
         timeOfDay: '09:00' as LocalTime,
@@ -917,7 +994,7 @@ describe('Update Series', () => {
     })
 
     it('update unlocked series works', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
         timeOfDay: '09:00' as LocalTime,
@@ -933,7 +1010,7 @@ describe('Update Series', () => {
 
   describe('Update Preconditions', () => {
     it('cannot change id throws ValidationError', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
         timeOfDay: '09:00' as LocalTime,
@@ -945,7 +1022,7 @@ describe('Update Series', () => {
     })
 
     it('cannot change createdAt throws ValidationError', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
         timeOfDay: '09:00' as LocalTime,
@@ -957,7 +1034,7 @@ describe('Update Series', () => {
     })
 
     it('update validation applied', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
         timeOfDay: '09:00' as LocalTime,
@@ -976,7 +1053,7 @@ describe('Update Series', () => {
 
 describe('Delete Series', () => {
   it('delete existing series succeeds', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -988,7 +1065,7 @@ describe('Delete Series', () => {
   })
 
   it('get after delete returns null', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1000,13 +1077,13 @@ describe('Delete Series', () => {
   })
 
   it('delete non-existent series throws NotFoundError', async () => {
-    await expect(deleteSeries(adapter, 'nonexistent')).rejects.toThrow(
-      NotFoundError
-    )
+    const result = await deleteSeries(adapter, 'nonexistent')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.type).toBe('NotFoundError')
   })
 
   it('delete with completions throws CompletionsExistError', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1021,17 +1098,19 @@ describe('Delete Series', () => {
       startTime: '2024-01-15T13:30:00' as LocalDateTime,
       endTime: '2024-01-15T14:00:00' as LocalDateTime,
     })
-    await expect(deleteSeries(adapter, id)).rejects.toThrow(CompletionsExistError)
+    const deleteResult = await deleteSeries(adapter, id)
+    expect(deleteResult.ok).toBe(false)
+    if (!deleteResult.ok) expect(deleteResult.error.type).toBe('CompletionsExistError')
   })
 
   it('delete with child links throws LinkedChildrenExistError', async () => {
-    const parentId = await createSeries(adapter, {
+    const parentId = await create({
       title: 'Parent',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
       duration: 30,
     })
-    const childId = await createSeries(adapter, {
+    const childId = await create({
       title: 'Child',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1046,13 +1125,13 @@ describe('Delete Series', () => {
       earlyWobble: 0,
       lateWobble: 10,
     })
-    await expect(deleteSeries(adapter, parentId)).rejects.toThrow(
-      LinkedChildrenExistError
-    )
+    const deleteResult = await deleteSeries(adapter, parentId)
+    expect(deleteResult.ok).toBe(false)
+    if (!deleteResult.ok) expect(deleteResult.error.type).toBe('LinkedChildrenExistError')
   })
 
   it('delete cascades patterns', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1071,7 +1150,7 @@ describe('Delete Series', () => {
   })
 
   it('delete cascades conditions', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1099,7 +1178,7 @@ describe('Delete Series', () => {
   })
 
   it('delete cascades reminders', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1138,7 +1217,7 @@ describe('Delete Series', () => {
 
 describe('Lock/Unlock', () => {
   it('lock sets locked true', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1150,7 +1229,7 @@ describe('Lock/Unlock', () => {
   })
 
   it('unlock sets locked false', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1175,7 +1254,7 @@ describe('Lock/Unlock', () => {
   })
 
   it('lock is idempotent', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1188,7 +1267,7 @@ describe('Lock/Unlock', () => {
   })
 
   it('unlock is idempotent', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1201,7 +1280,7 @@ describe('Lock/Unlock', () => {
   })
 
   it('lock unlocked then lock works', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1220,7 +1299,7 @@ describe('Lock/Unlock', () => {
 describe('Series Splitting', () => {
   describe('Basic Split Tests', () => {
     it('split returns new ID', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1232,7 +1311,7 @@ describe('Series Splitting', () => {
     })
 
     it('split IDs differ', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1244,7 +1323,7 @@ describe('Series Splitting', () => {
     })
 
     it('original endDate set to day before split', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1257,7 +1336,7 @@ describe('Series Splitting', () => {
     })
 
     it('new startDate set to split date', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1270,7 +1349,7 @@ describe('Series Splitting', () => {
     })
 
     it('new inherits from original', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         description: 'Original description',
         startDate: '2024-01-01' as LocalDate,
@@ -1285,7 +1364,7 @@ describe('Series Splitting', () => {
     })
 
     it('new applies overrides', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1300,7 +1379,7 @@ describe('Series Splitting', () => {
     })
 
     it('both series valid after split', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1331,7 +1410,7 @@ describe('Series Splitting', () => {
     })
 
     it('split at startDate throws ValidationError', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1344,7 +1423,7 @@ describe('Series Splitting', () => {
     })
 
     it('split before startDate throws ValidationError', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1357,7 +1436,7 @@ describe('Series Splitting', () => {
     })
 
     it('split after endDate throws ValidationError', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-15' as LocalDate,
@@ -1370,7 +1449,7 @@ describe('Series Splitting', () => {
     })
 
     it('split locked series throws LockedSeriesError', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1386,7 +1465,7 @@ describe('Series Splitting', () => {
 
   describe('Completion Preservation', () => {
     it('original completions preserved', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1407,7 +1486,7 @@ describe('Series Splitting', () => {
     })
 
     it('new series has no completions', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1450,7 +1529,7 @@ describe('Series Splitting', () => {
 
   describe('Cycling State Transfer', () => {
     it('cycling currentIndex carries over', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1469,7 +1548,7 @@ describe('Series Splitting', () => {
     })
 
     it('cycling without gapLeap preserves index', async () => {
-      const id = await createSeries(adapter, {
+      const id = await create({
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
         endDate: '2024-01-31' as LocalDate,
@@ -1494,7 +1573,7 @@ describe('Series Splitting', () => {
 
 describe('Tag Management', () => {
   it('add tag to series', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1506,7 +1585,7 @@ describe('Tag Management', () => {
   })
 
   it('remove tag from series', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1519,7 +1598,7 @@ describe('Tag Management', () => {
   })
 
   it('add tag creates if not exists', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1533,7 +1612,7 @@ describe('Tag Management', () => {
   })
 
   it('add existing tag is idempotent', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1547,7 +1626,7 @@ describe('Tag Management', () => {
   })
 
   it('remove non-existent tag is idempotent', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1573,7 +1652,7 @@ describe('Tag Management', () => {
 
 describe('Invariants', () => {
   it('INV 2: series ID immutable', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,
@@ -1585,7 +1664,7 @@ describe('Invariants', () => {
   })
 
   it('INV 3: createdAt immutable', async () => {
-    const id = await createSeries(adapter, {
+    const id = await create({
       title: 'Test',
       startDate: '2024-01-15' as LocalDate,
       timeOfDay: '09:00' as LocalTime,

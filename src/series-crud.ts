@@ -63,6 +63,16 @@ export class LinkedChildrenExistError extends Error {
 // Types
 // ============================================================================
 
+// ============================================================================
+// Result Type
+// ============================================================================
+
+export type CrudResult<T> = { ok: true; value: T } | { ok: false; error: { type: string; message: string } }
+
+// ============================================================================
+// Types
+// ============================================================================
+
 export type AdaptiveDurationInput = {
   type: 'adaptive'
   fallback: number
@@ -74,12 +84,14 @@ export type AdaptiveDurationInput = {
 export type SeriesInput = {
   title: string
   startDate: LocalDate
-  timeOfDay: LocalTime | 'allDay'
-  duration: number | 'allDay' | AdaptiveDurationInput
+  timeOfDay?: LocalTime | 'allDay'
+  duration?: number | 'allDay' | AdaptiveDurationInput
   description?: string
   endDate?: LocalDate
   count?: number
   patterns?: { type: string; [key: string]: unknown }[]
+  pattern?: { type: string; [key: string]: unknown }
+  time?: LocalDateTime
   tags?: string[]
   wiggle?: {
     daysBefore: number
@@ -93,6 +105,7 @@ export type SeriesInput = {
     items: { title: string }[]
     gapLeap: boolean
   }
+  [key: string]: unknown
 }
 
 export type SeriesUpdate = {
@@ -131,15 +144,17 @@ export type Series = {
 // ============================================================================
 
 function validateDate(date: string, fieldName: string): void {
-  const result = parseDate(date)
-  if (!result.ok) {
+  try {
+    parseDate(date)
+  } catch {
     throw new ValidationError(`Invalid ${fieldName}: ${date}`)
   }
 }
 
 function validateTime(time: string): void {
-  const result = parseTime(time)
-  if (!result.ok) {
+  try {
+    parseTime(time)
+  } catch {
     throw new ValidationError(`Invalid timeOfDay: ${time}`)
   }
 }
@@ -149,6 +164,32 @@ function nowISO(): LocalDateTime {
   const pad = (n: number) => n.toString().padStart(2, '0')
   const pad3 = (n: number) => n.toString().padStart(3, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad3(d.getMilliseconds())}` as LocalDateTime
+}
+
+/** Normalize input: resolve aliases (pattern→patterns, time→timeOfDay), apply defaults */
+function normalizeInput(input: SeriesInput): SeriesInput {
+  const normalized = { ...input }
+
+  // pattern (singular) → patterns array
+  if (normalized.pattern && !normalized.patterns) {
+    normalized.patterns = [normalized.pattern]
+  }
+
+  // time (LocalDateTime) → extract timeOfDay
+  if (normalized.time && !normalized.timeOfDay) {
+    const timePart = (normalized.time as string).substring(11)
+    normalized.timeOfDay = timePart as LocalTime
+  }
+
+  // Defaults for timeOfDay and duration
+  if (normalized.timeOfDay === undefined) {
+    normalized.timeOfDay = 'allDay'
+  }
+  if (normalized.duration === undefined) {
+    normalized.duration = normalized.timeOfDay === 'allDay' ? 'allDay' : 30
+  }
+
+  return normalized
 }
 
 function validateSeriesInput(input: SeriesInput): void {
@@ -180,10 +221,10 @@ function validateSeriesInput(input: SeriesInput): void {
 
   // Time of day
   if (input.timeOfDay === 'allDay') {
-    if (input.duration !== 'allDay') {
+    if (input.duration !== undefined && input.duration !== 'allDay') {
       throw new ValidationError('allDay timeOfDay requires allDay duration')
     }
-  } else {
+  } else if (input.timeOfDay !== undefined) {
     validateTime(input.timeOfDay as string)
     if (input.duration === 'allDay') {
       throw new ValidationError('non-allDay timeOfDay cannot have allDay duration')
@@ -195,12 +236,13 @@ function validateSeriesInput(input: SeriesInput): void {
     if (input.duration <= 0) {
       throw new ValidationError('duration must be > 0')
     }
-  } else if (typeof input.duration === 'object' && input.duration.type === 'adaptive') {
-    if (input.duration.fallback < 1) {
+  } else if (typeof input.duration === 'object' && input.duration !== null && (input.duration as any).type === 'adaptive') {
+    const adaptive = input.duration as AdaptiveDurationInput
+    if (adaptive.fallback < 1) {
       throw new ValidationError('adaptive fallback must be >= 1')
     }
-    if (input.duration.min !== undefined && input.duration.max !== undefined) {
-      if (input.duration.min >= input.duration.max) {
+    if (adaptive.min !== undefined && adaptive.max !== undefined) {
+      if (adaptive.min >= adaptive.max) {
         throw new ValidationError('adaptive min must be < max')
       }
     }
@@ -251,8 +293,17 @@ function validateSeriesInput(input: SeriesInput): void {
 // CRUD Operations
 // ============================================================================
 
-export async function createSeries(adapter: Adapter, input: SeriesInput): Promise<string> {
-  validateSeriesInput(input)
+export async function createSeries(
+  adapter: Adapter,
+  rawInput: SeriesInput
+): Promise<CrudResult<{ id: string }>> {
+  const input = normalizeInput(rawInput)
+
+  try {
+    validateSeriesInput(input)
+  } catch (e: any) {
+    return { ok: false, error: { type: e.name || 'ValidationError', message: e.message } }
+  }
 
   const id = crypto.randomUUID()
   const now = nowISO()
@@ -326,11 +377,12 @@ export async function createSeries(adapter: Adapter, input: SeriesInput): Promis
   }
 
   // Create adaptive duration config
-  if (typeof input.duration === 'object' && input.duration.type === 'adaptive') {
+  if (typeof input.duration === 'object' && (input.duration as any).type === 'adaptive') {
+    const adaptive = input.duration as AdaptiveDurationInput
     await adapter.setAdaptiveDuration(id, {
       seriesId: id,
-      fallbackDuration: input.duration.fallback,
-      bufferPercent: input.duration.bufferPercent,
+      fallbackDuration: adaptive.fallback,
+      bufferPercent: adaptive.bufferPercent,
       lastN: 5,
       windowDays: 30,
     })
@@ -343,7 +395,7 @@ export async function createSeries(adapter: Adapter, input: SeriesInput): Promis
     }
   }
 
-  return id
+  return { ok: true, value: { id } }
 }
 
 export async function getSeries(adapter: Adapter, id: string): Promise<Series | null> {
@@ -392,25 +444,29 @@ export async function updateSeries(
   await adapter.updateSeries(id, { ...changes, updatedAt: now } as any)
 }
 
-export async function deleteSeries(adapter: Adapter, id: string): Promise<void> {
+export async function deleteSeries(
+  adapter: Adapter,
+  id: string
+): Promise<CrudResult<void>> {
   const existing = await adapter.getSeries(id)
   if (!existing) {
-    throw new NotFoundError(`Series '${id}' not found`)
+    return { ok: false, error: { type: 'NotFoundError', message: `Series '${id}' not found` } }
   }
 
   // Check for completions
   const completions = await adapter.getCompletionsBySeries(id)
   if (completions.length > 0) {
-    throw new CompletionsExistError(`Cannot delete series '${id}': has completions`)
+    return { ok: false, error: { type: 'CompletionsExistError', message: `Cannot delete series '${id}': has completions` } }
   }
 
   // Check for child links
   const childLinks = await adapter.getLinksByParent(id)
   if (childLinks.length > 0) {
-    throw new LinkedChildrenExistError(`Cannot delete series '${id}': has linked children`)
+    return { ok: false, error: { type: 'LinkedChildrenExistError', message: `Cannot delete series '${id}': has linked children` } }
   }
 
   await adapter.deleteSeries(id)
+  return { ok: true, value: undefined }
 }
 
 export async function lockSeries(adapter: Adapter, id: string): Promise<void> {

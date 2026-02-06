@@ -26,20 +26,10 @@ export type LocalDateTime = string & { readonly [__localDateTime]: true }
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 
 // ============================================================================
-// Result Type
+// Errors
 // ============================================================================
 
-type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }
-
-function Ok<T>(value: T): Result<T, never> {
-  return { ok: true, value }
-}
-
-function Err<E>(error: E): Result<never, E> {
-  return { ok: false, error }
-}
-
-class ParseError extends Error {
+export class ParseError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'ParseError'
@@ -111,56 +101,55 @@ function jdnToDate(jdn: number): { year: number; month: number; day: number } {
 // Parsing
 // ============================================================================
 
-export function parseDate(str: string): Result<LocalDate, ParseError> {
+export function parseDate(str: string): LocalDate {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str)
-  if (!match) return Err(new ParseError(`Invalid date format: '${str}'`))
+  if (!match) throw new ParseError(`Invalid date format: '${str}'`)
 
   const year = parseInt(match[1], 10)
   const month = parseInt(match[2], 10)
   const day = parseInt(match[3], 10)
 
   if (month < 1 || month > 12)
-    return Err(new ParseError(`Invalid month in date: '${str}'`))
+    throw new ParseError(`Invalid month in date: '${str}'`)
   if (day < 1 || day > daysInMonth(year, month))
-    return Err(new ParseError(`Invalid day in date: '${str}'`))
+    throw new ParseError(`Invalid day in date: '${str}'`)
 
-  return Ok(str as LocalDate)
+  return str as LocalDate
 }
 
-export function parseTime(str: string): Result<LocalTime, ParseError> {
+export function parseTime(str: string): LocalTime {
   const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(str)
-  if (!match) return Err(new ParseError(`Invalid time format: '${str}'`))
+  if (!match) throw new ParseError(`Invalid time format: '${str}'`)
 
   const hour = parseInt(match[1], 10)
   const minute = parseInt(match[2], 10)
   const second = match[3] ? parseInt(match[3], 10) : 0
 
   if (hour > 23)
-    return Err(new ParseError(`Invalid hour in time: '${str}'`))
+    throw new ParseError(`Invalid hour in time: '${str}'`)
   if (minute > 59)
-    return Err(new ParseError(`Invalid minute in time: '${str}'`))
+    throw new ParseError(`Invalid minute in time: '${str}'`)
   if (second > 59)
-    return Err(new ParseError(`Invalid second in time: '${str}'`))
+    throw new ParseError(`Invalid second in time: '${str}'`)
 
   const normalized = `${pad2(hour)}:${pad2(minute)}:${pad2(second)}`
-  return Ok(normalized as LocalTime)
+  return normalized as LocalTime
 }
 
-export function parseDateTime(str: string): Result<LocalDateTime, ParseError> {
+export function parseDateTime(str: string): LocalDateTime {
   const tIdx = str.indexOf('T')
-  if (tIdx === -1) return Err(new ParseError(`Invalid datetime format (missing T): '${str}'`))
+  if (tIdx === -1) throw new ParseError(`Invalid datetime format (missing T): '${str}'`)
 
   const datePart = str.substring(0, tIdx)
   const timePart = str.substring(tIdx + 1)
 
-  const dateResult = parseDate(datePart)
-  if (!dateResult.ok) return Err(new ParseError(`Invalid date in datetime: '${str}'`))
-
-  const timeResult = parseTime(timePart)
-  if (!timeResult.ok) return Err(new ParseError(`Invalid time in datetime: '${str}'`))
-
-  const normalized = `${dateResult.value}T${timeResult.value}`
-  return Ok(normalized as LocalDateTime)
+  try {
+    const date = parseDate(datePart)
+    const time = parseTime(timePart)
+    return `${date}T${time}` as LocalDateTime
+  } catch {
+    throw new ParseError(`Invalid datetime: '${str}'`)
+  }
 }
 
 // ============================================================================
