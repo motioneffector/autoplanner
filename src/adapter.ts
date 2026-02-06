@@ -79,6 +79,8 @@ export type Completion = {
   date: LocalDate
   startTime: LocalDateTime
   endTime: LocalDateTime
+  durationMinutes?: number
+  createdAt?: string
 }
 
 export type InstanceException = {
