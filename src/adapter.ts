@@ -104,6 +104,7 @@ export type CyclingConfig = {
   seriesId: string
   currentIndex: number
   gapLeap: boolean
+  mode?: string
 }
 
 export type CyclingItem = {

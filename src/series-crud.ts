@@ -102,8 +102,10 @@ export type SeriesInput = {
   fixed?: boolean
   reminders?: { minutes: number }[]
   cycling?: {
-    items: { title: string }[]
+    items: string[]
+    mode?: 'sequential' | 'random'
     gapLeap: boolean
+    currentIndex?: number
   }
   [key: string]: unknown
 }
@@ -287,6 +289,13 @@ function validateSeriesInput(input: SeriesInput): void {
       }
     }
   }
+
+  // Cycling
+  if (input.cycling) {
+    if (!input.cycling.items || input.cycling.items.length === 0) {
+      throw new ValidationError('Cycling items must not be empty')
+    }
+  }
 }
 
 // ============================================================================
@@ -329,6 +338,12 @@ export async function createSeries(
     locked: false,
     fixed: input.fixed,
     wiggle: input.wiggle,
+    cycling: input.cycling ? {
+      items: input.cycling.items,
+      mode: input.cycling.mode ?? 'sequential',
+      gapLeap: input.cycling.gapLeap,
+      currentIndex: input.cycling.currentIndex ?? 0,
+    } : undefined,
   }
 
   await adapter.createSeries(series as any)
@@ -362,15 +377,16 @@ export async function createSeries(
   if (input.cycling) {
     await adapter.setCyclingConfig(id, {
       seriesId: id,
-      currentIndex: 0,
+      currentIndex: input.cycling.currentIndex ?? 0,
       gapLeap: input.cycling.gapLeap,
+      mode: input.cycling.mode ?? 'sequential',
     })
     await adapter.setCyclingItems(
       id,
-      input.cycling.items.map((item, i) => ({
+      input.cycling.items.map((title, i) => ({
         seriesId: id,
         position: i,
-        title: item.title,
+        title,
         duration: 0,
       }))
     )

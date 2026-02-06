@@ -31,12 +31,15 @@ export type ConditionId = string & { readonly [__conditionId]: true }
 // Domain Types
 // ============================================================================
 
+/** Domain-level cycling config (used by cycling module + tests) */
 export type CyclingConfig = {
-  seriesId: string
-  currentIndex: number
+  items: string[]
+  mode: 'sequential' | 'random'
   gapLeap: boolean
+  currentIndex?: number
 }
 
+/** Adapter-level cycling item row (used by persistence) */
 export type CyclingItem = {
   seriesId: string
   position: number
