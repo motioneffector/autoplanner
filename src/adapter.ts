@@ -958,6 +958,11 @@ export function createMockAdapter(): Adapter {
       state.constraints.delete(id)
     },
 
+    // Alias used by constraint tests
+    async getConstraints() {
+      return [...state.constraints.values()].map(ca)
+    },
+
     // ================================================================
     // Link
     // ================================================================

@@ -798,12 +798,13 @@ describe('Segment 12: Relational Constraints', () => {
           title: 'B',
           startDate: parseDate('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: parseDateTime('2024-01-01T10:01:00'),
           durationMinutes: 30,
         });
 
         if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
 
+        // Gap from A end (09:30) to B start (10:01) = 31 min > 30 withinMinutes
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeWithin',
           source: { type: 'seriesId', seriesId: resultA.value.id },
@@ -1236,16 +1237,21 @@ describe('Segment 12: Relational Constraints', () => {
 
     it('B3: single instance source', async () => {
       const seriesA = await createTestSeries('A');
-      const seriesB = await createTestSeries('B');
+      const resultB = await createSeries(adapter, {
+        title: 'B',
+        startDate: parseDate('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: parseDateTime('2024-01-01T10:00:00'),
+      });
+      if (!resultB.ok) throw new Error('setup failed');
 
-      // Single instance in range is trivially satisfied
+      // Single pair on one day — A at 09:00 before B at 10:00
       const satisfied = await checkConstraint(adapter, {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
-        dest: { type: 'seriesId', seriesId: seriesB },
+        dest: { type: 'seriesId', seriesId: resultB.value.id },
       }, parseDate('2024-01-15'));
 
-      // A comes before B in default setup
       expect(satisfied).toBe(true);
     });
 
