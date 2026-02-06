@@ -289,6 +289,21 @@ export function createMockAdapter(): Adapter {
     return structuredClone(obj)
   }
 
+  function addAliases<T>(obj: T): T {
+    if (typeof obj !== 'object' || obj === null) return obj
+    for (const key of Object.keys(obj)) {
+      const sk = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase())
+      if (sk !== key && !(sk in (obj as any))) {
+        ;(obj as any)[sk] = (obj as any)[key]
+      }
+    }
+    return obj
+  }
+
+  function ca<T>(obj: T): T {
+    return addAliases(clone(obj))
+  }
+
   function durationMinutes(start: string, end: string): number {
     const [sd, st] = start.split('T')
     const [ed, et] = end.split('T')
@@ -488,11 +503,11 @@ export function createMockAdapter(): Adapter {
 
     async getPattern(id: string) {
       const p = state.patterns.get(id)
-      return p ? clone(p) : null
+      return p ? ca(p) : null
     },
 
     async getPatternsBySeries(seriesId: string) {
-      return [...state.patterns.values()].filter((p) => p.seriesId === seriesId).map(clone)
+      return [...state.patterns.values()].filter((p) => p.seriesId === seriesId).map(ca)
     },
 
     async deletePattern(id: string) {
@@ -540,11 +555,11 @@ export function createMockAdapter(): Adapter {
 
     async getCondition(id: string) {
       const c = state.conditions.get(id)
-      return c ? clone(c) : null
+      return c ? ca(c) : null
     },
 
     async getConditionsBySeries(seriesId: string) {
-      return [...state.conditions.values()].filter((c) => c.seriesId === seriesId).map(clone)
+      return [...state.conditions.values()].filter((c) => c.seriesId === seriesId).map(ca)
     },
 
     async updateCondition(id: string, changes: Partial<Condition>) {
@@ -614,7 +629,7 @@ export function createMockAdapter(): Adapter {
     async getCyclingItems(seriesId: string) {
       const items = state.cyclingItems.get(seriesId)
       if (!items) return []
-      return clone(items).sort((a, b) => a.position - b.position)
+      return clone(items).sort((a, b) => a.position - b.position).map(addAliases)
     },
 
     // ================================================================
@@ -638,14 +653,14 @@ export function createMockAdapter(): Adapter {
     async getInstanceException(seriesId: string, originalDate: LocalDate) {
       for (const e of state.exceptions.values()) {
         if (e.seriesId === seriesId && e.originalDate === originalDate) {
-          return clone(e)
+          return ca(e)
         }
       }
       return null
     },
 
     async getExceptionsBySeries(seriesId: string) {
-      return [...state.exceptions.values()].filter((e) => e.seriesId === seriesId).map(clone)
+      return [...state.exceptions.values()].filter((e) => e.seriesId === seriesId).map(ca)
     },
 
     async getExceptionsInRange(seriesId: string, start: LocalDate, end: LocalDate) {
@@ -656,7 +671,7 @@ export function createMockAdapter(): Adapter {
             (e.originalDate as string) >= (start as string) &&
             (e.originalDate as string) <= (end as string)
         )
-        .map(clone)
+        .map(ca)
     },
 
     async deleteInstanceException(id: string) {
@@ -686,17 +701,17 @@ export function createMockAdapter(): Adapter {
 
     async getCompletion(id: string) {
       const c = state.completions.get(id)
-      return c ? clone(c) : null
+      return c ? ca(c) : null
     },
 
     async getCompletionsBySeries(seriesId: string) {
-      return [...state.completions.values()].filter((c) => c.seriesId === seriesId).map(clone)
+      return [...state.completions.values()].filter((c) => c.seriesId === seriesId).map(ca)
     },
 
     async getCompletionByInstance(seriesId: string, instanceDate: LocalDate) {
       for (const c of state.completions.values()) {
         if (c.seriesId === seriesId && c.instanceDate === instanceDate) {
-          return clone(c)
+          return ca(c)
         }
       }
       return null
@@ -842,15 +857,15 @@ export function createMockAdapter(): Adapter {
 
     async getReminder(id: string) {
       const r = state.reminders.get(id)
-      return r ? clone(r) : null
+      return r ? ca(r) : null
     },
 
     async getRemindersBySeries(seriesId: string) {
-      return [...state.reminders.values()].filter((r) => r.seriesId === seriesId).map(clone)
+      return [...state.reminders.values()].filter((r) => r.seriesId === seriesId).map(ca)
     },
 
     async getAllReminders() {
-      return [...state.reminders.values()].map(clone)
+      return [...state.reminders.values()].map(ca)
     },
 
     async updateReminder(id: string, changes: Partial<Reminder>) {
@@ -886,7 +901,7 @@ export function createMockAdapter(): Adapter {
             (a.instanceDate as string) >= (start as string) &&
             (a.instanceDate as string) <= (end as string)
         )
-        .map(clone)
+        .map(ca)
     },
 
     async purgeOldReminderAcks(olderThan: LocalDate) {
@@ -909,11 +924,11 @@ export function createMockAdapter(): Adapter {
 
     async getRelationalConstraint(id: string) {
       const c = state.constraints.get(id)
-      return c ? clone(c) : null
+      return c ? ca(c) : null
     },
 
     async getAllRelationalConstraints() {
-      return [...state.constraints.values()].map(clone)
+      return [...state.constraints.values()].map(ca)
     },
 
     async deleteRelationalConstraint(id: string) {
@@ -959,12 +974,12 @@ export function createMockAdapter(): Adapter {
 
     async getLink(id: string) {
       const l = state.links.get(id)
-      return l ? clone(l) : null
+      return l ? ca(l) : null
     },
 
     async getLinkByChild(childSeriesId: string) {
       for (const l of state.links.values()) {
-        if (l.childSeriesId === childSeriesId) return clone(l)
+        if (l.childSeriesId === childSeriesId) return ca(l)
       }
       return null
     },
@@ -972,7 +987,7 @@ export function createMockAdapter(): Adapter {
     async getLinksByParent(parentSeriesId: string) {
       return [...state.links.values()]
         .filter((l) => l.parentSeriesId === parentSeriesId)
-        .map(clone)
+        .map(ca)
     },
 
     async updateLink(id: string, changes: Partial<Link>) {
