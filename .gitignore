@@ -35,3 +35,7 @@ npm-debug.log*
 # Cache
 .cache/
 .turbo/
+
+# Mutation testing
+.stryker-tmp/
+reports/
