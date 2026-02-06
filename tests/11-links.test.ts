@@ -20,6 +20,7 @@ import {
   getChainDepth,
   calculateChildTarget,
   getChildValidWindow,
+  detectConflicts,
 } from '../src/links';
 import {
   createSeries,

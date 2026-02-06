@@ -250,6 +250,7 @@ export interface Adapter {
   getLink(id: string): Promise<Link | null>
   getLinkByChild(childSeriesId: string): Promise<Link | null>
   getLinksByParent(parentSeriesId: string): Promise<Link[]>
+  getAllLinks(): Promise<Link[]>
   updateLink(id: string, changes: Partial<Link>): Promise<void>
   deleteLink(id: string): Promise<void>
 }
@@ -1010,6 +1011,10 @@ export function createMockAdapter(): Adapter {
       return [...state.links.values()]
         .filter((l) => l.parentSeriesId === parentSeriesId)
         .map(ca)
+    },
+
+    async getAllLinks() {
+      return [...state.links.values()].map(ca)
     },
 
     async updateLink(id: string, changes: Partial<Link>) {
