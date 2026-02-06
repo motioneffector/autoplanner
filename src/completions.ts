@@ -22,6 +22,7 @@ export type DomainCompletion = {
   id: string
   seriesId: string
   date: LocalDate
+  instanceDate: LocalDate
   startTime: LocalDateTime
   endTime: LocalDateTime
   durationMinutes: number
@@ -71,6 +72,7 @@ function enrichCompletion(row: AdapterCompletion): DomainCompletion {
     id: row.id,
     seriesId: row.seriesId,
     date: row.date ?? row.instanceDate,
+    instanceDate: row.instanceDate,
     startTime: row.startTime,
     endTime: row.endTime,
     durationMinutes: row.durationMinutes ?? minutesBetween(row.startTime, row.endTime),

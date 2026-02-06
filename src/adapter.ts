@@ -920,6 +920,20 @@ export function createMockAdapter(): Adapter {
       }
     },
 
+    async getAcknowledgedRemindersInRange(start: LocalDate, end: LocalDate) {
+      return [...state.acks.values()]
+        .filter(
+          (a) =>
+            (a.instanceDate as string) >= (start as string) &&
+            (a.instanceDate as string) <= (end as string)
+        )
+        .map((a) => ({
+          reminder_id: a.reminderId,
+          instance_date: a.instanceDate,
+          acknowledged_at: a.acknowledgedAt,
+        }))
+    },
+
     // ================================================================
     // Relational Constraint
     // ================================================================
