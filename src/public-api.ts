@@ -341,12 +341,36 @@ function toExpandablePattern(p: any, seriesStart: LocalDate): Pattern {
         return { type: 'weekdays', days: [numToWeekday(p.dayOfWeek)] }
       }
       return { type: 'weekly' }
+    case 'everyNWeeks': {
+      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
+      return { type: 'everyNWeeks', n: p.n || 2, weekday }
+    }
+    case 'weekdays': {
+      // Accept both string weekdays ('mon') and numeric (1 = Mon)
+      const days = (p.days || []).map((d: any) => typeof d === 'number' ? numToWeekday(d) : d)
+      return { type: 'weekdays', days }
+    }
+    case 'nthWeekdayOfMonth': {
+      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
+      return { type: 'nthWeekdayOfMonth', n: p.n, weekday }
+    }
+    case 'lastWeekdayOfMonth': {
+      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
+      return { type: 'lastWeekdayOfMonth', weekday }
+    }
+    case 'nthToLastWeekdayOfMonth': {
+      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
+      return { type: 'nthToLastWeekdayOfMonth', n: p.n, weekday }
+    }
+    case 'lastDayOfMonth':
+      return { type: 'lastDayOfMonth' }
     case 'monthly':
       return { type: 'monthly', day: p.day || p.dayOfMonth || dayOf(seriesStart) }
     case 'yearly':
       return { type: 'yearly', month: p.month || monthOf(seriesStart), day: p.day || p.dayOfMonth || dayOf(seriesStart) }
     default:
-      return { type: 'daily' }
+      // Pass through as-is for union/except or unknown types
+      return p as Pattern
   }
 }
 
