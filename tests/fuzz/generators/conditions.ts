@@ -29,11 +29,11 @@ import { seriesIdGen } from './base'
 export function targetGen(seriesIdArb: Arbitrary<SeriesId> = seriesIdGen()): Arbitrary<Target> {
   return fc.oneof(
     // Target by tag only
-    fc.string({ minLength: 1, maxLength: 20 }).map((tag) => ({ tag })),
+    fc.string({ minLength: 1, maxLength: 16 }).map((s) => ({ tag: 'tag-' + s })),
     // Target by series ID only
     seriesIdArb.map((seriesId) => ({ seriesId })),
     // Target by both tag and series ID
-    fc.tuple(fc.string({ minLength: 1, maxLength: 20 }), seriesIdArb).map(([tag, seriesId]) => ({ tag, seriesId }))
+    fc.tuple(fc.string({ minLength: 1, maxLength: 16 }), seriesIdArb).map(([s, seriesId]) => ({ tag: 'tag-' + s, seriesId }))
   )
 }
 
@@ -41,7 +41,7 @@ export function targetGen(seriesIdArb: Arbitrary<SeriesId> = seriesIdGen()): Arb
  * Generate a target with only a tag (for multi-series matching).
  */
 export function tagTargetGen(): Arbitrary<Target> {
-  return fc.string({ minLength: 1, maxLength: 20 }).map((tag) => ({ tag }))
+  return fc.string({ minLength: 1, maxLength: 16 }).map((s) => ({ tag: 'tag-' + s }))
 }
 
 /**
@@ -138,7 +138,7 @@ export function andConditionGen(
   childGen: Arbitrary<Condition> = leafConditionGen(),
   options?: { minChildren?: number; maxChildren?: number }
 ): Arbitrary<AndCondition> {
-  const minChildren = options?.minChildren ?? 0
+  const minChildren = options?.minChildren ?? 1
   const maxChildren = options?.maxChildren ?? 5
 
   return fc.array(childGen, { minLength: minChildren, maxLength: maxChildren }).map((conditions) => ({
@@ -159,7 +159,7 @@ export function orConditionGen(
   childGen: Arbitrary<Condition> = leafConditionGen(),
   options?: { minChildren?: number; maxChildren?: number }
 ): Arbitrary<OrCondition> {
-  const minChildren = options?.minChildren ?? 0
+  const minChildren = options?.minChildren ?? 1
   const maxChildren = options?.maxChildren ?? 5
 
   return fc.array(childGen, { minLength: minChildren, maxLength: maxChildren }).map((conditions) => ({

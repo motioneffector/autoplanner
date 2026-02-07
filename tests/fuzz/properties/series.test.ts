@@ -177,8 +177,8 @@ describe('Spec 3: Series - CRUD Operations', () => {
 
         const retrieved = manager.getSeries(id)
         expect(retrieved?.id).toBe(id)
-        expect(retrieved?.name).toBe(series.name)
-        expect(retrieved?.estimatedDuration).toBe(series.estimatedDuration)
+        expect(retrieved?.title).toBe(series.title)
+        expect(retrieved?.duration).toBe(series.duration)
       })
     )
   })
@@ -215,13 +215,13 @@ describe('Spec 3: Series - CRUD Operations', () => {
       fc.property(minimalSeriesGen(), fc.string({ minLength: 1, maxLength: 50 }), (series, newName) => {
         const manager = new SeriesManager()
         const id = manager.createSeries(series)
-        const originalDuration = series.estimatedDuration
+        const originalDuration = series.duration
 
-        manager.updateSeries(id, { name: newName })
+        manager.updateSeries(id, { title: newName })
 
         const updated = manager.getSeries(id)
-        expect(updated?.name).toBe(newName)
-        expect(updated?.estimatedDuration).toBe(originalDuration) // Unchanged
+        expect(updated?.title).toBe(newName)
+        expect(updated?.duration).toBe(originalDuration) // Unchanged
       })
     )
   })
@@ -232,13 +232,13 @@ describe('Spec 3: Series - CRUD Operations', () => {
         const manager = new SeriesManager()
         const id = manager.createSeries(series)
 
-        // Update only the name
-        manager.updateSeries(id, { name: 'Updated Name' })
+        // Update only the title
+        manager.updateSeries(id, { title: 'Updated Name' })
 
         const updated = manager.getSeries(id)
-        expect(updated?.estimatedDuration).toBe(series.estimatedDuration)
-        expect(updated?.isFixed).toBe(series.isFixed)
-        expect(updated?.isAllDay).toBe(series.isAllDay)
+        expect(updated?.duration).toBe(series.duration)
+        expect(updated?.fixed).toBe(series.fixed)
+        expect(updated?.timeOfDay).toBe(series.timeOfDay)
       })
     )
   })
@@ -321,7 +321,7 @@ describe('Spec 3: Series - Locking', () => {
 
         manager.lockSeries(id)
 
-        expect(() => manager.updateSeries(id, { name: 'New Name' })).toThrow('Cannot update locked series')
+        expect(() => manager.updateSeries(id, { title: 'New Name' })).toThrow('Cannot update locked series')
       })
     )
   })
@@ -379,9 +379,9 @@ describe('Spec 3: Series - Locking', () => {
         manager.unlockSeries(id)
 
         // Should not throw
-        const updated = manager.updateSeries(id, { name: 'Updated Name' })
+        const updated = manager.updateSeries(id, { title: 'Updated Name' })
         expect(updated).toBe(true)
-        expect(manager.getSeries(id)?.name).toBe('Updated Name')
+        expect(manager.getSeries(id)?.title).toBe('Updated Name')
       })
     )
   })
@@ -402,10 +402,10 @@ describe('Spec 3: Series - Splitting', () => {
 
         expect(newId).not.toBe(originalId)
         const newSeries = manager.getSeries(newId!)
-        // Verify the new series has correct id and inherited name
+        // Verify the new series has correct id and inherited title
         expect(newSeries).toEqual(expect.objectContaining({
           id: newId,
-          name: series.name
+          title: series.title
         }))
       })
     )
@@ -476,7 +476,7 @@ describe('Spec 3: Series - Splitting', () => {
         expect(newId).not.toBe(originalId)
         const newSeries = manager.getSeries(newId!)
         expect(newSeries?.id).toBe(newId)
-        expect(newSeries?.name).toBe(series.name)
+        expect(newSeries?.title).toBe(series.title)
       })
     )
   })
@@ -494,10 +494,10 @@ describe('Spec 3: Series - Splitting', () => {
         const newSeries = manager.getSeries(newId!)
 
         // Both series should have the same core properties (except bounds)
-        expect(newSeries?.name).toBe(original?.name)
-        expect(newSeries?.estimatedDuration).toBe(original?.estimatedDuration)
-        expect(newSeries?.isFixed).toBe(original?.isFixed)
-        expect(newSeries?.isAllDay).toBe(original?.isAllDay)
+        expect(newSeries?.title).toBe(original?.title)
+        expect(newSeries?.duration).toBe(original?.duration)
+        expect(newSeries?.fixed).toBe(original?.fixed)
+        expect(newSeries?.timeOfDay).toBe(original?.timeOfDay)
       })
     )
   })
@@ -1321,7 +1321,7 @@ describe('Spec 3: Series - RESTRICT Deletion', () => {
           // Series should still exist with its original properties
           const seriesAfter = manager.getSeries(id)
           expect(seriesAfter?.id).toBe(id)
-          expect(seriesAfter?.name).toBe(series.name)
+          expect(seriesAfter?.title).toBe(series.title)
         }
       )
     )
@@ -1347,12 +1347,12 @@ describe('Spec 3: Series - RESTRICT Deletion', () => {
           // Parent should still exist with its original properties
           const parentAfter = manager.getSeries(parentId)
           expect(parentAfter?.id).toBe(parentId)
-          expect(parentAfter?.name).toBe(parentSeries.name)
+          expect(parentAfter?.title).toBe(parentSeries.title)
 
           // Child should also still exist with its original properties
           const childAfter = manager.getSeries(childId)
           expect(childAfter?.id).toBe(childId)
-          expect(childAfter?.name).toBe(childSeries.name)
+          expect(childAfter?.title).toBe(childSeries.title)
         }
       )
     )

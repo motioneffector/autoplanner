@@ -23,8 +23,21 @@ import type {
   SeriesId,
 } from '../lib/types'
 import { localDateGen, localTimeGen, durationGen, seriesIdGen, patternIdGen, conditionIdGen } from './base'
-import { patternGen, simplePatternGen } from './patterns'
+import { patternGen, simplePatternGen, dailyPatternGen, weeklyPatternGen, monthlyPatternGen, customPatternGen } from './patterns'
 import { conditionGen, simpleConditionGen } from './conditions'
+
+/**
+ * Generate a pattern restricted to the core series types: daily, weekly, monthly, custom.
+ * Used as the default for series generators to keep generated series within expected bounds.
+ */
+function corePatternGen(): Arbitrary<Pattern> {
+  return fc.oneof(
+    dailyPatternGen(),
+    weeklyPatternGen(),
+    monthlyPatternGen(),
+    customPatternGen()
+  )
+}
 
 // ============================================================================
 // Series Component Generators
@@ -218,7 +231,7 @@ export function seriesPatternEntryGen(options?: {
   conditionIdGen?: Arbitrary<ConditionId>
   hasCondition?: boolean
 }): Arbitrary<{ id: PatternId; pattern: Pattern; conditionId?: ConditionId }> {
-  const pattern = options?.patternGen ?? simplePatternGen()
+  const pattern = options?.patternGen ?? corePatternGen()
   const condId = options?.conditionIdGen ?? conditionIdGen()
 
   if (options?.hasCondition === true) {
