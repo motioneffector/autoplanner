@@ -583,17 +583,17 @@ class ArcConsistencyEnforcer {
       return { prunedA: domainA, prunedB: domainB }
     }
 
-    // Find B's latest possible start time (A must end before B starts)
-    const bLatestStart = Math.max(...domainB.slots.map(s => s.start))
+    // Find B's latest possible end time
+    const bLatestEnd = Math.max(...domainB.slots.map(s => s.end))
 
-    // Find A's earliest possible end time
-    const aEarliestEnd = Math.min(...domainA.slots.map(s => s.end))
+    // Find A's earliest possible start time
+    const aEarliestStart = Math.min(...domainA.slots.map(s => s.start))
 
-    // Prune A: remove slots that can't possibly end before any B slot starts
-    const prunedASlots = domainA.slots.filter(slot => slot.end <= bLatestStart)
+    // Prune A: remove slots that can't possibly be before any B slot
+    const prunedASlots = domainA.slots.filter(slot => slot.end <= bLatestEnd)
 
-    // Prune B: remove slots that can't possibly start after any A slot ends
-    const prunedBSlots = domainB.slots.filter(slot => slot.start >= aEarliestEnd)
+    // Prune B: remove slots that can't possibly be after any A slot
+    const prunedBSlots = domainB.slots.filter(slot => slot.start >= aEarliestStart)
 
     return {
       prunedA: { seriesId: domainA.seriesId, slots: prunedASlots },

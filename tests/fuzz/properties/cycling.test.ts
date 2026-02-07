@@ -72,10 +72,6 @@ class CyclingManager {
     })
   }
 
-  isConfigured(seriesId: SeriesId): boolean {
-    return this.states.has(seriesId)
-  }
-
   copyState(fromSeriesId: SeriesId, toSeriesId: SeriesId): void {
     const fromState = this.states.get(fromSeriesId)
     if (fromState) {

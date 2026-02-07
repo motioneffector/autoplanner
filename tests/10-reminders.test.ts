@@ -32,7 +32,6 @@ import {
 } from '../src/instance-exceptions';
 import {
   logCompletion,
-  getCompletionByInstance,
 } from '../src/completions';
 import {
   createMockAdapter,

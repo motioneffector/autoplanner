@@ -231,19 +231,6 @@ export function inactiveOnDatesPatternGen(
 // ============================================================================
 
 /**
- * Generate a pattern suitable for use in series entries.
- * Only produces the 4 core types that series patterns use: daily, weekly, monthly, custom.
- */
-export function seriesPatternGen(): Arbitrary<Pattern> {
-  return fc.oneof(
-    dailyPatternGen(),
-    weeklyPatternGen(),
-    monthlyPatternGen(),
-    customPatternGen()
-  )
-}
-
-/**
  * Generate any simple pattern (non-recursive patterns).
  * Excludes activeOnDates and inactiveOnDates to avoid infinite recursion.
  */

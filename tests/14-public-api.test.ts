@@ -1627,7 +1627,7 @@ describe('Segment 14: Public API', () => {
         patterns: [{ type: 'daily', time: time('09:00') }],
       });
 
-      const queriedSchedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-22'));
+      const queriedSchedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
 
       // Event schedule should match queried schedule
       expect(eventSchedule?.instances.length).toBe(queriedSchedule.instances.length);

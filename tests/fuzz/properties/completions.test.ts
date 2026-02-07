@@ -88,10 +88,6 @@ class CompletionManager {
     }).length
   }
 
-  getAllCompletions(): Completion[] {
-    return Array.from(this.completions.values())
-  }
-
   isDuplicateCompletion(seriesId: SeriesId, date: LocalDate): boolean {
     const completions = this.getCompletionsForSeries(seriesId)
     return completions.some((c) => c.instanceDate === date)
