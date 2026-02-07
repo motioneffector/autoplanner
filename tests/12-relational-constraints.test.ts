@@ -778,7 +778,7 @@ describe('Segment 12: Relational Constraints', () => {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: datetime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:01:00'), // 31 min gap from A end — actually outside
           durationMinutes: 30,
         }) as SeriesId;
 
@@ -804,7 +804,7 @@ describe('Segment 12: Relational Constraints', () => {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: datetime('2024-01-01T10:00:00'), // 30 min from A end
+          time: datetime('2024-01-01T10:00:00'), // Exactly 30 min from A end
           durationMinutes: 30,
         }) as SeriesId;
 
@@ -1198,16 +1198,21 @@ describe('Segment 12: Relational Constraints', () => {
 
     it('B3: single instance source', async () => {
       const seriesA = await createTestSeries('A');
-      const seriesB = await createTestSeries('B');
+      const seriesB = await createSeries(adapter, {
+        title: 'B',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T10:00:00'), // B at 10:00, A at 09:00
+        durationMinutes: 60,
+      }) as SeriesId;
 
-      // Single instance in range is trivially satisfied
+      // Single instance in range — A(09:00) is before B(10:00)
       const satisfied = await checkConstraint(adapter, {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
       }, date('2024-01-15'));
 
-      // A comes before B in default setup
       expect(satisfied).toBe(true);
     });
 
