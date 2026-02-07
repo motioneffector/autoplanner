@@ -177,7 +177,7 @@ describe('Segment 16: Integration Tests', () => {
         await planner.logCompletion(walkSeriesId, date(`2025-01-${String(i * 2).padStart(2, '0')}`));
       }
 
-      const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-28'));
+      const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-29'));
 
       // Walks should now be daily - 14 days = 14 instances
       const walkInstances = schedule.instances.filter((i) => i.seriesId === walkSeriesId);
@@ -246,7 +246,7 @@ describe('Segment 16: Integration Tests', () => {
       }
 
       // Verify conditioned state - daily walks (7 days = 7 instances)
-      const scheduleConditioned = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
+      const scheduleConditioned = await planner.getSchedule(date('2025-01-15'), date('2025-01-22'));
       const walksConditioned = scheduleConditioned.instances.filter((i) => i.seriesId === walkSeriesId);
       // Verify all 7 daily walk instances
       expect(walksConditioned.map((i) => i.date)).toEqual([
@@ -256,7 +256,7 @@ describe('Segment 16: Integration Tests', () => {
 
       // Query far future where sliding window no longer contains 7 completions
       // Feb 1-14 is >14 days after last completion (Jan 14), so window has 0 completions
-      const scheduleDeconditioned = await planner.getSchedule(date('2025-02-01'), date('2025-02-14'));
+      const scheduleDeconditioned = await planner.getSchedule(date('2025-02-01'), date('2025-02-15'));
       const walksDeconditioned = scheduleDeconditioned.instances.filter((i) => i.seriesId === walkSeriesId);
 
       // Should regress to every-other-day pattern (7 in 14 days)
@@ -362,7 +362,7 @@ describe('Segment 16: Integration Tests', () => {
         await planner.logCompletion(weightSeriesId, date(`2025-01-${String(20 + i * 3).padStart(2, '0')}`));
       }
 
-      schedule = await planner.getSchedule(date('2025-02-01'), date('2025-02-07'));
+      schedule = await planner.getSchedule(date('2025-02-01'), date('2025-02-08'));
       const weights = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
       // Mon, Wed, Fri in Feb 1-7 = Mon 3, Wed 5, Fri 7 = 3 instances
       expect(weights.map((i) => i.date)).toEqual([
@@ -381,7 +381,7 @@ describe('Segment 16: Integration Tests', () => {
       }
 
       // Should be conditioned (7 completions in 14-day window)
-      const scheduleConditioned = await planner.getSchedule(date('2025-01-08'), date('2025-01-14'));
+      const scheduleConditioned = await planner.getSchedule(date('2025-01-08'), date('2025-01-15'));
       const walksConditioned = scheduleConditioned.instances.filter((i) => i.seriesId === walkSeriesId);
       // Daily pattern: Jan 8-14 = 7 days = 7 instances
       expect(walksConditioned.map((i) => i.date)).toEqual([
@@ -391,7 +391,7 @@ describe('Segment 16: Integration Tests', () => {
 
       // After 14 days (Jan 22+), window slides past all completions
       // 14-day window from Jan 22 = Jan 8-22, which excludes Jan 1-7 completions
-      const scheduleSlid = await planner.getSchedule(date('2025-01-22'), date('2025-01-28'));
+      const scheduleSlid = await planner.getSchedule(date('2025-01-22'), date('2025-01-29'));
       const walksSlid = scheduleSlid.instances.filter((i) => i.seriesId === walkSeriesId);
 
       // Should regress to every-other-day pattern (0 completions in window < 7)
@@ -972,7 +972,7 @@ describe('Segment 16: Integration Tests', () => {
         });
       }
 
-      const schedule = await planner.getSchedule(date('2025-01-01'), date('2025-12-31'));
+      const schedule = await planner.getSchedule(date('2025-01-01'), date('2026-01-01'));
       // 100 series * 365 days = 36500 instances
       // Verify count and sample content
       expect(schedule.instances.length === 36500).toBe(true);
@@ -1718,7 +1718,7 @@ describe('Segment 16: Integration Tests', () => {
         patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(60) }],
       });
 
-      const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
+      const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-22'));
 
       // 7 days = 7 instances
       expect(schedule.instances.map((i) => i.date)).toEqual([

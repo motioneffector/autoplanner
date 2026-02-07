@@ -94,7 +94,7 @@ describe('Invariants - DateTime Validation', () => {
       fc.property(localDateTimeGen(), (dateTime) => {
         const result = dateTimeIsValid(dateTime)
         expect(result.passed).toBe(true)
-        expect(dateTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+        expect(dateTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)
       })
     )
   })

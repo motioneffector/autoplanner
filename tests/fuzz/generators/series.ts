@@ -23,7 +23,7 @@ import type {
   SeriesId,
 } from '../lib/types'
 import { localDateGen, localTimeGen, durationGen, seriesIdGen, patternIdGen, conditionIdGen } from './base'
-import { patternGen, simplePatternGen } from './patterns'
+import { patternGen, simplePatternGen, seriesPatternGen } from './patterns'
 import { conditionGen, simpleConditionGen } from './conditions'
 
 // ============================================================================
@@ -218,7 +218,7 @@ export function seriesPatternEntryGen(options?: {
   conditionIdGen?: Arbitrary<ConditionId>
   hasCondition?: boolean
 }): Arbitrary<{ id: PatternId; pattern: Pattern; conditionId?: ConditionId }> {
-  const pattern = options?.patternGen ?? simplePatternGen()
+  const pattern = options?.patternGen ?? seriesPatternGen()
   const condId = options?.conditionIdGen ?? conditionIdGen()
 
   if (options?.hasCondition === true) {
@@ -264,10 +264,12 @@ export function minimalSeriesGen(options?: {
     .map(([id, title, patternEntry, duration, bounds]) => ({
       id,
       title,
+      name: title,
       tags: [],
       patterns: [patternEntry],
       timeOfDay: undefined, // All-day
       duration,
+      estimatedDuration: duration,
       fixed: false,
       wiggle: undefined,
       reminders: [],
@@ -311,10 +313,12 @@ export function fullSeriesGen(options?: {
     .map(([id, title, tags, patterns, timeOfDay, duration, fixed, wiggle, reminders, cycling, locked, bounds]) => ({
       id,
       title,
+      name: title,
       tags: [...new Set(tags)], // Unique tags
       patterns,
       timeOfDay,
       duration,
+      estimatedDuration: duration,
       fixed,
       wiggle: fixed ? undefined : wiggle, // Fixed items don't have wiggle
       reminders,
@@ -355,10 +359,12 @@ export function seriesWithConditionsGen(options?: {
         series: {
           id,
           title,
+          name: title,
           tags: [],
           patterns,
           timeOfDay: undefined,
           duration,
+          estimatedDuration: duration,
           fixed: false,
           wiggle: undefined,
           reminders: [],
@@ -385,10 +391,12 @@ export function chainableSeriesGen(options?: {
     .map(([id, title, duration, timeOfDay, bounds]) => ({
       id,
       title,
+      name: title,
       tags: ['chainable'],
       patterns: [{ id: `pattern-${id}` as PatternId, pattern: { type: 'daily' as const } }],
       timeOfDay, // Chains require timed events
       duration,
+      estimatedDuration: duration,
       fixed: false, // Chains typically use flexible items
       wiggle: { daysBefore: 0, daysAfter: 0 }, // Same day only
       reminders: [],
@@ -502,10 +510,12 @@ export function realisticSeriesGen(): Arbitrary<Series> {
         .map(([id, title, timeOfDay, duration, bounds]) => ({
           id,
           title,
+          name: title,
           tags: [],
           patterns: [{ id: `pattern-${id}` as PatternId, pattern: { type: 'weekly' as const, days: ['mon', 'wed', 'fri'] as const } }],
           timeOfDay,
           duration,
+          estimatedDuration: duration,
           fixed: false,
           wiggle: { daysBefore: 1, daysAfter: 1 },
           reminders: [{ minutesBefore: 15, tag: 'default' }],

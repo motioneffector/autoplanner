@@ -293,6 +293,7 @@ export interface SeriesBounds {
 export interface Series {
   id: SeriesId
   title: string
+  name: string
   tags: string[]
   patterns: Array<{
     id: PatternId
@@ -301,6 +302,7 @@ export interface Series {
   }>
   timeOfDay?: LocalTime // undefined = all-day
   duration: Duration | AdaptiveDuration
+  estimatedDuration: Duration | AdaptiveDuration
   fixed: boolean
   wiggle?: WiggleConfig
   reminders: Reminder[]
