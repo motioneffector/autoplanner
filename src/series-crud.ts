@@ -303,14 +303,10 @@ function validateSeriesInput(input: SeriesInput): void {
 export async function createSeries(
   adapter: Adapter,
   rawInput: SeriesInput
-): Promise<CrudResult<{ id: string }>> {
+): Promise<string> {
   const input = normalizeInput(rawInput)
 
-  try {
-    validateSeriesInput(input)
-  } catch (e: any) {
-    return { ok: false, error: { type: e.name || 'ValidationError', message: e.message } }
-  }
+  validateSeriesInput(input)
 
   const id = crypto.randomUUID()
   const now = nowISO()
@@ -409,7 +405,7 @@ export async function createSeries(
     }
   }
 
-  return { ok: true, value: { id } }
+  return id
 }
 
 export async function getSeries(adapter: Adapter, id: string): Promise<Series | null> {
@@ -461,26 +457,25 @@ export async function updateSeries(
 export async function deleteSeries(
   adapter: Adapter,
   id: string
-): Promise<CrudResult<void>> {
+): Promise<void> {
   const existing = await adapter.getSeries(id)
   if (!existing) {
-    return { ok: false, error: { type: 'NotFoundError', message: `Series '${id}' not found` } }
+    throw new NotFoundError(`Series '${id}' not found`)
   }
 
   // Check for completions
   const completions = await adapter.getCompletionsBySeries(id)
   if (completions.length > 0) {
-    return { ok: false, error: { type: 'CompletionsExistError', message: `Cannot delete series '${id}': has completions` } }
+    throw new CompletionsExistError(`Cannot delete series '${id}': has completions`)
   }
 
   // Check for child links
   const childLinks = await adapter.getLinksByParent(id)
   if (childLinks.length > 0) {
-    return { ok: false, error: { type: 'LinkedChildrenExistError', message: `Cannot delete series '${id}': has linked children` } }
+    throw new LinkedChildrenExistError(`Cannot delete series '${id}': has linked children`)
   }
 
   await adapter.deleteSeries(id)
-  return { ok: true, value: undefined }
 }
 
 export async function lockSeries(adapter: Adapter, id: string): Promise<void> {
