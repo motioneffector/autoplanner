@@ -390,7 +390,11 @@ function getPatternDates(pattern: any, start: LocalDate, end: LocalDate, seriesS
 
     case 'everyNDays': {
       const n = pattern.n || 2
-      let d = effectiveStart
+      // Align to series anchor — only fire on days where (daysBetween(seriesStart, d) % n === 0)
+      const gap = daysBetween(seriesStart, effectiveStart)
+      const rem = ((gap % n) + n) % n
+      const offset = rem === 0 ? 0 : n - rem
+      let d = addDays(effectiveStart, offset)
       while ((d as string) <= (end as string)) {
         result.add(d)
         d = addDays(d, n)

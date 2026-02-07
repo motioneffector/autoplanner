@@ -262,8 +262,8 @@ describe('Segment 16: Integration Tests', () => {
       // Should regress to every-other-day pattern (7 in 14 days)
       // Verify they are still walks with correct dates and properties
       expect(walksDeconditioned.map((i) => i.date)).toEqual([
-        date('2025-02-01'), date('2025-02-03'), date('2025-02-05'), date('2025-02-07'),
-        date('2025-02-09'), date('2025-02-11'), date('2025-02-13'),
+        date('2025-02-02'), date('2025-02-04'), date('2025-02-06'), date('2025-02-08'),
+        date('2025-02-10'), date('2025-02-12'), date('2025-02-14'),
       ]);
       walksDeconditioned.forEach((instance) => {
         expect(instance.seriesId).toBe(walkSeriesId);
@@ -395,9 +395,9 @@ describe('Segment 16: Integration Tests', () => {
       const walksSlid = scheduleSlid.instances.filter((i) => i.seriesId === walkSeriesId);
 
       // Should regress to every-other-day pattern (0 completions in window < 7)
-      // Jan 22-28 = 7 days, every other day = ~4 instances (Jan 22, 24, 26, 28)
+      // Jan 22-28 anchor-aligned: 3 instances (Jan 23, 25, 27)
       expect(walksSlid.map((i) => i.date)).toEqual([
-        date('2025-01-22'), date('2025-01-24'), date('2025-01-26'), date('2025-01-28'),
+        date('2025-01-23'), date('2025-01-25'), date('2025-01-27'),
       ]);
       walksSlid.forEach((w) => {
         expect(w.seriesId).toBe(walkSeriesId);
