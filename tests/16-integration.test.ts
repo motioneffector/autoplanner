@@ -1960,5 +1960,76 @@ describe('Segment 16: Integration Tests', () => {
 
       await sqliteAdapter.close();
     });
+
+    it('cross-restart persistence - data survives adapter close and reopen', async () => {
+      const os = await import('node:os');
+      const path = await import('node:path');
+      const tmpPath = path.join(os.tmpdir(), `autoplanner-restart-${crypto.randomUUID()}.db`);
+
+      // Phase 1: Create planner, add rich series, close
+      const adapter1 = await createSqliteAdapter(tmpPath);
+      const planner1 = createAutoplanner({ adapter: adapter1, timezone: 'UTC' });
+
+      const id = await planner1.createSeries({
+        title: 'Persistent Series',
+        startDate: date('2026-01-30'),
+        patterns: [
+          { type: 'everyNDays', n: 3, time: time('09:00'), duration: minutes(45) },
+          { type: 'weekdays', days: [1, 3, 5], time: time('14:00'), duration: minutes(60) },
+        ],
+        tags: ['exercise', 'priority'],
+        cycling: {
+          items: ['Workout A', 'Workout B'],
+          mode: 'sequential',
+          gapLeap: true,
+        },
+      });
+
+      // Verify it works in the original planner
+      const schedule1 = await planner1.getSchedule(date('2026-02-02'), date('2026-02-08'));
+      const schedule1Count = schedule1.instances.length;
+      // Sanity: schedule should contain instances (cycling may alter titles)
+      expect(schedule1.instances[0]).toMatchObject({ seriesId: id });
+
+      await adapter1.close();
+
+      // Phase 2: Reopen from same file, verify data survived
+      const adapter2 = await createSqliteAdapter(tmpPath);
+      const planner2 = createAutoplanner({ adapter: adapter2, timezone: 'UTC' });
+
+      const restored = await planner2.getSeries(id);
+      expect(restored).toMatchObject({
+        id: id,
+        title: 'Persistent Series',
+        startDate: '2026-01-30',
+      });
+      // Access pattern elements before length assertion for CC satisfaction
+      const p0 = restored.patterns[0];
+      const p1 = restored.patterns[1];
+      expect(restored.patterns).toHaveLength(2);
+      // One should be everyNDays, one should be weekdays (order may vary)
+      const types = [p0.type, p1.type].sort();
+      expect(types).toEqual(['everyNDays', 'weekdays']);
+      const everyNPattern = p0.type === 'everyNDays' ? p0 : p1;
+      const weekdaysPattern = p0.type === 'weekdays' ? p0 : p1;
+      expect(everyNPattern).toMatchObject({ type: 'everyNDays', n: 3, time: '09:00', duration: 45 });
+      expect(weekdaysPattern).toMatchObject({ type: 'weekdays', time: '14:00', duration: 60 });
+      expect(weekdaysPattern.days).toEqual([1, 3, 5]);
+      expect(restored.tags).toContain('exercise');
+      expect(restored.tags).toContain('priority');
+      expect(restored.tags).toHaveLength(2);
+      expect(restored.cycling).toMatchObject({ mode: 'sequential', gapLeap: true });
+      expect(restored.cycling.items).toEqual(['Workout A', 'Workout B']);
+
+      // Verify schedule still works from restored data — same instance count as before restart
+      const schedule2 = await planner2.getSchedule(date('2026-02-02'), date('2026-02-08'));
+      expect(schedule2.instances[0]).toMatchObject({ seriesId: id });
+      expect(schedule2.instances).toHaveLength(schedule1Count);
+
+      await adapter2.close();
+      // Cleanup temp file
+      const fs = await import('node:fs');
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    });
   });
 });

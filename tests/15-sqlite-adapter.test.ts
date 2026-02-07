@@ -119,6 +119,8 @@ describe('Segment 15: SQLite Adapter', () => {
         expect(columns).toContain('id');
         expect(columns).toContain('title');
         expect(columns).toContain('locked');
+        expect(columns).toContain('start_date');
+        expect(columns).toContain('end_date');
         expect(columns).toContain('created_at');
         expect(columns).toContain('updated_at');
       });
@@ -130,6 +132,13 @@ describe('Segment 15: SQLite Adapter', () => {
         expect(columns).toContain('series_id');
         expect(columns).toContain('type');
         expect(columns).toContain('time');
+        expect(columns).toContain('n');
+        expect(columns).toContain('day');
+        expect(columns).toContain('month');
+        expect(columns).toContain('weekday');
+        expect(columns).toContain('allday');
+        expect(columns).toContain('duration');
+        expect(columns).toContain('fixed');
       });
 
       it('condition table exists - table with correct columns', async () => {
@@ -138,6 +147,11 @@ describe('Segment 15: SQLite Adapter', () => {
         expect(columns).toContain('id');
         expect(columns).toContain('series_id');
         expect(columns).toContain('type');
+        expect(columns).toContain('series_ref');
+        expect(columns).toContain('window_days');
+        expect(columns).toContain('comparison');
+        expect(columns).toContain('value');
+        expect(columns).toContain('days');
       });
 
       it('completion table exists - table with correct columns', async () => {
@@ -200,8 +214,21 @@ describe('Segment 15: SQLite Adapter', () => {
         const series = createTestSeries('test-1');
         await adapter.saveSeries(series);
 
-        // Try to insert duplicate series ID
-        await expect(adapter.saveSeries(series)).rejects.toThrow(DuplicateKeyError);
+        // saveSeries now upserts (for create+update support), so test UNIQUE on patterns instead
+        await adapter.savePattern({
+          id: patternId('p1'),
+          seriesId: seriesId('test-1'),
+          type: 'daily',
+          time: time('09:00'),
+        });
+        await expect(
+          adapter.savePattern({
+            id: patternId('p1'),
+            seriesId: seriesId('test-1'),
+            type: 'weekly',
+            time: time('10:00'),
+          }),
+        ).rejects.toThrow(DuplicateKeyError);
       });
     });
   });
@@ -1048,7 +1075,21 @@ describe('Segment 15: SQLite Adapter', () => {
       const series = createTestSeries('test-1');
       await adapter.saveSeries(series);
 
-      await expect(adapter.saveSeries(series)).rejects.toThrow(DuplicateKeyError);
+      // saveSeries upserts, so test UNIQUE on patterns
+      await adapter.savePattern({
+        id: patternId('dup-test'),
+        seriesId: seriesId('test-1'),
+        type: 'daily',
+        time: time('09:00'),
+      });
+      await expect(
+        adapter.savePattern({
+          id: patternId('dup-test'),
+          seriesId: seriesId('test-1'),
+          type: 'weekly',
+          time: time('10:00'),
+        }),
+      ).rejects.toThrow(DuplicateKeyError);
     });
 
     it('SQLITE_CONSTRAINT_FOREIGNKEY maps to ForeignKeyError', async () => {
@@ -1083,9 +1124,20 @@ describe('Segment 15: SQLite Adapter', () => {
       it('original error in cause - SQLite error in cause', async () => {
         const series = createTestSeries('test-1');
         await adapter.saveSeries(series);
+        await adapter.savePattern({
+          id: patternId('cause-test'),
+          seriesId: seriesId('test-1'),
+          type: 'daily',
+          time: time('09:00'),
+        });
 
         try {
-          await adapter.saveSeries(series);
+          await adapter.savePattern({
+            id: patternId('cause-test'),
+            seriesId: seriesId('test-1'),
+            type: 'weekly',
+            time: time('10:00'),
+          });
           expect.fail('Should have thrown');
         } catch (e: any) {
           // Verify error has a cause (SQLite constraint error)
@@ -1394,10 +1446,23 @@ describe('Segment 15: SQLite Adapter', () => {
     });
 
     it('INV 2: all constraints enforced - attempt violations', async () => {
-      // UNIQUE constraint
+      // UNIQUE constraint (tested via savePattern since saveSeries upserts)
       const series = createTestSeries('test-1');
       await adapter.saveSeries(series);
-      await expect(adapter.saveSeries(series)).rejects.toThrow(DuplicateKeyError);
+      await adapter.savePattern({
+        id: patternId('inv2-dup'),
+        seriesId: seriesId('test-1'),
+        type: 'daily',
+        time: time('09:00'),
+      });
+      await expect(
+        adapter.savePattern({
+          id: patternId('inv2-dup'),
+          seriesId: seriesId('test-1'),
+          type: 'weekly',
+          time: time('10:00'),
+        }),
+      ).rejects.toThrow(DuplicateKeyError);
 
       // FK constraint
       await expect(
@@ -1462,6 +1527,24 @@ describe('Segment 15: SQLite Adapter', () => {
       expect(patternsAfter).toEqual(patternsBefore);
     });
 
+    it('INV 5: saveSeries upserts on duplicate - update instead of error', async () => {
+      const series = createTestSeries('test-upsert');
+      await adapter.saveSeries(series);
+
+      // Calling saveSeries again with same id should update, not throw
+      await adapter.saveSeries({
+        ...series,
+        title: 'Updated Title',
+        updatedAt: datetime('2025-06-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('test-upsert'));
+      expect(retrieved?.title).toBe('Updated Title');
+      expect(retrieved?.updatedAt).toBe('2025-06-01T00:00:00');
+      // createdAt should be preserved from original
+      expect(retrieved?.createdAt).toBe('2025-01-01T00:00:00');
+    });
+
     it('INV 5: schema matches specification - compare to schema.md', async () => {
       // Verify key tables and columns exist per schema specification
       const tables = await adapter.listTables();
@@ -1471,12 +1554,461 @@ describe('Segment 15: SQLite Adapter', () => {
       expect(tables).toContain('pattern');
       expect(tables).toContain('condition');
       expect(tables).toContain('completion');
+      expect(tables).toContain('link');
+      expect(tables).toContain('cycling_config');
+      expect(tables).toContain('adaptive_duration');
 
-      // Series columns
+      // Series columns including date bounds
       const seriesColumns = await adapter.getTableColumns('series');
       expect(seriesColumns).toContain('id');
       expect(seriesColumns).toContain('title');
       expect(seriesColumns).toContain('locked');
+      expect(seriesColumns).toContain('start_date');
+      expect(seriesColumns).toContain('end_date');
+
+      // Pattern columns including type-specific fields
+      const patternColumns = await adapter.getTableColumns('pattern');
+      expect(patternColumns).toContain('n');
+      expect(patternColumns).toContain('day');
+      expect(patternColumns).toContain('duration');
+      expect(patternColumns).toContain('fixed');
+
+      // Link columns including wobble
+      const linkColumns = await adapter.getTableColumns('link');
+      expect(linkColumns).toContain('early_wobble');
+      expect(linkColumns).toContain('late_wobble');
+
+      // Cycling config with gap_leap
+      const cyclingColumns = await adapter.getTableColumns('cycling_config');
+      expect(cyclingColumns).toContain('gap_leap');
+
+      // Adaptive duration with fallback/multiplier
+      const adColumns = await adapter.getTableColumns('adaptive_duration');
+      expect(adColumns).toContain('fallback');
+      expect(adColumns).toContain('multiplier');
+    });
+  });
+
+  // ============================================================================
+  // 14. Full Object Round-Trip (saveSeries decomposition + getSeries reconstruction)
+  // ============================================================================
+
+  describe('Full Object Round-Trip', () => {
+    it('everyNDays pattern round-trips - n field preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-1'),
+        title: 'Every 3 Days',
+        locked: false,
+        startDate: '2026-01-30',
+        patterns: [{ type: 'everyNDays', n: 3, time: '09:00', duration: 30 }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-1'));
+      expect(retrieved).toMatchObject({
+        id: seriesId('rt-1'),
+        title: 'Every 3 Days',
+        locked: false,
+        startDate: '2026-01-30',
+        createdAt: '2025-01-01T00:00:00',
+        updatedAt: '2025-01-01T00:00:00',
+      });
+      expect(retrieved.patterns).toHaveLength(1);
+      expect(retrieved.patterns[0]).toMatchObject({
+        type: 'everyNDays',
+        n: 3,
+        time: '09:00',
+        duration: 30,
+      });
+    });
+
+    it('weekdays pattern round-trips - days array preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-2'),
+        title: 'Weekday Standup',
+        locked: false,
+        patterns: [{ type: 'weekdays', days: [1, 2, 3, 4, 5], time: '10:00', duration: 15, fixed: true }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-2'));
+      expect(retrieved.patterns).toHaveLength(1);
+      expect(retrieved.patterns[0]).toMatchObject({
+        type: 'weekdays',
+        time: '10:00',
+        duration: 15,
+        fixed: true,
+      });
+      expect(retrieved.patterns[0].days).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    it('monthly pattern round-trips - day field preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-3'),
+        title: 'Pay Rent',
+        locked: true,
+        patterns: [{ type: 'monthly', day: 1, time: '08:00', duration: 10, fixed: true }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-3'));
+      expect(retrieved).toMatchObject({
+        id: seriesId('rt-3'),
+        title: 'Pay Rent',
+        locked: true,
+      });
+      expect(retrieved.patterns[0]).toMatchObject({
+        type: 'monthly',
+        day: 1,
+        time: '08:00',
+        duration: 10,
+        fixed: true,
+      });
+    });
+
+    it('tags round-trip - array preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-4'),
+        title: 'Tagged Series',
+        locked: false,
+        tags: ['chore', 'hygiene', 'daily'],
+        patterns: [{ type: 'daily', time: '09:00' }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-4'));
+      expect(retrieved.tags).toHaveLength(3);
+      expect(retrieved.tags).toContain('chore');
+      expect(retrieved.tags).toContain('hygiene');
+      expect(retrieved.tags).toContain('daily');
+    });
+
+    it('cycling config round-trips - items and gapLeap preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-5'),
+        title: 'Turbovac Rooms',
+        locked: false,
+        patterns: [{ type: 'everyNDays', n: 7, time: '14:00' }],
+        cycling: {
+          items: ['Bedroom', 'Living Room', 'Office'],
+          mode: 'sequential',
+          currentIndex: 0,
+          gapLeap: false,
+        },
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-5'));
+      expect(retrieved.cycling).toMatchObject({
+        mode: 'sequential',
+        currentIndex: 0,
+        gapLeap: false,
+      });
+      expect(retrieved.cycling.items).toEqual(['Bedroom', 'Living Room', 'Office']);
+    });
+
+    it('adaptive duration round-trips - all fields preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-6'),
+        title: 'Adaptive Task',
+        locked: false,
+        patterns: [{ type: 'daily', time: '09:00' }],
+        adaptiveDuration: {
+          mode: 'average',
+          lastN: 5,
+          fallback: 30,
+          multiplier: 1.2,
+        },
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-6'));
+      expect(retrieved.adaptiveDuration).toMatchObject({
+        mode: 'average',
+        lastN: 5,
+        fallback: 30,
+        multiplier: 1.2,
+      });
+    });
+
+    it('condition round-trips - completionCount preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-7'),
+        title: 'Conditional Walk',
+        locked: false,
+        patterns: [{
+          type: 'everyNDays',
+          n: 2,
+          time: '07:00',
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: 'self',
+            windowDays: 14,
+            comparison: 'lessThan',
+            value: 7,
+          },
+        }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-7'));
+      expect(retrieved.patterns).toHaveLength(1);
+      expect(retrieved.patterns[0].condition).toMatchObject({
+        type: 'completionCount',
+        seriesRef: 'self',
+        windowDays: 14,
+        comparison: 'lessThan',
+        value: 7,
+      });
+    });
+
+    it('startDate and endDate round-trip - date bounds preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-8'),
+        title: 'Bounded Series',
+        locked: false,
+        startDate: '2026-01-30',
+        endDate: '2026-12-31',
+        patterns: [{ type: 'daily', time: '09:00' }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-8'));
+      expect(retrieved).toMatchObject({
+        startDate: '2026-01-30',
+        endDate: '2026-12-31',
+      });
+    });
+
+    it('full rich series round-trips - all features combined', async () => {
+      const fullSeries = {
+        id: seriesId('rt-full'),
+        title: 'Full Featured Series',
+        locked: false,
+        startDate: '2026-01-30',
+        endDate: '2026-06-30',
+        patterns: [
+          { type: 'everyNDays', n: 3, time: '09:00', duration: 45, fixed: false },
+          {
+            type: 'weekdays',
+            days: [1, 3, 5],
+            time: '14:00',
+            duration: 60,
+            condition: {
+              type: 'completionCount',
+              seriesRef: 'self',
+              windowDays: 7,
+              comparison: 'greaterOrEqual',
+              value: 3,
+            },
+          },
+        ],
+        tags: ['exercise', 'priority'],
+        cycling: {
+          items: ['Workout A', 'Workout B'],
+          mode: 'sequential',
+          currentIndex: 0,
+          gapLeap: true,
+        },
+        adaptiveDuration: {
+          mode: 'average',
+          lastN: 10,
+          fallback: 60,
+          multiplier: 1.1,
+        },
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      };
+
+      await adapter.saveSeries(fullSeries);
+      const retrieved = await adapter.getSeries(seriesId('rt-full'));
+
+      // Core fields
+      expect(retrieved).toMatchObject({
+        id: seriesId('rt-full'),
+        title: 'Full Featured Series',
+        locked: false,
+        startDate: '2026-01-30',
+        endDate: '2026-06-30',
+        createdAt: '2025-01-01T00:00:00',
+        updatedAt: '2025-01-01T00:00:00',
+      });
+
+      // Patterns
+      expect(retrieved.patterns).toHaveLength(2);
+      const everyN = retrieved.patterns.find((p: any) => p.type === 'everyNDays');
+      expect(everyN).toMatchObject({ type: 'everyNDays', n: 3, time: '09:00', duration: 45, fixed: false });
+      const weekdays = retrieved.patterns.find((p: any) => p.type === 'weekdays');
+      expect(weekdays).toMatchObject({ type: 'weekdays', time: '14:00', duration: 60 });
+      expect(weekdays.days).toEqual([1, 3, 5]);
+      expect(weekdays.condition).toMatchObject({
+        type: 'completionCount',
+        seriesRef: 'self',
+        windowDays: 7,
+        comparison: 'greaterOrEqual',
+        value: 3,
+      });
+
+      // Tags
+      expect(retrieved.tags).toHaveLength(2);
+      expect(retrieved.tags).toContain('exercise');
+      expect(retrieved.tags).toContain('priority');
+
+      // Cycling
+      expect(retrieved.cycling).toMatchObject({
+        mode: 'sequential',
+        currentIndex: 0,
+        gapLeap: true,
+      });
+      expect(retrieved.cycling.items).toEqual(['Workout A', 'Workout B']);
+
+      // Adaptive duration
+      expect(retrieved.adaptiveDuration).toMatchObject({
+        mode: 'average',
+        lastN: 10,
+        fallback: 60,
+        multiplier: 1.1,
+      });
+    });
+
+    it('saveSeries upsert preserves decomposed data - update replaces children', async () => {
+      // Create initial series with one pattern
+      await adapter.saveSeries({
+        id: seriesId('rt-upsert'),
+        title: 'Original',
+        locked: false,
+        patterns: [{ type: 'daily', time: '09:00', duration: 30 }],
+        tags: ['old-tag'],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      // Upsert with different patterns and tags
+      await adapter.saveSeries({
+        id: seriesId('rt-upsert'),
+        title: 'Updated',
+        locked: false,
+        patterns: [
+          { type: 'everyNDays', n: 3, time: '10:00', duration: 45 },
+          { type: 'weekly', time: '14:00' },
+        ],
+        tags: ['new-tag-1', 'new-tag-2'],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-06-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-upsert'));
+      expect(retrieved.title).toBe('Updated');
+      expect(retrieved.patterns).toHaveLength(2);
+      expect(retrieved.patterns.find((p: any) => p.type === 'everyNDays')).toMatchObject({ n: 3, time: '10:00', duration: 45 });
+      expect(retrieved.patterns.find((p: any) => p.type === 'weekly')).toMatchObject({ type: 'weekly', time: '14:00' });
+      expect(retrieved.tags).toEqual(expect.arrayContaining(['new-tag-1', 'new-tag-2']));
+      expect(retrieved.tags).toHaveLength(2);
+      // Old tag should be gone
+      expect(retrieved.tags).not.toContain('old-tag');
+    });
+
+    it('getAllSeries reconstructs full objects - not just id/title', async () => {
+      await adapter.saveSeries({
+        id: seriesId('all-1'),
+        title: 'Series One',
+        locked: false,
+        startDate: '2026-01-30',
+        patterns: [{ type: 'daily', time: '09:00', duration: 30 }],
+        tags: ['daily'],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+      await adapter.saveSeries({
+        id: seriesId('all-2'),
+        title: 'Series Two',
+        locked: true,
+        patterns: [{ type: 'everyNDays', n: 7, time: '14:00' }],
+        cycling: { items: ['A', 'B'], mode: 'sequential', currentIndex: 0 },
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const all = await adapter.getAllSeries();
+      expect(all).toHaveLength(2);
+
+      const s1 = all.find((s: any) => s.id === seriesId('all-1'));
+      expect(s1.patterns).toHaveLength(1);
+      expect(s1.patterns[0]).toMatchObject({ type: 'daily', time: '09:00', duration: 30 });
+      expect(s1.tags).toEqual(['daily']);
+      expect(s1.startDate).toBe('2026-01-30');
+
+      const s2 = all.find((s: any) => s.id === seriesId('all-2'));
+      expect(s2.patterns).toHaveLength(1);
+      expect(s2.patterns[0]).toMatchObject({ type: 'everyNDays', n: 7, time: '14:00' });
+      expect(s2.cycling).toMatchObject({ mode: 'sequential', currentIndex: 0 });
+      expect(s2.cycling.items).toEqual(['A', 'B']);
+    });
+
+    it('yearly pattern round-trips - month and day fields preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('rt-yearly'),
+        title: 'Birthday',
+        locked: false,
+        patterns: [{ type: 'yearly', month: 3, day: 15, time: '00:00', allDay: true }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      const retrieved = await adapter.getSeries(seriesId('rt-yearly'));
+      expect(retrieved.patterns[0]).toMatchObject({
+        type: 'yearly',
+        month: 3,
+        day: 15,
+        allDay: true,
+      });
+    });
+
+    it('link wobble fields round-trip - earlyWobble and lateWobble preserved', async () => {
+      await adapter.saveSeries({
+        id: seriesId('link-parent'),
+        title: 'Parent',
+        locked: false,
+        patterns: [{ type: 'weekly', time: '10:00' }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+      await adapter.saveSeries({
+        id: seriesId('link-child'),
+        title: 'Child',
+        locked: false,
+        patterns: [{ type: 'weekly', time: '11:00' }],
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+
+      await adapter.saveLink({
+        id: linkId('wobble-link'),
+        parentId: seriesId('link-parent'),
+        childId: seriesId('link-child'),
+        distance: 60,
+        earlyWobble: 5,
+        lateWobble: 120,
+      });
+
+      const link = await adapter.getLink(linkId('wobble-link'));
+      expect(link).toMatchObject({
+        id: linkId('wobble-link'),
+        parentId: seriesId('link-parent'),
+        childId: seriesId('link-child'),
+        distance: 60,
+        earlyWobble: 5,
+        lateWobble: 120,
+      });
     });
   });
 });

@@ -117,6 +117,8 @@ const SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     locked INTEGER NOT NULL DEFAULT 0,
+    start_date TEXT,
+    end_date TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -125,7 +127,12 @@ const SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
     type TEXT NOT NULL,
-    parent_id TEXT REFERENCES condition(id) ON DELETE CASCADE
+    parent_id TEXT REFERENCES condition(id) ON DELETE CASCADE,
+    series_ref TEXT,
+    window_days INTEGER,
+    comparison TEXT,
+    value REAL,
+    days TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_condition_series ON condition(series_id);
   CREATE INDEX IF NOT EXISTS idx_condition_parent ON condition(parent_id);
@@ -136,6 +143,13 @@ const SCHEMA_SQL = `
     type TEXT NOT NULL,
     time TEXT,
     condition_id TEXT REFERENCES condition(id) ON DELETE SET NULL,
+    n INTEGER,
+    day INTEGER,
+    month INTEGER,
+    weekday INTEGER,
+    allday INTEGER,
+    duration INTEGER,
+    fixed INTEGER,
     CHECK (type IN (
       'daily','everyNDays','weekly','everyNWeeks',
       'monthly','lastDayOfMonth','yearly',
@@ -184,7 +198,9 @@ const SCHEMA_SQL = `
     id TEXT PRIMARY KEY,
     parent_id TEXT NOT NULL REFERENCES series(id) ON DELETE RESTRICT,
     child_id TEXT NOT NULL UNIQUE REFERENCES series(id) ON DELETE CASCADE,
-    distance INTEGER NOT NULL
+    distance INTEGER NOT NULL,
+    early_wobble INTEGER,
+    late_wobble INTEGER
   );
   CREATE INDEX IF NOT EXISTS idx_link_parent ON link(parent_id);
 
@@ -208,13 +224,16 @@ const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS adaptive_duration (
     series_id TEXT PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
     mode TEXT NOT NULL,
-    last_n INTEGER
+    last_n INTEGER,
+    fallback INTEGER,
+    multiplier REAL
   );
 
   CREATE TABLE IF NOT EXISTS cycling_config (
     series_id TEXT PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
     mode TEXT NOT NULL,
-    current_index INTEGER NOT NULL DEFAULT 0
+    current_index INTEGER NOT NULL DEFAULT 0,
+    gap_leap INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS cycling_item (
@@ -271,6 +290,8 @@ function toSeries(row: any) {
     id: row.id,
     title: row.title,
     locked: row.locked === 1,
+    ...(row.start_date != null ? { startDate: row.start_date } : {}),
+    ...(row.end_date != null ? { endDate: row.end_date } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -281,8 +302,15 @@ function toPattern(row: any) {
     id: row.id,
     seriesId: row.series_id,
     type: row.type,
-    time: row.time,
+    ...(row.time != null ? { time: row.time } : {}),
     ...(row.condition_id != null ? { conditionId: row.condition_id } : {}),
+    ...(row.n != null ? { n: row.n } : {}),
+    ...(row.day != null ? { day: row.day } : {}),
+    ...(row.month != null ? { month: row.month } : {}),
+    ...(row.weekday != null ? { weekday: row.weekday } : {}),
+    ...(row.allday != null ? { allDay: row.allday === 1 } : {}),
+    ...(row.duration != null ? { duration: row.duration } : {}),
+    ...(row.fixed != null ? { fixed: row.fixed === 1 } : {}),
   }
 }
 
@@ -317,6 +345,150 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
 
   let _inTx = false
   let _txType: string | null = null
+
+  function saveConditionNode(seriesId: string, condition: any, parentId: string | null): string {
+    const id = crypto.randomUUID()
+    db.prepare(
+      'INSERT INTO condition (id, series_id, type, parent_id, series_ref, window_days, comparison, value, days) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(
+      id, seriesId, condition.type, parentId,
+      condition.seriesRef ?? null, condition.windowDays ?? null,
+      condition.comparison ?? null, condition.value ?? null,
+      condition.days ? JSON.stringify(condition.days) : null,
+    )
+
+    if (condition.type === 'and' || condition.type === 'or') {
+      for (const child of condition.conditions || []) {
+        saveConditionNode(seriesId, child, id)
+      }
+    } else if (condition.type === 'not' && condition.condition) {
+      saveConditionNode(seriesId, condition.condition, id)
+    }
+
+    return id
+  }
+
+  function reconstructConditionTree(
+    condId: string,
+    conditionsById: Map<string, any>,
+    childrenByParent: Map<string, any[]>,
+  ): any {
+    const cond = conditionsById.get(condId)
+    if (!cond) return null
+
+    const result: any = { type: cond.type }
+
+    if (cond.type === 'completionCount') {
+      if (cond.seriesRef != null) result.seriesRef = cond.seriesRef
+      if (cond.windowDays != null) result.windowDays = cond.windowDays
+      if (cond.comparison != null) result.comparison = cond.comparison
+      if (cond.value != null) result.value = cond.value
+    } else if (cond.type === 'and' || cond.type === 'or') {
+      const children = childrenByParent.get(cond.id) || []
+      result.conditions = children.map((c: any) =>
+        reconstructConditionTree(c.id, conditionsById, childrenByParent),
+      )
+    } else if (cond.type === 'not') {
+      const children = childrenByParent.get(cond.id) || []
+      if (children.length > 0) {
+        result.condition = reconstructConditionTree(children[0].id, conditionsById, childrenByParent)
+      }
+    } else if (cond.type === 'weekday') {
+      if (cond.days) result.days = cond.days
+    }
+
+    return result
+  }
+
+  function reconstructFullSeries(seriesId: string): any {
+    const row = db.prepare('SELECT * FROM series WHERE id = ?').get(seriesId) as any
+    if (!row) return null
+
+    const result: any = toSeries(row)
+
+    // Load all conditions for tree reconstruction
+    const condRows = db.prepare('SELECT * FROM condition WHERE series_id = ?').all(seriesId) as any[]
+    const conditionsById = new Map<string, any>()
+    const childrenByParent = new Map<string, any[]>()
+    for (const c of condRows) {
+      const cond: any = {
+        id: c.id,
+        type: c.type,
+        ...(c.series_ref != null ? { seriesRef: c.series_ref } : {}),
+        ...(c.window_days != null ? { windowDays: c.window_days } : {}),
+        ...(c.comparison != null ? { comparison: c.comparison } : {}),
+        ...(c.value != null ? { value: c.value } : {}),
+        ...(c.days != null ? { days: JSON.parse(c.days) } : {}),
+      }
+      conditionsById.set(c.id, cond)
+      if (c.parent_id) {
+        if (!childrenByParent.has(c.parent_id)) childrenByParent.set(c.parent_id, [])
+        childrenByParent.get(c.parent_id)!.push(cond)
+      }
+    }
+
+    // Patterns
+    const patternRows = db.prepare('SELECT * FROM pattern WHERE series_id = ?').all(seriesId) as any[]
+    const patterns: any[] = []
+    for (const pr of patternRows) {
+      const p: any = toPattern(pr)
+      delete p.id
+      delete p.seriesId
+      delete p.conditionId
+
+      // Weekdays
+      const weekdayRows = db
+        .prepare('SELECT day_of_week FROM pattern_weekday WHERE pattern_id = ? ORDER BY day_of_week')
+        .all(pr.id) as any[]
+      if (weekdayRows.length > 0) {
+        p.days = weekdayRows.map((r: any) => r.day_of_week)
+      }
+
+      // Condition tree
+      if (pr.condition_id && conditionsById.has(pr.condition_id)) {
+        p.condition = reconstructConditionTree(pr.condition_id, conditionsById, childrenByParent)
+      }
+
+      patterns.push(p)
+    }
+    result.patterns = patterns
+
+    // Tags
+    const tagRows = db.prepare('SELECT tag FROM series_tag WHERE series_id = ?').all(seriesId) as any[]
+    if (tagRows.length > 0) {
+      result.tags = tagRows.map((r: any) => r.tag)
+    }
+
+    // Cycling
+    const cyclingRow = db.prepare('SELECT * FROM cycling_config WHERE series_id = ?').get(seriesId) as any
+    if (cyclingRow) {
+      const cycling: any = {
+        mode: cyclingRow.mode,
+        currentIndex: cyclingRow.current_index,
+      }
+      if (cyclingRow.gap_leap != null) cycling.gapLeap = cyclingRow.gap_leap === 1
+      const itemRows = db
+        .prepare('SELECT value FROM cycling_item WHERE series_id = ? ORDER BY idx')
+        .all(seriesId) as any[]
+      if (itemRows.length > 0) {
+        cycling.items = itemRows.map((r: any) => r.value)
+      }
+      result.cycling = cycling
+    }
+
+    // Adaptive duration
+    const adRow = db.prepare('SELECT * FROM adaptive_duration WHERE series_id = ?').get(seriesId) as any
+    if (adRow) {
+      result.adaptiveDuration = {
+        mode: adRow.mode,
+        ...(adRow.last_n != null ? { lastN: adRow.last_n } : {}),
+        ...(adRow.fallback != null ? { fallback: adRow.fallback } : {}),
+        ...(adRow.multiplier != null ? { multiplier: adRow.multiplier } : {}),
+      }
+    }
+
+    return result
+  }
 
   const adapter: SqliteAdapter = {
     // ---- Schema inspection ----
@@ -388,34 +560,104 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     // ---- Series ----
 
     async saveSeries(s) {
-      safe(() =>
-        db
-          .prepare('INSERT INTO series (id, title, locked, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-          .run(s.id, s.title, s.locked ? 1 : 0, s.createdAt, s.updatedAt),
-      )
+      safe(() => {
+        const run = db.transaction(() => {
+          const existing = db.prepare('SELECT id FROM series WHERE id = ?').get(s.id)
+          if (existing) {
+            db.prepare(
+              'UPDATE series SET title = ?, locked = ?, start_date = ?, end_date = ?, updated_at = ? WHERE id = ?',
+            ).run(s.title, s.locked ? 1 : 0, s.startDate ?? null, s.endDate ?? null, s.updatedAt, s.id)
+            db.prepare('DELETE FROM condition WHERE series_id = ?').run(s.id)
+            db.prepare('DELETE FROM pattern WHERE series_id = ?').run(s.id)
+            db.prepare('DELETE FROM series_tag WHERE series_id = ?').run(s.id)
+            db.prepare('DELETE FROM cycling_config WHERE series_id = ?').run(s.id)
+            db.prepare('DELETE FROM adaptive_duration WHERE series_id = ?').run(s.id)
+          } else {
+            db.prepare(
+              'INSERT INTO series (id, title, locked, start_date, end_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            ).run(s.id, s.title, s.locked ? 1 : 0, s.startDate ?? null, s.endDate ?? null, s.createdAt, s.updatedAt)
+          }
+
+          // Patterns
+          if (s.patterns && Array.isArray(s.patterns)) {
+            for (const p of s.patterns) {
+              const pid = crypto.randomUUID()
+              let condId: string | null = null
+              if (p.condition) {
+                condId = saveConditionNode(s.id, p.condition, null)
+              }
+              db.prepare(
+                'INSERT INTO pattern (id, series_id, type, time, condition_id, n, day, month, weekday, allday, duration, fixed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              ).run(
+                pid, s.id, p.type, p.time ?? null, condId,
+                p.n ?? null, p.day ?? null, p.month ?? null, p.weekday ?? null,
+                p.allDay != null ? (p.allDay ? 1 : 0) : null,
+                p.duration ?? null,
+                p.fixed != null ? (p.fixed ? 1 : 0) : null,
+              )
+              if (p.days && Array.isArray(p.days)) {
+                for (const dow of p.days) {
+                  db.prepare('INSERT INTO pattern_weekday (pattern_id, day_of_week) VALUES (?, ?)').run(pid, dow)
+                }
+              }
+            }
+          }
+
+          // Tags
+          if (s.tags && Array.isArray(s.tags)) {
+            for (const tag of s.tags) {
+              db.prepare('INSERT INTO series_tag (series_id, tag) VALUES (?, ?)').run(s.id, tag)
+            }
+          }
+
+          // Cycling
+          if (s.cycling) {
+            db.prepare(
+              'INSERT INTO cycling_config (series_id, mode, current_index, gap_leap) VALUES (?, ?, ?, ?)',
+            ).run(s.id, s.cycling.mode, s.cycling.currentIndex ?? 0, s.cycling.gapLeap != null ? (s.cycling.gapLeap ? 1 : 0) : null)
+            if (s.cycling.items && Array.isArray(s.cycling.items)) {
+              for (let i = 0; i < s.cycling.items.length; i++) {
+                db.prepare('INSERT INTO cycling_item (series_id, idx, value) VALUES (?, ?, ?)').run(
+                  s.id, i, s.cycling.items[i],
+                )
+              }
+            }
+          }
+
+          // Adaptive duration
+          if (s.adaptiveDuration) {
+            db.prepare(
+              'INSERT INTO adaptive_duration (series_id, mode, last_n, fallback, multiplier) VALUES (?, ?, ?, ?, ?)',
+            ).run(
+              s.id, s.adaptiveDuration.mode, s.adaptiveDuration.lastN ?? null,
+              s.adaptiveDuration.fallback ?? null, s.adaptiveDuration.multiplier ?? null,
+            )
+          }
+        })
+        run()
+      })
     },
 
     async getSeries(id) {
-      const row = db.prepare('SELECT * FROM series WHERE id = ?').get(id) as any
-      return row ? toSeries(row) : null
+      return reconstructFullSeries(id)
     },
 
     async getSeriesOrThrow(id) {
-      const s = await adapter.getSeries(id)
+      const s = reconstructFullSeries(id)
       if (!s) throw new NotFoundError(`Series not found: ${id}`)
       return s
     },
 
     async getAllSeries() {
-      const rows = db.prepare('SELECT * FROM series ORDER BY id').all() as any[]
-      return rows.map(toSeries)
+      const rows = db.prepare('SELECT id FROM series ORDER BY id').all() as any[]
+      return rows.map((r: any) => reconstructFullSeries(r.id)).filter(Boolean)
     },
 
     async updateSeries(s) {
       safe(() =>
         db
-          .prepare('UPDATE series SET title = ?, locked = ?, updated_at = ? WHERE id = ?')
-          .run(s.title, s.locked ? 1 : 0, s.updatedAt, s.id),
+          .prepare('UPDATE series SET title = ?, locked = ?, start_date = ?, end_date = ?, updated_at = ? WHERE id = ?')
+          .run(s.title, s.locked ? 1 : 0, s.startDate ?? null, s.endDate ?? null, s.updatedAt, s.id),
       )
     },
 
@@ -429,9 +671,15 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
       safe(() =>
         db
           .prepare(
-            'INSERT INTO pattern (id, series_id, type, time, condition_id) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO pattern (id, series_id, type, time, condition_id, n, day, month, weekday, allday, duration, fixed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           )
-          .run(p.id, p.seriesId, p.type, p.time ?? null, p.conditionId ?? null),
+          .run(
+            p.id, p.seriesId, p.type, p.time ?? null, p.conditionId ?? null,
+            p.n ?? null, p.day ?? null, p.month ?? null, p.weekday ?? null,
+            p.allDay != null ? (p.allDay ? 1 : 0) : null,
+            p.duration ?? null,
+            p.fixed != null ? (p.fixed ? 1 : 0) : null,
+          ),
       )
     },
 
@@ -460,8 +708,15 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     async saveCondition(c) {
       safe(() =>
         db
-          .prepare('INSERT INTO condition (id, series_id, type, parent_id) VALUES (?, ?, ?, ?)')
-          .run(c.id, c.seriesId, c.type, c.parentId ?? null),
+          .prepare(
+            'INSERT INTO condition (id, series_id, type, parent_id, series_ref, window_days, comparison, value, days) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          )
+          .run(
+            c.id, c.seriesId, c.type, c.parentId ?? null,
+            c.seriesRef ?? null, c.windowDays ?? null,
+            c.comparison ?? null, c.value ?? null,
+            c.days ? JSON.stringify(c.days) : null,
+          ),
       )
     },
 
@@ -472,6 +727,11 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
         seriesId: r.series_id,
         type: r.type,
         ...(r.parent_id != null ? { parentId: r.parent_id } : {}),
+        ...(r.series_ref != null ? { seriesRef: r.series_ref } : {}),
+        ...(r.window_days != null ? { windowDays: r.window_days } : {}),
+        ...(r.comparison != null ? { comparison: r.comparison } : {}),
+        ...(r.value != null ? { value: r.value } : {}),
+        ...(r.days != null ? { days: JSON.parse(r.days) } : {}),
       }))
     },
 
@@ -552,8 +812,8 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     async saveLink(l) {
       safe(() =>
         db
-          .prepare('INSERT INTO link (id, parent_id, child_id, distance) VALUES (?, ?, ?, ?)')
-          .run(l.id, l.parentId, l.childId, l.distance),
+          .prepare('INSERT INTO link (id, parent_id, child_id, distance, early_wobble, late_wobble) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(l.id ?? crypto.randomUUID(), l.parentId, l.childId, l.distance, l.earlyWobble ?? null, l.lateWobble ?? null),
       )
     },
 
@@ -565,6 +825,8 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
         parentId: row.parent_id,
         childId: row.child_id,
         distance: row.distance,
+        ...(row.early_wobble != null ? { earlyWobble: row.early_wobble } : {}),
+        ...(row.late_wobble != null ? { lateWobble: row.late_wobble } : {}),
       }
     },
 
@@ -594,9 +856,9 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
       safe(() =>
         db
           .prepare(
-            'INSERT OR REPLACE INTO adaptive_duration (series_id, mode, last_n) VALUES (?, ?, ?)',
+            'INSERT OR REPLACE INTO adaptive_duration (series_id, mode, last_n, fallback, multiplier) VALUES (?, ?, ?, ?, ?)',
           )
-          .run(ad.seriesId, ad.mode, ad.lastN ?? null),
+          .run(ad.seriesId, ad.mode, ad.lastN ?? null, ad.fallback ?? null, ad.multiplier ?? null),
       )
     },
 
@@ -609,6 +871,8 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
         seriesId: row.series_id,
         mode: row.mode,
         ...(row.last_n != null ? { lastN: row.last_n } : {}),
+        ...(row.fallback != null ? { fallback: row.fallback } : {}),
+        ...(row.multiplier != null ? { multiplier: row.multiplier } : {}),
       }
     },
 
@@ -618,9 +882,9 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
       safe(() =>
         db
           .prepare(
-            'INSERT OR REPLACE INTO cycling_config (series_id, mode, current_index) VALUES (?, ?, ?)',
+            'INSERT OR REPLACE INTO cycling_config (series_id, mode, current_index, gap_leap) VALUES (?, ?, ?, ?)',
           )
-          .run(cc.seriesId, cc.mode, cc.currentIndex ?? 0),
+          .run(cc.seriesId, cc.mode, cc.currentIndex ?? 0, cc.gapLeap != null ? (cc.gapLeap ? 1 : 0) : null),
       )
     },
 
@@ -629,7 +893,12 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
         .prepare('SELECT * FROM cycling_config WHERE series_id = ?')
         .get(seriesId) as any
       if (!row) return null
-      return { seriesId: row.series_id, mode: row.mode, currentIndex: row.current_index }
+      return {
+        seriesId: row.series_id,
+        mode: row.mode,
+        currentIndex: row.current_index,
+        ...(row.gap_leap != null ? { gapLeap: row.gap_leap === 1 } : {}),
+      }
     },
 
     async saveCyclingItem(ci) {
