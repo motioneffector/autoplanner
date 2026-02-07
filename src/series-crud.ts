@@ -146,17 +146,15 @@ export type Series = {
 // ============================================================================
 
 function validateDate(date: string, fieldName: string): void {
-  try {
-    parseDate(date)
-  } catch {
+  const result = parseDate(date)
+  if (!result.ok) {
     throw new ValidationError(`Invalid ${fieldName}: ${date}`)
   }
 }
 
 function validateTime(time: string): void {
-  try {
-    parseTime(time)
-  } catch {
+  const result = parseTime(time)
+  if (!result.ok) {
     throw new ValidationError(`Invalid timeOfDay: ${time}`)
   }
 }

@@ -85,21 +85,11 @@ function generateId(): string {
 }
 
 function isValidDate(s: string): boolean {
-  try {
-    parseDate(s)
-    return true
-  } catch {
-    return false
-  }
+  return parseDate(s).ok
 }
 
 function isValidDateTime(s: string): boolean {
-  try {
-    parseDateTime(s)
-    return true
-  } catch {
-    return false
-  }
+  return parseDateTime(s).ok
 }
 
 async function resolveSeriesIds(adapter: Adapter, target: Target): Promise<string[]> {

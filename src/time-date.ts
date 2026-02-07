@@ -6,6 +6,8 @@
  * Zero external dependencies — uses Intl.DateTimeFormat for timezone support.
  */
 
+import { Result, Ok, Err } from './result'
+
 // ============================================================================
 // Branded Types
 // ============================================================================
@@ -101,55 +103,55 @@ function jdnToDate(jdn: number): { year: number; month: number; day: number } {
 // Parsing
 // ============================================================================
 
-export function parseDate(str: string): LocalDate {
+export function parseDate(str: string): Result<LocalDate, ParseError> {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str)
-  if (!match) throw new ParseError(`Invalid date format: '${str}'`)
+  if (!match) return Err(new ParseError(`Invalid date format: '${str}'`))
 
   const year = parseInt(match[1], 10)
   const month = parseInt(match[2], 10)
   const day = parseInt(match[3], 10)
 
   if (month < 1 || month > 12)
-    throw new ParseError(`Invalid month in date: '${str}'`)
+    return Err(new ParseError(`Invalid month in date: '${str}'`))
   if (day < 1 || day > daysInMonth(year, month))
-    throw new ParseError(`Invalid day in date: '${str}'`)
+    return Err(new ParseError(`Invalid day in date: '${str}'`))
 
-  return str as LocalDate
+  return Ok(str as LocalDate)
 }
 
-export function parseTime(str: string): LocalTime {
+export function parseTime(str: string): Result<LocalTime, ParseError> {
   const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(str)
-  if (!match) throw new ParseError(`Invalid time format: '${str}'`)
+  if (!match) return Err(new ParseError(`Invalid time format: '${str}'`))
 
   const hour = parseInt(match[1], 10)
   const minute = parseInt(match[2], 10)
   const second = match[3] ? parseInt(match[3], 10) : 0
 
   if (hour > 23)
-    throw new ParseError(`Invalid hour in time: '${str}'`)
+    return Err(new ParseError(`Invalid hour in time: '${str}'`))
   if (minute > 59)
-    throw new ParseError(`Invalid minute in time: '${str}'`)
+    return Err(new ParseError(`Invalid minute in time: '${str}'`))
   if (second > 59)
-    throw new ParseError(`Invalid second in time: '${str}'`)
+    return Err(new ParseError(`Invalid second in time: '${str}'`))
 
   const normalized = `${pad2(hour)}:${pad2(minute)}:${pad2(second)}`
-  return normalized as LocalTime
+  return Ok(normalized as LocalTime)
 }
 
-export function parseDateTime(str: string): LocalDateTime {
+export function parseDateTime(str: string): Result<LocalDateTime, ParseError> {
   const tIdx = str.indexOf('T')
-  if (tIdx === -1) throw new ParseError(`Invalid datetime format (missing T): '${str}'`)
+  if (tIdx === -1) return Err(new ParseError(`Invalid datetime format (missing T): '${str}'`))
 
   const datePart = str.substring(0, tIdx)
   const timePart = str.substring(tIdx + 1)
 
-  try {
-    const date = parseDate(datePart)
-    const time = parseTime(timePart)
-    return `${date}T${time}` as LocalDateTime
-  } catch {
-    throw new ParseError(`Invalid datetime: '${str}'`)
-  }
+  const dateResult = parseDate(datePart)
+  if (!dateResult.ok) return Err(new ParseError(`Invalid datetime: '${str}'`))
+
+  const timeResult = parseTime(timePart)
+  if (!timeResult.ok) return Err(new ParseError(`Invalid datetime: '${str}'`))
+
+  return Ok(`${dateResult.value}T${timeResult.value}` as LocalDateTime)
 }
 
 // ============================================================================

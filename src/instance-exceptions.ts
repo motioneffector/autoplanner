@@ -126,9 +126,8 @@ export async function rescheduleInstance(
     return err('NotFoundError', `Series '${seriesId}' not found`)
   }
 
-  try {
-    parseDateTime(newTime as string)
-  } catch {
+  const parseResult = parseDateTime(newTime as string)
+  if (!parseResult.ok) {
     return err('ValidationError', `Invalid newTime: '${newTime}'`)
   }
 
