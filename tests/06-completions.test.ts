@@ -33,6 +33,18 @@ import {
 } from '../src/time-date';
 import type { LocalDate, LocalDateTime, SeriesId, CompletionId } from '../src/types';
 
+function date(s: string): LocalDate {
+  const r = parseDate(s);
+  if (!r.ok) throw new Error(`Invalid test date: ${s}`);
+  return r.value;
+}
+
+function datetime(s: string): LocalDateTime {
+  const r = parseDateTime(s);
+  if (!r.ok) throw new Error(`Invalid test datetime: ${s}`);
+  return r.value;
+}
+
 describe('Segment 06: Completions', () => {
   let adapter: MockAdapter;
   let testSeriesId: SeriesId;
@@ -40,12 +52,10 @@ describe('Segment 06: Completions', () => {
   beforeEach(async () => {
     adapter = createMockAdapter();
     // Create a test series for completions
-    const result = await createSeries(adapter, {
+    testSeriesId = await createSeries(adapter, {
       title: 'Test Series',
-      startDate: parseDate('2024-01-01'),
-    });
-    if (!result.ok) throw new Error('Failed to create test series');
-    testSeriesId = result.value.id;
+      startDate: date('2024-01-01'),
+    }) as SeriesId;
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -57,9 +67,9 @@ describe('Segment 06: Completions', () => {
       it('log completion returns unique ID', async () => {
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         expect(result.ok).toBe(true);
@@ -71,9 +81,9 @@ describe('Segment 06: Completions', () => {
       it('logged completion is retrievable', async () => {
         const logResult = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         expect(logResult.ok).toBe(true);
@@ -82,16 +92,16 @@ describe('Segment 06: Completions', () => {
         const completion = await getCompletion(adapter, logResult.value.id);
         expect(completion?.id).toBe(logResult.value.id);
         expect(completion?.seriesId).toBe(testSeriesId);
-        expect(completion?.date).toBe(parseDate('2024-01-15'));
+        expect(completion?.date).toBe(date('2024-01-15'));
         expect(completion?.durationMinutes).toBe(30);
       });
 
       it('date derived from startTime', async () => {
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T23:30:00'),
-          endTime: parseDateTime('2024-01-16T00:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T23:30:00'),
+          endTime: datetime('2024-01-16T00:30:00'),
         });
 
         expect(result.ok).toBe(true);
@@ -99,7 +109,7 @@ describe('Segment 06: Completions', () => {
 
         const completion = await getCompletion(adapter, result.value.id);
         // The date should be derived from the instanceDate, not startTime
-        expect(completion?.date).toBe(parseDate('2024-01-15'));
+        expect(completion?.date).toBe(date('2024-01-15'));
         expect(completion?.seriesId).toBe(testSeriesId);
         expect(completion?.id).toBe(result.value.id);
       });
@@ -108,9 +118,9 @@ describe('Segment 06: Completions', () => {
         const before = Date.now();
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         const after = Date.now();
 
@@ -127,9 +137,9 @@ describe('Segment 06: Completions', () => {
       it('duration calculated correctly', async () => {
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         expect(result.ok).toBe(true);
@@ -145,9 +155,9 @@ describe('Segment 06: Completions', () => {
       it('series must exist', async () => {
         const result = await logCompletion(adapter, {
           seriesId: 'non-existent-series-id' as SeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         expect(result.ok).toBe(false);
@@ -160,18 +170,18 @@ describe('Segment 06: Completions', () => {
         // Log first completion
         const first = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         expect(first.ok).toBe(true);
 
         // Attempt duplicate
         const second = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T10:00:00'),
-          endTime: parseDateTime('2024-01-15T10:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T10:00:00'),
+          endTime: datetime('2024-01-15T10:30:00'),
         });
 
         expect(second.ok).toBe(false);
@@ -183,9 +193,9 @@ describe('Segment 06: Completions', () => {
       it('endTime before startTime', async () => {
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T10:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T10:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         expect(result.ok).toBe(false);
@@ -197,9 +207,9 @@ describe('Segment 06: Completions', () => {
       it('endTime equals startTime', async () => {
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:00:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:00:00'),
         });
 
         expect(result.ok).toBe(true);
@@ -213,8 +223,8 @@ describe('Segment 06: Completions', () => {
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: 'not-a-date' as LocalDate,
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         expect(result.ok).toBe(false);
@@ -226,9 +236,9 @@ describe('Segment 06: Completions', () => {
       it('invalid startTime', async () => {
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
+          instanceDate: date('2024-01-15'),
           startTime: 'not-a-datetime' as LocalDateTime,
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         expect(result.ok).toBe(false);
@@ -240,8 +250,8 @@ describe('Segment 06: Completions', () => {
       it('invalid endTime', async () => {
         const result = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
           endTime: 'not-a-datetime' as LocalDateTime,
         });
 
@@ -262,9 +272,9 @@ describe('Segment 06: Completions', () => {
       it('get existing completion', async () => {
         const logResult = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         expect(logResult.ok).toBe(true);
         if (!logResult.ok) throw new Error(`'get existing completion' setup failed: ${logResult.error.type}`);
@@ -272,16 +282,16 @@ describe('Segment 06: Completions', () => {
         const completion = await getCompletion(adapter, logResult.value.id);
         expect(completion?.id).toBe(logResult.value.id);
         expect(completion?.seriesId).toBe(testSeriesId);
-        expect(completion?.date).toBe(parseDate('2024-01-15'));
+        expect(completion?.date).toBe(date('2024-01-15'));
       });
 
       it('returns null for non-existent completion ID', async () => {
         // First, prove positive retrieval works by logging and retrieving a real completion
         const logResult = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         expect(logResult.ok).toBe(true);
         if (!logResult.ok) throw new Error(`setup failed: ${logResult.error.type}`);
@@ -290,7 +300,7 @@ describe('Segment 06: Completions', () => {
         expect(realCompletion).toMatchObject({
           id: logResult.value.id,
           seriesId: testSeriesId,
-          date: parseDate('2024-01-15'),
+          date: date('2024-01-15'),
           durationMinutes: 30,
         });
 
@@ -302,9 +312,9 @@ describe('Segment 06: Completions', () => {
       it('get deleted completion', async () => {
         const logResult = await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         expect(logResult.ok).toBe(true);
         if (!logResult.ok) throw new Error(`'get deleted completion' setup failed: ${logResult.error.type}`);
@@ -314,7 +324,7 @@ describe('Segment 06: Completions', () => {
         expect(beforeDelete).toMatchObject({
           id: logResult.value.id,
           seriesId: testSeriesId,
-          date: parseDate('2024-01-15'),
+          date: date('2024-01-15'),
           durationMinutes: 30,
         });
         let allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
@@ -322,7 +332,7 @@ describe('Segment 06: Completions', () => {
         expect(allCompletions[0]).toMatchObject({
           id: logResult.value.id,
           seriesId: testSeriesId,
-          date: parseDate('2024-01-15'),
+          date: date('2024-01-15'),
           durationMinutes: 30,
         });
 
@@ -341,105 +351,100 @@ describe('Segment 06: Completions', () => {
         for (let i = 1; i <= 3; i++) {
           await logCompletion(adapter, {
             seriesId: testSeriesId,
-            instanceDate: parseDate(`2024-01-${10 + i}`),
-            startTime: parseDateTime(`2024-01-${10 + i}T09:00:00`),
-            endTime: parseDateTime(`2024-01-${10 + i}T09:30:00`),
+            instanceDate: date(`2024-01-${10 + i}`),
+            startTime: datetime(`2024-01-${10 + i}T09:00:00`),
+            endTime: datetime(`2024-01-${10 + i}T09:30:00`),
           });
         }
 
         const completions = await getCompletionsBySeries(adapter, testSeriesId);
         // Verify exactly 3 completions with their dates (descending order)
         expect(completions).toHaveLength(3);
-        expect(completions[0].date).toBe(parseDate('2024-01-13'));
+        expect(completions[0].date).toBe(date('2024-01-13'));
         expect(completions[0].seriesId).toBe(testSeriesId);
-        expect(completions[1].date).toBe(parseDate('2024-01-12'));
+        expect(completions[1].date).toBe(date('2024-01-12'));
         expect(completions[1].seriesId).toBe(testSeriesId);
-        expect(completions[2].date).toBe(parseDate('2024-01-11'));
+        expect(completions[2].date).toBe(date('2024-01-11'));
         expect(completions[2].seriesId).toBe(testSeriesId);
       });
 
       it('excludes other series', async () => {
         // Create another series
-        const series2Result = await createSeries(adapter, {
+        const series2Id = await createSeries(adapter, {
           title: 'Other Series',
-          startDate: parseDate('2024-01-01'),
-        });
-        expect(series2Result.ok).toBe(true);
-        if (!series2Result.ok) throw new Error(`'excludes other series' setup failed: ${series2Result.error.type}`);
-        const series2Id = series2Result.value.id;
+          startDate: date('2024-01-01'),
+        }) as SeriesId;
 
         // Add completions to both series
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: series2Id,
-          instanceDate: parseDate('2024-01-16'),
-          startTime: parseDateTime('2024-01-16T09:00:00'),
-          endTime: parseDateTime('2024-01-16T09:30:00'),
+          instanceDate: date('2024-01-16'),
+          startTime: datetime('2024-01-16T09:00:00'),
+          endTime: datetime('2024-01-16T09:30:00'),
         });
 
         // Query first series - should only have 1 completion
         const completions = await getCompletionsBySeries(adapter, testSeriesId);
         expect(completions).toHaveLength(1);
         expect(completions[0].seriesId).toBe(testSeriesId);
-        expect(completions[0].date).toBe(parseDate('2024-01-15'));
+        expect(completions[0].date).toBe(date('2024-01-15'));
       });
 
       it('ordered by date descending', async () => {
         // Log completions in non-chronological order: 1, 3, 2
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-10'),
-          startTime: parseDateTime('2024-01-10T09:00:00'),
-          endTime: parseDateTime('2024-01-10T09:30:00'),
+          instanceDate: date('2024-01-10'),
+          startTime: datetime('2024-01-10T09:00:00'),
+          endTime: datetime('2024-01-10T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-12'),
-          startTime: parseDateTime('2024-01-12T09:00:00'),
-          endTime: parseDateTime('2024-01-12T09:30:00'),
+          instanceDate: date('2024-01-12'),
+          startTime: datetime('2024-01-12T09:00:00'),
+          endTime: datetime('2024-01-12T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-11'),
-          startTime: parseDateTime('2024-01-11T09:00:00'),
-          endTime: parseDateTime('2024-01-11T09:30:00'),
+          instanceDate: date('2024-01-11'),
+          startTime: datetime('2024-01-11T09:00:00'),
+          endTime: datetime('2024-01-11T09:30:00'),
         });
 
         const completions = await getCompletionsBySeries(adapter, testSeriesId);
         // Should be exactly 3 completions in descending order: 12, 11, 10
         expect(completions).toHaveLength(3);
-        expect(completions[0].date).toBe(parseDate('2024-01-12'));
+        expect(completions[0].date).toBe(date('2024-01-12'));
         expect(completions[0].seriesId).toBe(testSeriesId);
-        expect(completions[1].date).toBe(parseDate('2024-01-11'));
-        expect(completions[2].date).toBe(parseDate('2024-01-10'));
+        expect(completions[1].date).toBe(date('2024-01-11'));
+        expect(completions[2].date).toBe(date('2024-01-10'));
       });
 
       it('returns empty for series with no completions', async () => {
         // testSeriesId exists (created in beforeEach) but has no completions
         // Prove the query mechanism works by creating a completion in another series
-        const otherResult = await createSeries(adapter, {
+        const otherId = await createSeries(adapter, {
           title: 'Other Series',
-          startDate: parseDate('2024-01-01'),
-        });
-        expect(otherResult.ok).toBe(true);
-        if (!otherResult.ok) throw new Error(`setup failed: ${otherResult.error.type}`);
+          startDate: date('2024-01-01'),
+        }) as SeriesId;
         await logCompletion(adapter, {
-          seriesId: otherResult.value.id,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          seriesId: otherId,
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         // Prove getCompletionsBySeries returns data when completions exist
-        const otherCompletions = await getCompletionsBySeries(adapter, otherResult.value.id);
+        const otherCompletions = await getCompletionsBySeries(adapter, otherId);
         expect(otherCompletions).toHaveLength(1);
         expect(otherCompletions[0]).toMatchObject({
-          seriesId: otherResult.value.id,
-          date: parseDate('2024-01-15'),
+          seriesId: otherId,
+          date: date('2024-01-15'),
           durationMinutes: 30,
         });
 
@@ -452,12 +457,12 @@ describe('Segment 06: Completions', () => {
 
     describe('2.3 By Instance', () => {
       it('get completion by instance', async () => {
-        const instanceDate = parseDate('2024-01-15');
+        const instanceDate = date('2024-01-15');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate,
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         const completion = await getCompletionByInstance(adapter, testSeriesId, instanceDate);
@@ -468,12 +473,12 @@ describe('Segment 06: Completions', () => {
 
       it('returns null when no completion exists for instance', async () => {
         // First prove positive retrieval works
-        const instanceDate = parseDate('2024-01-10');
+        const instanceDate = date('2024-01-10');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate,
-          startTime: parseDateTime('2024-01-10T09:00:00'),
-          endTime: parseDateTime('2024-01-10T09:30:00'),
+          startTime: datetime('2024-01-10T09:00:00'),
+          endTime: datetime('2024-01-10T09:30:00'),
         });
         const existing = await getCompletionByInstance(adapter, testSeriesId, instanceDate);
         expect(existing).toMatchObject({
@@ -486,18 +491,18 @@ describe('Segment 06: Completions', () => {
         const completion = await getCompletionByInstance(
           adapter,
           testSeriesId,
-          parseDate('2024-01-15')
+          date('2024-01-15')
         );
         expect(completion).toBe(null);
       });
 
       it('unique per instance', async () => {
-        const instanceDate = parseDate('2024-01-15');
+        const instanceDate = date('2024-01-15');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate,
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         const completion = await getCompletionByInstance(adapter, testSeriesId, instanceDate);
@@ -515,13 +520,13 @@ describe('Segment 06: Completions', () => {
 
     describe('2.4 By Target and Window', () => {
       it('completions in window', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log completion 3 days ago (within 7-day window)
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -3),
-          startTime: parseDateTime('2024-01-17T09:00:00'),
-          endTime: parseDateTime('2024-01-17T09:30:00'),
+          startTime: datetime('2024-01-17T09:00:00'),
+          endTime: datetime('2024-01-17T09:30:00'),
         });
 
         const completions = await getCompletionsByTarget(adapter, {
@@ -535,13 +540,13 @@ describe('Segment 06: Completions', () => {
       });
 
       it('completions outside window excluded', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log completion 10 days ago (outside 7-day window)
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -10),
-          startTime: parseDateTime('2024-01-10T09:00:00'),
-          endTime: parseDateTime('2024-01-10T09:30:00'),
+          startTime: datetime('2024-01-10T09:00:00'),
+          endTime: datetime('2024-01-10T09:30:00'),
         });
 
         // Prove getCompletionsByTarget returns data when completions are in window
@@ -570,125 +575,118 @@ describe('Segment 06: Completions', () => {
 
       it('target by tag', async () => {
         // Update series to have a tag
-        const seriesWithTag = await createSeries(adapter, {
+        const taggedSeriesId = await createSeries(adapter, {
           title: 'Tagged Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['exercise'],
-        });
-        expect(seriesWithTag.ok).toBe(true);
-        if (!seriesWithTag.ok) throw new Error(`'target by tag' setup failed: ${seriesWithTag.error.type}`);
+        }) as SeriesId;
 
         await logCompletion(adapter, {
-          seriesId: seriesWithTag.value.id,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          seriesId: taggedSeriesId,
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         const completions = await getCompletionsByTarget(adapter, {
           target: { type: 'tag', tag: 'exercise' },
           windowDays: 30,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(completions).toHaveLength(1);
-        expect(completions[0].seriesId).toBe(seriesWithTag.value.id);
-        expect(completions[0].date).toBe(parseDate('2024-01-15'));
+        expect(completions[0].seriesId).toBe(taggedSeriesId);
+        expect(completions[0].date).toBe(date('2024-01-15'));
       });
 
       it('target by tag multiple series', async () => {
         // Create two series with the same tag
-        const series1 = await createSeries(adapter, {
+        const series1Id = await createSeries(adapter, {
           title: 'Series 1',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['cardio'],
-        });
-        const series2 = await createSeries(adapter, {
+        }) as SeriesId;
+        const series2Id = await createSeries(adapter, {
           title: 'Series 2',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['cardio'],
-        });
-        expect(series1.ok).toBe(true);
-        expect(series2.ok).toBe(true);
-        if (!series1.ok || !series2.ok) throw new Error(`'target by tag multiple series' setup failed`);
+        }) as SeriesId;
 
         await logCompletion(adapter, {
-          seriesId: series1.value.id,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          seriesId: series1Id,
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         await logCompletion(adapter, {
-          seriesId: series2.value.id,
-          instanceDate: parseDate('2024-01-16'),
-          startTime: parseDateTime('2024-01-16T09:00:00'),
-          endTime: parseDateTime('2024-01-16T09:30:00'),
+          seriesId: series2Id,
+          instanceDate: date('2024-01-16'),
+          startTime: datetime('2024-01-16T09:00:00'),
+          endTime: datetime('2024-01-16T09:30:00'),
         });
 
         const completions = await getCompletionsByTarget(adapter, {
           target: { type: 'tag', tag: 'cardio' },
           windowDays: 30,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         // Verify we have exactly 2 completions from 2 different series (order by date desc: series2 then series1)
         expect(completions).toHaveLength(2);
         expect(completions[0]).toEqual(expect.objectContaining({
-          seriesId: series2.value.id,
-          date: parseDate('2024-01-16'),
+          seriesId: series2Id,
+          date: date('2024-01-16'),
         }));
         expect(completions[1]).toEqual(expect.objectContaining({
-          seriesId: series1.value.id,
-          date: parseDate('2024-01-15'),
+          seriesId: series1Id,
+          date: date('2024-01-15'),
         }));
       });
 
       it('target by seriesId', async () => {
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         const completions = await getCompletionsByTarget(adapter, {
           target: { type: 'seriesId', seriesId: testSeriesId },
           windowDays: 30,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(completions).toHaveLength(1);
         expect(completions[0].seriesId).toBe(testSeriesId);
-        expect(completions[0].date).toBe(parseDate('2024-01-15'));
+        expect(completions[0].date).toBe(date('2024-01-15'));
       });
 
       it('target by seriesId excludes others', async () => {
         // Create another series
-        const other = await createSeries(adapter, {
+        const otherId = await createSeries(adapter, {
           title: 'Other',
-          startDate: parseDate('2024-01-01'),
-        });
-        expect(other.ok).toBe(true);
-        if (!other.ok) throw new Error(`'target by seriesId excludes others' setup failed: ${other.error.type}`);
+          startDate: date('2024-01-01'),
+        }) as SeriesId;
 
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         await logCompletion(adapter, {
-          seriesId: other.value.id,
-          instanceDate: parseDate('2024-01-16'),
-          startTime: parseDateTime('2024-01-16T09:00:00'),
-          endTime: parseDateTime('2024-01-16T09:30:00'),
+          seriesId: otherId,
+          instanceDate: date('2024-01-16'),
+          startTime: datetime('2024-01-16T09:00:00'),
+          endTime: datetime('2024-01-16T09:30:00'),
         });
 
         const completions = await getCompletionsByTarget(adapter, {
           target: { type: 'seriesId', seriesId: testSeriesId },
           windowDays: 30,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(completions).toHaveLength(1);
         expect(completions[0].seriesId).toBe(testSeriesId);
-        expect(completions[0].date).toBe(parseDate('2024-01-15'));
+        expect(completions[0].date).toBe(date('2024-01-15'));
       });
     });
   });
@@ -701,9 +699,9 @@ describe('Segment 06: Completions', () => {
     it('delete existing completion', async () => {
       const logResult = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
       if (!logResult.ok) throw new Error(`'delete existing completion' setup failed: ${logResult.error.type}`);
@@ -715,9 +713,9 @@ describe('Segment 06: Completions', () => {
     it('get after delete returns null', async () => {
       const logResult = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
       if (!logResult.ok) throw new Error(`'get after delete returns null' setup failed: ${logResult.error.type}`);
@@ -727,7 +725,7 @@ describe('Segment 06: Completions', () => {
       expect(beforeDelete).toMatchObject({
         id: logResult.value.id,
         seriesId: testSeriesId,
-        date: parseDate('2024-01-15'),
+        date: date('2024-01-15'),
         durationMinutes: 30,
       });
       let allCompletions = await getCompletionsBySeries(adapter, testSeriesId);
@@ -735,7 +733,7 @@ describe('Segment 06: Completions', () => {
       expect(allCompletions[0]).toMatchObject({
         id: logResult.value.id,
         seriesId: testSeriesId,
-        date: parseDate('2024-01-15'),
+        date: date('2024-01-15'),
         durationMinutes: 30,
       });
 
@@ -748,12 +746,12 @@ describe('Segment 06: Completions', () => {
     });
 
     it('getByInstance after delete', async () => {
-      const instanceDate = parseDate('2024-01-15');
+      const instanceDate = date('2024-01-15');
       const logResult = await logCompletion(adapter, {
         seriesId: testSeriesId,
         instanceDate,
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
       if (!logResult.ok) throw new Error(`'getByInstance after delete' setup failed: ${logResult.error.type}`);
@@ -804,9 +802,9 @@ describe('Segment 06: Completions', () => {
     it('delete already deleted', async () => {
       const logResult = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
       if (!logResult.ok) throw new Error(`'delete already deleted' setup failed: ${logResult.error.type}`);
@@ -830,7 +828,7 @@ describe('Segment 06: Completions', () => {
         const count = await countCompletionsInWindow(adapter, {
           target: { type: 'seriesId', seriesId: testSeriesId },
           windowDays: 7,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(count).toBeGreaterThanOrEqual(0);
       });
@@ -840,16 +838,16 @@ describe('Segment 06: Completions', () => {
         for (let i = 1; i <= 3; i++) {
           await logCompletion(adapter, {
             seriesId: testSeriesId,
-            instanceDate: parseDate(`2024-01-${14 + i}`),
-            startTime: parseDateTime(`2024-01-${14 + i}T09:00:00`),
-            endTime: parseDateTime(`2024-01-${14 + i}T09:30:00`),
+            instanceDate: date(`2024-01-${14 + i}`),
+            startTime: datetime(`2024-01-${14 + i}T09:00:00`),
+            endTime: datetime(`2024-01-${14 + i}T09:30:00`),
           });
         }
 
         const count = await countCompletionsInWindow(adapter, {
           target: { type: 'seriesId', seriesId: testSeriesId },
           windowDays: 30,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(count).toBeLessThanOrEqual(3);
       });
@@ -858,7 +856,7 @@ describe('Segment 06: Completions', () => {
         const count = await countCompletionsInWindow(adapter, {
           target: { type: 'seriesId', seriesId: testSeriesId },
           windowDays: 7,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(count).toBe(0);
       });
@@ -866,12 +864,12 @@ describe('Segment 06: Completions', () => {
 
     describe('4.2 Window Boundary Tests', () => {
       it('completion on asOf date', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: asOf,
-          startTime: parseDateTime('2024-01-20T09:00:00'),
-          endTime: parseDateTime('2024-01-20T09:30:00'),
+          startTime: datetime('2024-01-20T09:00:00'),
+          endTime: datetime('2024-01-20T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
@@ -883,14 +881,14 @@ describe('Segment 06: Completions', () => {
       });
 
       it('completion on window start', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Window of 7 days: 2024-01-14 through 2024-01-20 (inclusive)
         const windowStart = addDays(asOf, -6);
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: windowStart,
-          startTime: parseDateTime('2024-01-14T09:00:00'),
-          endTime: parseDateTime('2024-01-14T09:30:00'),
+          startTime: datetime('2024-01-14T09:00:00'),
+          endTime: datetime('2024-01-14T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
@@ -902,14 +900,14 @@ describe('Segment 06: Completions', () => {
       });
 
       it('completion one day before window', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // One day before the 7-day window
         const beforeWindow = addDays(asOf, -7);
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: beforeWindow,
-          startTime: parseDateTime('2024-01-13T09:00:00'),
-          endTime: parseDateTime('2024-01-13T09:30:00'),
+          startTime: datetime('2024-01-13T09:00:00'),
+          endTime: datetime('2024-01-13T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
@@ -921,12 +919,12 @@ describe('Segment 06: Completions', () => {
       });
 
       it('completion after asOf', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, 1),
-          startTime: parseDateTime('2024-01-21T09:00:00'),
-          endTime: parseDateTime('2024-01-21T09:30:00'),
+          startTime: datetime('2024-01-21T09:00:00'),
+          endTime: datetime('2024-01-21T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
@@ -938,14 +936,14 @@ describe('Segment 06: Completions', () => {
       });
 
       it('14-day window boundary start', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Window of 14 days: 2024-01-07 through 2024-01-20 (inclusive)
         const windowStart = addDays(asOf, -13);
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: windowStart,
-          startTime: parseDateTime('2024-01-07T09:00:00'),
-          endTime: parseDateTime('2024-01-07T09:30:00'),
+          startTime: datetime('2024-01-07T09:00:00'),
+          endTime: datetime('2024-01-07T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
@@ -957,14 +955,14 @@ describe('Segment 06: Completions', () => {
       });
 
       it('14-day window one before', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // One day before the 14-day window
         const beforeWindow = addDays(asOf, -14);
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: beforeWindow,
-          startTime: parseDateTime('2024-01-06T09:00:00'),
-          endTime: parseDateTime('2024-01-06T09:30:00'),
+          startTime: datetime('2024-01-06T09:00:00'),
+          endTime: datetime('2024-01-06T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
@@ -979,43 +977,41 @@ describe('Segment 06: Completions', () => {
     describe('4.3 Count by Target', () => {
       it('count by tag', async () => {
         // Create two series with same tag
-        const series1 = await createSeries(adapter, {
+        const series1Id = await createSeries(adapter, {
           title: 'Series 1',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['walk'],
-        });
-        const series2 = await createSeries(adapter, {
+        }) as SeriesId;
+        const series2Id = await createSeries(adapter, {
           title: 'Series 2',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['walk'],
-        });
-        expect(series1.ok && series2.ok).toBe(true);
-        if (!series1.ok || !series2.ok) throw new Error(`'count by tag' setup failed`);
+        }) as SeriesId;
 
         // Log 2 completions for series1, 1 for series2
         await logCompletion(adapter, {
-          seriesId: series1.value.id,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          seriesId: series1Id,
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         await logCompletion(adapter, {
-          seriesId: series1.value.id,
-          instanceDate: parseDate('2024-01-16'),
-          startTime: parseDateTime('2024-01-16T09:00:00'),
-          endTime: parseDateTime('2024-01-16T09:30:00'),
+          seriesId: series1Id,
+          instanceDate: date('2024-01-16'),
+          startTime: datetime('2024-01-16T09:00:00'),
+          endTime: datetime('2024-01-16T09:30:00'),
         });
         await logCompletion(adapter, {
-          seriesId: series2.value.id,
-          instanceDate: parseDate('2024-01-17'),
-          startTime: parseDateTime('2024-01-17T09:00:00'),
-          endTime: parseDateTime('2024-01-17T09:30:00'),
+          seriesId: series2Id,
+          instanceDate: date('2024-01-17'),
+          startTime: datetime('2024-01-17T09:00:00'),
+          endTime: datetime('2024-01-17T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
           target: { type: 'tag', tag: 'walk' },
           windowDays: 30,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(count).toBe(3);
       });
@@ -1023,46 +1019,44 @@ describe('Segment 06: Completions', () => {
       it('count by seriesId', async () => {
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-16'),
-          startTime: parseDateTime('2024-01-16T09:00:00'),
-          endTime: parseDateTime('2024-01-16T09:30:00'),
+          instanceDate: date('2024-01-16'),
+          startTime: datetime('2024-01-16T09:00:00'),
+          endTime: datetime('2024-01-16T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
           target: { type: 'seriesId', seriesId: testSeriesId },
           windowDays: 30,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(count).toBe(2);
       });
 
       it('count excludes wrong tag', async () => {
         // Series without the target tag
-        const seriesWithDifferentTag = await createSeries(adapter, {
+        const runningSeriesId = await createSeries(adapter, {
           title: 'Running',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['running'],
-        });
-        expect(seriesWithDifferentTag.ok).toBe(true);
-        if (!seriesWithDifferentTag.ok) throw new Error(`'count excludes wrong tag' setup failed: ${seriesWithDifferentTag.error.type}`);
+        }) as SeriesId;
 
         await logCompletion(adapter, {
-          seriesId: seriesWithDifferentTag.value.id,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          seriesId: runningSeriesId,
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         const count = await countCompletionsInWindow(adapter, {
           target: { type: 'tag', tag: 'walking' },
           windowDays: 30,
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(count).toBe(0);
       });
@@ -1077,21 +1071,19 @@ describe('Segment 06: Completions', () => {
     describe('5.1 Basic Days Since Tests', () => {
       it('returns null when no completions exist for series', async () => {
         // Prove daysSinceLastCompletion works with data by using a different series
-        const otherResult = await createSeries(adapter, {
+        const otherId = await createSeries(adapter, {
           title: 'Other Series',
-          startDate: parseDate('2024-01-01'),
-        });
-        expect(otherResult.ok).toBe(true);
-        if (!otherResult.ok) throw new Error(`setup failed: ${otherResult.error.type}`);
-        const asOf = parseDate('2024-01-20');
+          startDate: date('2024-01-01'),
+        }) as SeriesId;
+        const asOf = date('2024-01-20');
         await logCompletion(adapter, {
-          seriesId: otherResult.value.id,
+          seriesId: otherId,
           instanceDate: addDays(asOf, -2),
-          startTime: parseDateTime('2024-01-18T09:00:00'),
-          endTime: parseDateTime('2024-01-18T09:30:00'),
+          startTime: datetime('2024-01-18T09:00:00'),
+          endTime: datetime('2024-01-18T09:30:00'),
         });
         const otherDaysSince = await daysSinceLastCompletion(adapter, {
-          target: { type: 'seriesId', seriesId: otherResult.value.id },
+          target: { type: 'seriesId', seriesId: otherId },
           asOf,
         });
         expect(otherDaysSince).toBe(2);
@@ -1105,12 +1097,12 @@ describe('Segment 06: Completions', () => {
       });
 
       it('completion today returns 0', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: asOf,
-          startTime: parseDateTime('2024-01-20T09:00:00'),
-          endTime: parseDateTime('2024-01-20T09:30:00'),
+          startTime: datetime('2024-01-20T09:00:00'),
+          endTime: datetime('2024-01-20T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1121,12 +1113,12 @@ describe('Segment 06: Completions', () => {
       });
 
       it('completion yesterday returns 1', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -1),
-          startTime: parseDateTime('2024-01-19T09:00:00'),
-          endTime: parseDateTime('2024-01-19T09:30:00'),
+          startTime: datetime('2024-01-19T09:00:00'),
+          endTime: datetime('2024-01-19T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1137,12 +1129,12 @@ describe('Segment 06: Completions', () => {
       });
 
       it('completion 7 days ago', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -7),
-          startTime: parseDateTime('2024-01-13T09:00:00'),
-          endTime: parseDateTime('2024-01-13T09:30:00'),
+          startTime: datetime('2024-01-13T09:00:00'),
+          endTime: datetime('2024-01-13T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1155,25 +1147,25 @@ describe('Segment 06: Completions', () => {
 
     describe('5.2 Multiple Completions', () => {
       it('uses most recent', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log completions at 3, 5, and 10 days ago
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -10),
-          startTime: parseDateTime('2024-01-10T09:00:00'),
-          endTime: parseDateTime('2024-01-10T09:30:00'),
+          startTime: datetime('2024-01-10T09:00:00'),
+          endTime: datetime('2024-01-10T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -5),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -3),
-          startTime: parseDateTime('2024-01-17T09:00:00'),
-          endTime: parseDateTime('2024-01-17T09:30:00'),
+          startTime: datetime('2024-01-17T09:00:00'),
+          endTime: datetime('2024-01-17T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1184,20 +1176,20 @@ describe('Segment 06: Completions', () => {
       });
 
       it('ignores older completions', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log recent completion
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -1),
-          startTime: parseDateTime('2024-01-19T09:00:00'),
-          endTime: parseDateTime('2024-01-19T09:30:00'),
+          startTime: datetime('2024-01-19T09:00:00'),
+          endTime: datetime('2024-01-19T09:30:00'),
         });
         // Log older completion
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -30),
-          startTime: parseDateTime('2023-12-21T09:00:00'),
-          endTime: parseDateTime('2023-12-21T09:30:00'),
+          startTime: datetime('2023-12-21T09:00:00'),
+          endTime: datetime('2023-12-21T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1210,20 +1202,18 @@ describe('Segment 06: Completions', () => {
 
     describe('5.3 By Target Type', () => {
       it('days since by tag', async () => {
-        const series = await createSeries(adapter, {
+        const meditationSeriesId = await createSeries(adapter, {
           title: 'Tagged Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['meditation'],
-        });
-        expect(series.ok).toBe(true);
-        if (!series.ok) throw new Error(`'days since by tag' setup failed: ${series.error.type}`);
+        }) as SeriesId;
 
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         await logCompletion(adapter, {
-          seriesId: series.value.id,
+          seriesId: meditationSeriesId,
           instanceDate: addDays(asOf, -2),
-          startTime: parseDateTime('2024-01-18T09:00:00'),
-          endTime: parseDateTime('2024-01-18T09:30:00'),
+          startTime: datetime('2024-01-18T09:00:00'),
+          endTime: datetime('2024-01-18T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1234,12 +1224,12 @@ describe('Segment 06: Completions', () => {
       });
 
       it('days since by seriesId', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -5),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1250,33 +1240,31 @@ describe('Segment 06: Completions', () => {
       });
 
       it('tag finds most recent across series', async () => {
-        const series1 = await createSeries(adapter, {
+        const series1Id = await createSeries(adapter, {
           title: 'Series 1',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['yoga'],
-        });
-        const series2 = await createSeries(adapter, {
+        }) as SeriesId;
+        const series2Id = await createSeries(adapter, {
           title: 'Series 2',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['yoga'],
-        });
-        expect(series1.ok && series2.ok).toBe(true);
-        if (!series1.ok || !series2.ok) throw new Error(`'tag finds most recent across series' setup failed`);
+        }) as SeriesId;
 
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Series 1: completion 3 days ago
         await logCompletion(adapter, {
-          seriesId: series1.value.id,
+          seriesId: series1Id,
           instanceDate: addDays(asOf, -3),
-          startTime: parseDateTime('2024-01-17T09:00:00'),
-          endTime: parseDateTime('2024-01-17T09:30:00'),
+          startTime: datetime('2024-01-17T09:00:00'),
+          endTime: datetime('2024-01-17T09:30:00'),
         });
         // Series 2: completion 1 day ago
         await logCompletion(adapter, {
-          seriesId: series2.value.id,
+          seriesId: series2Id,
           instanceDate: addDays(asOf, -1),
-          startTime: parseDateTime('2024-01-19T09:00:00'),
-          endTime: parseDateTime('2024-01-19T09:30:00'),
+          startTime: datetime('2024-01-19T09:00:00'),
+          endTime: datetime('2024-01-19T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1299,16 +1287,16 @@ describe('Segment 06: Completions', () => {
         for (let i = 1; i <= 10; i++) {
           await logCompletion(adapter, {
             seriesId: testSeriesId,
-            instanceDate: parseDate(`2024-01-${i.toString().padStart(2, '0')}`),
-            startTime: parseDateTime(`2024-01-${i.toString().padStart(2, '0')}T09:00:00`),
-            endTime: parseDateTime(`2024-01-${i.toString().padStart(2, '0')}T09:30:00`),
+            instanceDate: date(`2024-01-${i.toString().padStart(2, '0')}`),
+            startTime: datetime(`2024-01-${i.toString().padStart(2, '0')}T09:00:00`),
+            endTime: datetime(`2024-01-${i.toString().padStart(2, '0')}T09:30:00`),
           });
         }
 
         const durations = await getDurationsForAdaptive(adapter, {
           seriesId: testSeriesId,
           mode: { type: 'lastN', n: 5 },
-          asOf: parseDate('2024-01-15'),
+          asOf: date('2024-01-15'),
         });
         // Verify exactly 5 durations, all 30 minutes
         expect(durations).toEqual([30, 30, 30, 30, 30]);
@@ -1319,16 +1307,16 @@ describe('Segment 06: Completions', () => {
         for (let i = 1; i <= 3; i++) {
           await logCompletion(adapter, {
             seriesId: testSeriesId,
-            instanceDate: parseDate(`2024-01-${i.toString().padStart(2, '0')}`),
-            startTime: parseDateTime(`2024-01-${i.toString().padStart(2, '0')}T09:00:00`),
-            endTime: parseDateTime(`2024-01-${i.toString().padStart(2, '0')}T09:30:00`),
+            instanceDate: date(`2024-01-${i.toString().padStart(2, '0')}`),
+            startTime: datetime(`2024-01-${i.toString().padStart(2, '0')}T09:00:00`),
+            endTime: datetime(`2024-01-${i.toString().padStart(2, '0')}T09:30:00`),
           });
         }
 
         const durations = await getDurationsForAdaptive(adapter, {
           seriesId: testSeriesId,
           mode: { type: 'lastN', n: 10 },
-          asOf: parseDate('2024-01-15'),
+          asOf: date('2024-01-15'),
         });
         // Verify exactly 3 durations, all 30 minutes
         expect(durations).toEqual([30, 30, 30]);
@@ -1339,27 +1327,27 @@ describe('Segment 06: Completions', () => {
         // Jan 1: 30 min, Jan 2: 45 min, Jan 3: 60 min
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-01'),
-          startTime: parseDateTime('2024-01-01T09:00:00'),
-          endTime: parseDateTime('2024-01-01T09:30:00'),
+          instanceDate: date('2024-01-01'),
+          startTime: datetime('2024-01-01T09:00:00'),
+          endTime: datetime('2024-01-01T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-02'),
-          startTime: parseDateTime('2024-01-02T09:00:00'),
-          endTime: parseDateTime('2024-01-02T09:45:00'),
+          instanceDate: date('2024-01-02'),
+          startTime: datetime('2024-01-02T09:00:00'),
+          endTime: datetime('2024-01-02T09:45:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-03'),
-          startTime: parseDateTime('2024-01-03T09:00:00'),
-          endTime: parseDateTime('2024-01-03T10:00:00'),
+          instanceDate: date('2024-01-03'),
+          startTime: datetime('2024-01-03T09:00:00'),
+          endTime: datetime('2024-01-03T10:00:00'),
         });
 
         const durations = await getDurationsForAdaptive(adapter, {
           seriesId: testSeriesId,
           mode: { type: 'lastN', n: 3 },
-          asOf: parseDate('2024-01-15'),
+          asOf: date('2024-01-15'),
         });
 
         // Most recent first: 60, 45, 30
@@ -1368,23 +1356,21 @@ describe('Segment 06: Completions', () => {
 
       it('returns empty when no completions exist for series', async () => {
         // Prove getDurationsForAdaptive works with data using a different series
-        const otherResult = await createSeries(adapter, {
+        const otherId = await createSeries(adapter, {
           title: 'Other Series',
-          startDate: parseDate('2024-01-01'),
-        });
-        expect(otherResult.ok).toBe(true);
-        if (!otherResult.ok) throw new Error(`setup failed: ${otherResult.error.type}`);
+          startDate: date('2024-01-01'),
+        }) as SeriesId;
         await logCompletion(adapter, {
-          seriesId: otherResult.value.id,
-          instanceDate: parseDate('2024-01-10'),
-          startTime: parseDateTime('2024-01-10T09:00:00'),
-          endTime: parseDateTime('2024-01-10T09:30:00'),
+          seriesId: otherId,
+          instanceDate: date('2024-01-10'),
+          startTime: datetime('2024-01-10T09:00:00'),
+          endTime: datetime('2024-01-10T09:30:00'),
         });
         // Prove getDurationsForAdaptive returns data when completions exist
         const durations = await getDurationsForAdaptive(adapter, {
-          seriesId: otherResult.value.id,
+          seriesId: otherId,
           mode: { type: 'lastN', n: 5 },
-          asOf: parseDate('2024-01-15'),
+          asOf: date('2024-01-15'),
         });
         expect(durations).toEqual([30]);
 
@@ -1392,7 +1378,7 @@ describe('Segment 06: Completions', () => {
         const noDurations = await getDurationsForAdaptive(adapter, {
           seriesId: testSeriesId,
           mode: { type: 'lastN', n: 5 },
-          asOf: parseDate('2024-01-15'),
+          asOf: date('2024-01-15'),
         });
         const noDurationsCount = noDurations.length;
         expect(noDurationsCount).toBe(0);
@@ -1401,14 +1387,14 @@ describe('Segment 06: Completions', () => {
 
     describe('6.2 Mode: windowDays', () => {
       it('all durations in window', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log 3 completions within 7-day window
         for (let i = 1; i <= 3; i++) {
           await logCompletion(adapter, {
             seriesId: testSeriesId,
             instanceDate: addDays(asOf, -i),
-            startTime: parseDateTime(`2024-01-${20 - i}T09:00:00`),
-            endTime: parseDateTime(`2024-01-${20 - i}T09:30:00`),
+            startTime: datetime(`2024-01-${20 - i}T09:00:00`),
+            endTime: datetime(`2024-01-${20 - i}T09:30:00`),
           });
         }
 
@@ -1422,19 +1408,19 @@ describe('Segment 06: Completions', () => {
       });
 
       it('excludes outside window', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log 1 within window, 1 outside
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -3),
-          startTime: parseDateTime('2024-01-17T09:00:00'),
-          endTime: parseDateTime('2024-01-17T09:30:00'),
+          startTime: datetime('2024-01-17T09:00:00'),
+          endTime: datetime('2024-01-17T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -10),
-          startTime: parseDateTime('2024-01-10T09:00:00'),
-          endTime: parseDateTime('2024-01-10T09:30:00'),
+          startTime: datetime('2024-01-10T09:00:00'),
+          endTime: datetime('2024-01-10T09:30:00'),
         });
 
         const durations = await getDurationsForAdaptive(adapter, {
@@ -1447,13 +1433,13 @@ describe('Segment 06: Completions', () => {
       });
 
       it('returns empty when all completions outside window', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log completion 10 days ago (outside 7-day window)
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -10),
-          startTime: parseDateTime('2024-01-10T09:00:00'),
-          endTime: parseDateTime('2024-01-10T09:30:00'),
+          startTime: datetime('2024-01-10T09:00:00'),
+          endTime: datetime('2024-01-10T09:30:00'),
         });
 
         // Prove getDurationsForAdaptive returns data with a wide enough window
@@ -1475,13 +1461,13 @@ describe('Segment 06: Completions', () => {
       });
 
       it('boundary: completion on window start', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Completion exactly 6 days ago (window start for 7-day window)
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -6),
-          startTime: parseDateTime('2024-01-14T09:00:00'),
-          endTime: parseDateTime('2024-01-14T09:30:00'),
+          startTime: datetime('2024-01-14T09:00:00'),
+          endTime: datetime('2024-01-14T09:30:00'),
         });
 
         const durations = await getDurationsForAdaptive(adapter, {
@@ -1498,15 +1484,15 @@ describe('Segment 06: Completions', () => {
       it('duration is endTime - startTime', async () => {
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:30:00'),
         });
 
         const durations = await getDurationsForAdaptive(adapter, {
           seriesId: testSeriesId,
           mode: { type: 'lastN', n: 1 },
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(durations[0]).toBe(30);
       });
@@ -1514,15 +1500,15 @@ describe('Segment 06: Completions', () => {
       it('zero duration allowed', async () => {
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:00:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:00:00'),
         });
 
         const durations = await getDurationsForAdaptive(adapter, {
           seriesId: testSeriesId,
           mode: { type: 'lastN', n: 1 },
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(durations[0]).toBe(0);
       });
@@ -1530,15 +1516,15 @@ describe('Segment 06: Completions', () => {
       it('long duration', async () => {
         await logCompletion(adapter, {
           seriesId: testSeriesId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T11:30:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T11:30:00'),
         });
 
         const durations = await getDurationsForAdaptive(adapter, {
           seriesId: testSeriesId,
           mode: { type: 'lastN', n: 1 },
-          asOf: parseDate('2024-01-20'),
+          asOf: date('2024-01-20'),
         });
         expect(durations[0]).toBe(150);
       });
@@ -1553,9 +1539,9 @@ describe('Segment 06: Completions', () => {
     it('completion references existing series', async () => {
       const result = await logCompletion(adapter, {
         seriesId: 'non-existent-series' as SeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
 
       expect(result.ok).toBe(false);
@@ -1565,16 +1551,16 @@ describe('Segment 06: Completions', () => {
     it('at most one per instance', async () => {
       await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
 
       const second = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T10:00:00'),
-        endTime: parseDateTime('2024-01-15T10:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T10:00:00'),
+        endTime: datetime('2024-01-15T10:30:00'),
       });
 
       expect(second.ok).toBe(false);
@@ -1583,9 +1569,9 @@ describe('Segment 06: Completions', () => {
     it('endTime >= startTime', async () => {
       const result = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T10:00:00'),
-        endTime: parseDateTime('2024-01-15T09:00:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T10:00:00'),
+        endTime: datetime('2024-01-15T09:00:00'),
       });
 
       expect(result.ok).toBe(false);
@@ -1594,9 +1580,9 @@ describe('Segment 06: Completions', () => {
     it('completion ID immutable', async () => {
       const logResult = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
       if (!logResult.ok) throw new Error(`'completion ID immutable' setup failed: ${logResult.error.type}`);
@@ -1607,15 +1593,15 @@ describe('Segment 06: Completions', () => {
       const completion = await getCompletion(adapter, originalId);
       expect(completion?.id).toBe(originalId);
       expect(completion?.seriesId).toBe(testSeriesId);
-      expect(completion?.date).toBe(parseDate('2024-01-15'));
+      expect(completion?.date).toBe(date('2024-01-15'));
     });
 
     it('completions never modified', async () => {
       const logResult = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
       expect(logResult.ok).toBe(true);
       if (!logResult.ok) throw new Error(`'completions never modified' setup failed: ${logResult.error.type}`);
@@ -1645,9 +1631,9 @@ describe('Segment 06: Completions', () => {
     it('NotFoundError: log completion for non-existent series', async () => {
       const result = await logCompletion(adapter, {
         seriesId: 'non-existent' as SeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -1658,16 +1644,16 @@ describe('Segment 06: Completions', () => {
     it('DuplicateCompletionError: log completion for same instance twice', async () => {
       await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:30:00'),
       });
 
       const result = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T10:00:00'),
-        endTime: parseDateTime('2024-01-15T10:30:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T10:00:00'),
+        endTime: datetime('2024-01-15T10:30:00'),
       });
 
       expect(result.ok).toBe(false);
@@ -1679,9 +1665,9 @@ describe('Segment 06: Completions', () => {
     it('InvalidTimeRangeError: log with endTime < startTime', async () => {
       const result = await logCompletion(adapter, {
         seriesId: testSeriesId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T10:00:00'),
-        endTime: parseDateTime('2024-01-15T09:00:00'),
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T10:00:00'),
+        endTime: datetime('2024-01-15T09:00:00'),
       });
 
       expect(result.ok).toBe(false);
@@ -1698,22 +1684,20 @@ describe('Segment 06: Completions', () => {
   describe('9. Real-World Scenario Tests', () => {
     describe('9.1 Condition Integration Scenario', () => {
       it('condition count query', async () => {
-        const walkSeries = await createSeries(adapter, {
+        const walkSeriesId = await createSeries(adapter, {
           title: 'Daily Walk',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['walk'],
-        });
-        expect(walkSeries.ok).toBe(true);
-        if (!walkSeries.ok) throw new Error(`'condition count query' setup failed: ${walkSeries.error.type}`);
+        }) as SeriesId;
 
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log 5 walks in the past 14 days
         for (let i = 1; i <= 5; i++) {
           await logCompletion(adapter, {
-            seriesId: walkSeries.value.id,
+            seriesId: walkSeriesId,
             instanceDate: addDays(asOf, -i * 2), // Every other day
-            startTime: parseDateTime(`2024-01-${20 - i * 2}T09:00:00`),
-            endTime: parseDateTime(`2024-01-${20 - i * 2}T09:30:00`),
+            startTime: datetime(`2024-01-${20 - i * 2}T09:00:00`),
+            endTime: datetime(`2024-01-${20 - i * 2}T09:30:00`),
           });
         }
 
@@ -1726,21 +1710,19 @@ describe('Segment 06: Completions', () => {
       });
 
       it('condition days since query', async () => {
-        const walkSeries = await createSeries(adapter, {
+        const walkSeriesId = await createSeries(adapter, {
           title: 'Daily Walk',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           tags: ['walk'],
-        });
-        expect(walkSeries.ok).toBe(true);
-        if (!walkSeries.ok) throw new Error(`'condition days since query' setup failed: ${walkSeries.error.type}`);
+        }) as SeriesId;
 
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Last walk 3 days ago
         await logCompletion(adapter, {
-          seriesId: walkSeries.value.id,
+          seriesId: walkSeriesId,
           instanceDate: addDays(asOf, -3),
-          startTime: parseDateTime('2024-01-17T09:00:00'),
-          endTime: parseDateTime('2024-01-17T09:30:00'),
+          startTime: datetime('2024-01-17T09:00:00'),
+          endTime: datetime('2024-01-17T09:30:00'),
         });
 
         const daysSince = await daysSinceLastCompletion(adapter, {
@@ -1753,25 +1735,25 @@ describe('Segment 06: Completions', () => {
 
     describe('9.2 Adaptive Duration Scenario', () => {
       it('average recent durations', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log completions with durations 20, 30, 25 (most recent last)
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -3),
-          startTime: parseDateTime('2024-01-17T09:00:00'),
-          endTime: parseDateTime('2024-01-17T09:20:00'),
+          startTime: datetime('2024-01-17T09:00:00'),
+          endTime: datetime('2024-01-17T09:20:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -2),
-          startTime: parseDateTime('2024-01-18T09:00:00'),
-          endTime: parseDateTime('2024-01-18T09:30:00'),
+          startTime: datetime('2024-01-18T09:00:00'),
+          endTime: datetime('2024-01-18T09:30:00'),
         });
         await logCompletion(adapter, {
           seriesId: testSeriesId,
           instanceDate: addDays(asOf, -1),
-          startTime: parseDateTime('2024-01-19T09:00:00'),
-          endTime: parseDateTime('2024-01-19T09:25:00'),
+          startTime: datetime('2024-01-19T09:00:00'),
+          endTime: datetime('2024-01-19T09:25:00'),
         });
 
         const durations = await getDurationsForAdaptive(adapter, {
@@ -1785,14 +1767,14 @@ describe('Segment 06: Completions', () => {
       });
 
       it('window durations for calculation', async () => {
-        const asOf = parseDate('2024-01-20');
+        const asOf = date('2024-01-20');
         // Log 5 completions in 7-day window
         for (let i = 1; i <= 5; i++) {
           await logCompletion(adapter, {
             seriesId: testSeriesId,
             instanceDate: addDays(asOf, -i),
-            startTime: parseDateTime(`2024-01-${20 - i}T09:00:00`),
-            endTime: parseDateTime(`2024-01-${20 - i}T09:30:00`),
+            startTime: datetime(`2024-01-${20 - i}T09:00:00`),
+            endTime: datetime(`2024-01-${20 - i}T09:30:00`),
           });
         }
 

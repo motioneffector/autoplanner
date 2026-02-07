@@ -17,6 +17,7 @@ import {
 } from '../src/cycling';
 import {
   createSeries,
+  ValidationError,
 } from '../src/series-crud';
 import {
   logCompletion,
@@ -30,7 +31,19 @@ import {
   parseDateTime,
   addDays,
 } from '../src/time-date';
-import type { LocalDate, SeriesId, CyclingConfig } from '../src/types';
+import type { LocalDate, LocalDateTime, SeriesId, CyclingConfig } from '../src/types';
+
+function date(s: string): LocalDate {
+  const r = parseDate(s);
+  if (!r.ok) throw new Error(`Invalid test date: ${s}`);
+  return r.value;
+}
+
+function datetime(s: string): LocalDateTime {
+  const r = parseDateTime(s);
+  if (!r.ok) throw new Error(`Invalid test datetime: ${s}`);
+  return r.value;
+}
 
 describe('Segment 07: Cycling', () => {
   let adapter: MockAdapter;
@@ -174,27 +187,23 @@ describe('Segment 07: Cycling', () => {
       });
 
       it('index advances on completion', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 0,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'index advances on completion' setup failed: ${seriesResult.error.type}`);
-
-        const seriesId = seriesResult.value.id;
+        }) as SeriesId;
 
         // Log a completion
         await logCompletion(adapter, {
           seriesId,
-          instanceDate: parseDate('2024-01-01'),
-          startTime: parseDateTime('2024-01-01T09:00:00'),
-          endTime: parseDateTime('2024-01-01T09:30:00'),
+          instanceDate: date('2024-01-01'),
+          startTime: datetime('2024-01-01T09:00:00'),
+          endTime: datetime('2024-01-01T09:30:00'),
         });
 
         // Advance the cycling
@@ -205,20 +214,16 @@ describe('Segment 07: Cycling', () => {
       });
 
       it('skipped instance no advance', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 0,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'skipped instance no advance' setup failed: ${seriesResult.error.type}`);
-
-        const seriesId = seriesResult.value.id;
+        }) as SeriesId;
 
         // Don't log any completion - just skip the instance
         // Index should remain 0
@@ -231,20 +236,16 @@ describe('Segment 07: Cycling', () => {
 
     describe('2.2 Wrap-Around Tests', () => {
       it('index wraps at end', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 2,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'index wraps at end' setup failed: ${seriesResult.error.type}`);
-
-        const seriesId = seriesResult.value.id;
+        }) as SeriesId;
 
         // Advance from index 2
         const result = await advanceCycling(adapter, seriesId);
@@ -254,20 +255,16 @@ describe('Segment 07: Cycling', () => {
       });
 
       it('continuous wrap', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 0,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'continuous wrap' setup failed: ${seriesResult.error.type}`);
-
-        const seriesId = seriesResult.value.id;
+        }) as SeriesId;
 
         // Advance 6 times - should cycle through twice
         const indices: number[] = [];
@@ -285,20 +282,16 @@ describe('Segment 07: Cycling', () => {
 
     describe('2.3 Gap-Leap Sequence Test', () => {
       it('gap-leap full sequence', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Gap-Leap Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 0,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'gap-leap full sequence' setup failed: ${seriesResult.error.type}`);
-
-        const seriesId = seriesResult.value.id;
+        }) as SeriesId;
 
         // Get item at index 0 -> A
         let series = await adapter.getSeries(seriesId);
@@ -424,20 +417,18 @@ describe('Segment 07: Cycling', () => {
   describe('4. Advance Cycling', () => {
     describe('4.1 Advance Tests', () => {
       it('advance increments index', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 0,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'advance increments index' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
-        const result = await advanceCycling(adapter, seriesResult.value.id);
+        const result = await advanceCycling(adapter, seriesId);
         expect(result.ok).toBe(true);
         if (result.ok) {
           expect(result.value.currentIndex).toBe(1);
@@ -445,20 +436,18 @@ describe('Segment 07: Cycling', () => {
       });
 
       it('advance wraps around', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 2,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'advance wraps around' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
-        const result = await advanceCycling(adapter, seriesResult.value.id);
+        const result = await advanceCycling(adapter, seriesId);
         expect(result.ok).toBe(true);
         if (result.ok) {
           expect(result.value.currentIndex).toBe(0);
@@ -466,19 +455,17 @@ describe('Segment 07: Cycling', () => {
       });
 
       it('advance requires gapLeap=true', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: false,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'advance requires gapLeap=true' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
-        const result = await advanceCycling(adapter, seriesResult.value.id);
+        const result = await advanceCycling(adapter, seriesId);
         // Should either error or be a no-op
         expect(result.ok).toBe(false);
       });
@@ -486,37 +473,33 @@ describe('Segment 07: Cycling', () => {
 
     describe('4.2 Precondition Tests', () => {
       it('advance on gapLeap=true series', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'GapLeap Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 0,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'advance on gapLeap=true series' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
-        const result = await advanceCycling(adapter, seriesResult.value.id);
+        const result = await advanceCycling(adapter, seriesId);
         expect(result.ok).toBe(true);
       });
 
       it('advance on gapLeap=false series', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'No GapLeap Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B'],
             mode: 'sequential',
             gapLeap: false,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'advance on gapLeap=false series' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
-        const result = await advanceCycling(adapter, seriesResult.value.id);
+        const result = await advanceCycling(adapter, seriesId);
         expect(result.ok).toBe(false);
       });
     });
@@ -529,20 +512,18 @@ describe('Segment 07: Cycling', () => {
   describe('5. Reset Cycling', () => {
     describe('Unit Tests', () => {
       it('reset sets index to 0', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 5,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'reset sets index to 0' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
-        const result = await resetCycling(adapter, seriesResult.value.id);
+        const result = await resetCycling(adapter, seriesId);
         expect(result.ok).toBe(true);
         if (result.ok) {
           expect(result.value.currentIndex).toBe(0);
@@ -550,20 +531,18 @@ describe('Segment 07: Cycling', () => {
       });
 
       it('reset from index 0', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 0,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'reset from index 0' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
-        const result = await resetCycling(adapter, seriesResult.value.id);
+        const result = await resetCycling(adapter, seriesId);
         expect(result.ok).toBe(true);
         if (result.ok) {
           expect(result.value.currentIndex).toBe(0);
@@ -573,63 +552,57 @@ describe('Segment 07: Cycling', () => {
 
     describe('No Auto-Reset Tests', () => {
       it('no auto-reset on deactivation', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 2,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'no auto-reset on deactivation' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
         // Simulate pattern deactivation by checking series state
         // Index should be preserved
-        const series = await adapter.getSeries(seriesResult.value.id);
+        const series = await adapter.getSeries(seriesId);
         expect(series!.cycling!.currentIndex).toBe(2);
       });
 
       it('consumer must explicitly reset', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 1,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'consumer must explicitly reset' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
         // Without explicit reset, index should remain unchanged
-        const series = await adapter.getSeries(seriesResult.value.id);
+        const series = await adapter.getSeries(seriesId);
         expect(series!.cycling!.currentIndex).toBe(1);
       });
 
       it('deactivation preserves index', async () => {
-        const seriesResult = await createSeries(adapter, {
+        const seriesId = await createSeries(adapter, {
           title: 'Cycling Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['A', 'B', 'C'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 2,
           },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'deactivation preserves index' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
         // Advance cycling to verify state changes
-        await advanceCycling(adapter, seriesResult.value.id);
+        await advanceCycling(adapter, seriesId);
 
         // Verify index was updated (wrapped to 0)
-        const series = await adapter.getSeries(seriesResult.value.id);
+        const series = await adapter.getSeries(seriesId);
         expect(series!.cycling!.currentIndex).toBe(0);
 
         // Index is preserved across operations - no auto-reset
@@ -643,32 +616,28 @@ describe('Segment 07: Cycling', () => {
 
   describe('6. Resolve Instance Title', () => {
     it('no cycling uses series title', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const seriesId = await createSeries(adapter, {
         title: 'Simple Series',
-        startDate: parseDate('2024-01-01'),
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'no cycling uses series title' setup failed: ${seriesResult.error.type}`);
+        startDate: date('2024-01-01'),
+      }) as SeriesId;
 
-      const series = await adapter.getSeries(seriesResult.value.id);
+      const series = await adapter.getSeries(seriesId);
       const title = resolveInstanceTitle(series!, { instanceNumber: 0 });
       expect(title).toBe('Simple Series');
     });
 
     it('with cycling uses item title', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const seriesId = await createSeries(adapter, {
         title: 'Workout',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         cycling: {
           items: ['Push Day', 'Pull Day', 'Leg Day'],
           mode: 'sequential',
           gapLeap: false,
         },
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'with cycling uses item title' setup failed: ${seriesResult.error.type}`);
+      }) as SeriesId;
 
-      const series = await adapter.getSeries(seriesResult.value.id);
+      const series = await adapter.getSeries(seriesId);
       const title = resolveInstanceTitle(series!, { instanceNumber: 1 });
       expect(title).toBe('Pull Day');
     });
@@ -681,9 +650,9 @@ describe('Segment 07: Cycling', () => {
   describe('7. Instance Number Calculation', () => {
     it('first instance is number 0', () => {
       const instanceDates = [
-        parseDate('2024-01-01'),
-        parseDate('2024-01-02'),
-        parseDate('2024-01-03'),
+        date('2024-01-01'),
+        date('2024-01-02'),
+        date('2024-01-03'),
       ];
       const instanceNumber = getInstanceNumber(instanceDates[0], instanceDates);
       expect(instanceNumber).toBe(0);
@@ -691,9 +660,9 @@ describe('Segment 07: Cycling', () => {
 
     it('instances in chronological order', () => {
       const instanceDates = [
-        parseDate('2024-01-01'),
-        parseDate('2024-01-03'),
-        parseDate('2024-01-05'),
+        date('2024-01-01'),
+        date('2024-01-03'),
+        date('2024-01-05'),
       ];
       expect(getInstanceNumber(instanceDates[0], instanceDates)).toBe(0);
       expect(getInstanceNumber(instanceDates[1], instanceDates)).toBe(1);
@@ -703,36 +672,34 @@ describe('Segment 07: Cycling', () => {
     it('cancelled instances counted', () => {
       // In gapLeap=false mode, cancelled dates still count in numbering
       const instanceDates = [
-        parseDate('2024-01-01'),
-        parseDate('2024-01-02'), // This could be cancelled
-        parseDate('2024-01-03'),
+        date('2024-01-01'),
+        date('2024-01-02'), // This could be cancelled
+        date('2024-01-03'),
       ];
       // Instance 3 is still instance number 2, even if 2 is cancelled
       expect(getInstanceNumber(instanceDates[2], instanceDates)).toBe(2);
     });
 
     it('completions determine index', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const seriesId = await createSeries(adapter, {
         title: 'GapLeap Series',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         cycling: {
           items: ['A', 'B', 'C'],
           mode: 'sequential',
           gapLeap: true,
           currentIndex: 0,
         },
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'completions determine index' setup failed: ${seriesResult.error.type}`);
+      }) as SeriesId;
 
       // In gapLeap=true, index is based on completions, not instance numbers
       // Start at index 0
-      let series = await adapter.getSeries(seriesResult.value.id);
+      let series = await adapter.getSeries(seriesId);
       expect(series!.cycling!.currentIndex).toBe(0);
 
       // Advance (as if completed)
-      await advanceCycling(adapter, seriesResult.value.id);
-      series = await adapter.getSeries(seriesResult.value.id);
+      await advanceCycling(adapter, seriesId);
+      series = await adapter.getSeries(seriesId);
       expect(series!.cycling!.currentIndex).toBe(1);
     });
   });
@@ -754,20 +721,18 @@ describe('Segment 07: Cycling', () => {
     });
 
     it('index at last wraps to 0', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const seriesId = await createSeries(adapter, {
         title: 'Cycling Series',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         cycling: {
           items: ['A', 'B', 'C'],
           mode: 'sequential',
           gapLeap: true,
           currentIndex: 2,
         },
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'index at last wraps to 0' setup failed: ${seriesResult.error.type}`);
+      }) as SeriesId;
 
-      const result = await advanceCycling(adapter, seriesResult.value.id);
+      const result = await advanceCycling(adapter, seriesId);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.currentIndex).toBe(0);
@@ -784,21 +749,19 @@ describe('Segment 07: Cycling', () => {
     });
 
     it('no completions first item', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const seriesId = await createSeries(adapter, {
         title: 'GapLeap Series',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         cycling: {
           items: ['A', 'B', 'C'],
           mode: 'sequential',
           gapLeap: true,
           currentIndex: 0,
         },
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'no completions first item' setup failed: ${seriesResult.error.type}`);
+      }) as SeriesId;
 
       // With no completions, should be at first item
-      const series = await adapter.getSeries(seriesResult.value.id);
+      const series = await adapter.getSeries(seriesId);
       const item = getCyclingItem(series!.cycling!, { instanceNumber: 0 });
       expect(item).toBe('A');
     });
@@ -810,35 +773,32 @@ describe('Segment 07: Cycling', () => {
 
   describe('9. Invariants', () => {
     it('items non-empty', async () => {
-      const seriesResult = await createSeries(adapter, {
+      await expect(createSeries(adapter, {
         title: 'Empty Cycling',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         cycling: {
           items: [],
           mode: 'sequential',
           gapLeap: false,
         },
-      });
-      expect(seriesResult.ok).toBe(false);
+      })).rejects.toThrow(ValidationError);
     });
 
     it('currentIndex in bounds', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const seriesId = await createSeries(adapter, {
         title: 'Cycling Series',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         cycling: {
           items: ['A', 'B', 'C'],
           mode: 'sequential',
           gapLeap: true,
           currentIndex: 0,
         },
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'currentIndex in bounds' setup failed: ${seriesResult.error.type}`);
+      }) as SeriesId;
 
       // Advance multiple times and verify index stays in bounds
       for (let i = 0; i < 10; i++) {
-        const result = await advanceCycling(adapter, seriesResult.value.id);
+        const result = await advanceCycling(adapter, seriesId);
         expect(result.ok).toBe(true);
         if (result.ok) {
           expect(result.value.currentIndex).toBeGreaterThanOrEqual(0);
@@ -848,73 +808,66 @@ describe('Segment 07: Cycling', () => {
     });
 
     it('cycling optional', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const seriesId = await createSeries(adapter, {
         title: 'No Cycling',
-        startDate: parseDate('2024-01-01'),
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'cycling optional' setup failed: ${seriesResult.error.type}`);
+        startDate: date('2024-01-01'),
+      }) as SeriesId;
 
-      const series = await adapter.getSeries(seriesResult.value.id);
+      const series = await adapter.getSeries(seriesId);
       // Verify series exists and cycling is not configured
       expect(series).toEqual(expect.objectContaining({
-        id: seriesResult.value.id,
+        id: seriesId,
         title: 'No Cycling',
       }));
       expect(series).not.toMatchObject({ cycling: expect.anything() });
 
       // INV 3: Verify via dedicated getter
       // Positive case: create a series WITH cycling to prove getter works
-      const withCyclingResult = await createSeries(adapter, {
+      const withCyclingId = await createSeries(adapter, {
         title: 'Has Cycling',
-        startDate: parseDate('2024-02-01'),
+        startDate: date('2024-02-01'),
         cycling: { items: ['X', 'Y'], mode: 'sequential', gapLeap: false, currentIndex: 0 },
-      });
-      expect(withCyclingResult.ok).toBe(true);
-      if (withCyclingResult.ok) {
-        const withCyclingConfig = await adapter.getCyclingConfig(withCyclingResult.value.id);
-        expect(withCyclingConfig).toMatchObject({ mode: 'sequential' });
-      }
+      }) as SeriesId;
+
+      const withCyclingConfig = await adapter.getCyclingConfig(withCyclingId);
+      expect(withCyclingConfig).toMatchObject({ mode: 'sequential' });
 
       // Now verify the no-cycling series returns null (positive case above proves getter returns real data)
-      const cyclingConfig = await adapter.getCyclingConfig(seriesResult.value.id);
+      const cyclingConfig = await adapter.getCyclingConfig(seriesId);
       expect(cyclingConfig).toBe(null);
-      if (!withCyclingResult.ok) throw new Error('setup failed');
       // Contrast with the cycling series that has a real config
-      const positiveCyclingConfig = await adapter.getCyclingConfig(withCyclingResult.value.id);
+      const positiveCyclingConfig = await adapter.getCyclingConfig(withCyclingId);
       expect(positiveCyclingConfig).toMatchObject({ mode: 'sequential' });
 
       // Prove getCyclingItems returns real data for the cycling series
-      let cyclingItems = await adapter.getCyclingItems(withCyclingResult.value.id);
+      let cyclingItems = await adapter.getCyclingItems(withCyclingId);
       expect(cyclingItems).toHaveLength(2);
       expect(cyclingItems[0]).toMatchObject({ title: 'X' });
       expect(cyclingItems[1]).toMatchObject({ title: 'Y' });
 
       // Now verify no cycling items for the non-cycling series
-      cyclingItems = await adapter.getCyclingItems(seriesResult.value.id);
+      cyclingItems = await adapter.getCyclingItems(seriesId);
       expect(cyclingItems.some(i => i.title === 'X')).toBe(false);
       expect(cyclingItems.some(i => i.title === 'Y')).toBe(false);
     });
 
     it('gapLeap state persisted', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const seriesId = await createSeries(adapter, {
         title: 'Cycling Series',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         cycling: {
           items: ['A', 'B', 'C'],
           mode: 'sequential',
           gapLeap: true,
           currentIndex: 1,
         },
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'gapLeap state persisted' setup failed: ${seriesResult.error.type}`);
+      }) as SeriesId;
 
       // Advance
-      await advanceCycling(adapter, seriesResult.value.id);
+      await advanceCycling(adapter, seriesId);
 
       // Verify index was persisted
-      const series = await adapter.getSeries(seriesResult.value.id);
+      const series = await adapter.getSeries(seriesId);
       expect(series!.cycling!.currentIndex).toBe(2);
     });
   });
@@ -928,20 +881,16 @@ describe('Segment 07: Cycling', () => {
       let workoutSeriesId: SeriesId;
 
       beforeEach(async () => {
-        const result = await createSeries(adapter, {
+        workoutSeriesId = await createSeries(adapter, {
           title: 'Workout',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           cycling: {
             items: ['Push', 'Pull', 'Legs'],
             mode: 'sequential',
             gapLeap: true,
             currentIndex: 0,
           },
-        });
-        expect(result.ok).toBe(true);
-        if (result.ok) {
-          workoutSeriesId = result.value.id;
-        }
+        }) as SeriesId;
       });
 
       it('start at push', async () => {
@@ -954,9 +903,9 @@ describe('Segment 07: Cycling', () => {
         // Log completion for Push
         await logCompletion(adapter, {
           seriesId: workoutSeriesId,
-          instanceDate: parseDate('2024-01-01'),
-          startTime: parseDateTime('2024-01-01T09:00:00'),
-          endTime: parseDateTime('2024-01-01T10:00:00'),
+          instanceDate: date('2024-01-01'),
+          startTime: datetime('2024-01-01T09:00:00'),
+          endTime: datetime('2024-01-01T10:00:00'),
         });
         await advanceCycling(adapter, workoutSeriesId);
 
@@ -969,18 +918,18 @@ describe('Segment 07: Cycling', () => {
         // Complete Push
         await logCompletion(adapter, {
           seriesId: workoutSeriesId,
-          instanceDate: parseDate('2024-01-01'),
-          startTime: parseDateTime('2024-01-01T09:00:00'),
-          endTime: parseDateTime('2024-01-01T10:00:00'),
+          instanceDate: date('2024-01-01'),
+          startTime: datetime('2024-01-01T09:00:00'),
+          endTime: datetime('2024-01-01T10:00:00'),
         });
         await advanceCycling(adapter, workoutSeriesId);
 
         // Complete Pull
         await logCompletion(adapter, {
           seriesId: workoutSeriesId,
-          instanceDate: parseDate('2024-01-02'),
-          startTime: parseDateTime('2024-01-02T09:00:00'),
-          endTime: parseDateTime('2024-01-02T10:00:00'),
+          instanceDate: date('2024-01-02'),
+          startTime: datetime('2024-01-02T09:00:00'),
+          endTime: datetime('2024-01-02T10:00:00'),
         });
         await advanceCycling(adapter, workoutSeriesId);
 

@@ -42,21 +42,32 @@ import {
   addDays,
 } from '../src/time-date';
 import type { SeriesId, LinkId, LocalDate, LocalDateTime } from '../src/types';
+import { LinkedChildrenExistError } from '../src/series-crud';
+
+function date(s: string): LocalDate {
+  const r = parseDate(s);
+  if (!r.ok) throw new Error(`Invalid test date: ${s}`);
+  return r.value;
+}
+
+function datetime(s: string): LocalDateTime {
+  const r = parseDateTime(s);
+  if (!r.ok) throw new Error(`Invalid test datetime: ${s}`);
+  return r.value;
+}
 
 describe('Segment 11: Links (Chains)', () => {
   let adapter: MockAdapter;
 
   // Helper to create a series
   async function createTestSeries(title: string): Promise<SeriesId> {
-    const result = await createSeries(adapter, {
+    return await createSeries(adapter, {
       title,
-      startDate: parseDate('2024-01-01'),
+      startDate: date('2024-01-01'),
       pattern: { type: 'daily' },
-      time: parseDateTime('2024-01-01T09:00:00'),
+      time: datetime('2024-01-01T09:00:00'),
       durationMinutes: 30,
-    });
-    if (!result.ok) throw new Error(`Failed to create series: ${title}`);
-    return result.value.id;
+    }) as SeriesId;
   }
 
   beforeEach(() => {
@@ -119,8 +130,8 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         // Parent ends at 09:30 (09:00 + 30min), child should target 09:45
-        const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-        expect(target).toBe(parseDateTime('2024-01-15T09:45:00'));
+        const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+        expect(target).toBe(datetime('2024-01-15T09:45:00'));
       });
     });
 
@@ -578,8 +589,8 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         // Parent: 09:00-09:30, distance 15 -> target 09:45
-        const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-        expect(target).toBe(parseDateTime('2024-01-15T09:45:00'));
+        const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+        expect(target).toBe(datetime('2024-01-15T09:45:00'));
       });
 
       it('uses actual end if completed', async () => {
@@ -595,14 +606,14 @@ describe('Segment 11: Links (Chains)', () => {
         // Parent started and completed early, ending at 08:45
         await logCompletion(adapter, {
           seriesId: parentId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T08:30:00'),
-          endTime: parseDateTime('2024-01-15T08:45:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T08:30:00'),
+          endTime: datetime('2024-01-15T08:45:00'),
         });
 
         // Target should be based on actual end: 08:45 + 15 = 09:00
-        const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-        expect(target).toBe(parseDateTime('2024-01-15T09:00:00'));
+        const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+        expect(target).toBe(datetime('2024-01-15T09:00:00'));
       });
 
       it('uses scheduled end if not completed', async () => {
@@ -616,8 +627,8 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         // No completion - uses scheduled end 09:30 + 15 = 09:45
-        const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-        expect(target).toBe(parseDateTime('2024-01-15T09:45:00'));
+        const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+        expect(target).toBe(datetime('2024-01-15T09:45:00'));
       });
     });
 
@@ -635,9 +646,9 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         // Target 09:45, window should be [09:40, 09:55]
-        const window = await getChildValidWindow(adapter, childId, parseDate('2024-01-15'));
-        expect(window.earliest).toBe(parseDateTime('2024-01-15T09:40:00'));
-        expect(window.latest).toBe(parseDateTime('2024-01-15T09:55:00'));
+        const window = await getChildValidWindow(adapter, childId, date('2024-01-15'));
+        expect(window.earliest).toBe(datetime('2024-01-15T09:40:00'));
+        expect(window.latest).toBe(datetime('2024-01-15T09:55:00'));
       });
 
       it('earlyWobble 0 no early', async () => {
@@ -653,8 +664,8 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         // Window should be [09:45, 09:55]
-        const window = await getChildValidWindow(adapter, childId, parseDate('2024-01-15'));
-        expect(window.earliest).toBe(parseDateTime('2024-01-15T09:45:00'));
+        const window = await getChildValidWindow(adapter, childId, date('2024-01-15'));
+        expect(window.earliest).toBe(datetime('2024-01-15T09:45:00'));
       });
 
       it('bounds are hard', async () => {
@@ -672,9 +683,9 @@ describe('Segment 11: Links (Chains)', () => {
         // Parent ends at 09:30, target = 09:30 + 15 = 09:45
         // earliest = 09:45 - 5 (earlyWobble) = 09:40
         // latest = 09:45 + 10 (lateWobble) = 09:55
-        const window = await getChildValidWindow(adapter, childId, parseDate('2024-01-15'));
-        expect(window.earliest).toBe(parseDateTime('2024-01-15T09:40:00'));
-        expect(window.latest).toBe(parseDateTime('2024-01-15T09:55:00'));
+        const window = await getChildValidWindow(adapter, childId, date('2024-01-15'));
+        expect(window.earliest).toBe(datetime('2024-01-15T09:40:00'));
+        expect(window.latest).toBe(datetime('2024-01-15T09:55:00'));
       });
     });
   });
@@ -906,12 +917,7 @@ describe('Segment 11: Links (Chains)', () => {
 
       await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: childId, targetDistance: 15 });
 
-      const result = await deleteSeries(adapter, parentId);
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.error.type).toBe('LinkedChildrenExistError');
-      }
+      await expect(deleteSeries(adapter, parentId)).rejects.toThrow(/has linked children/);
     });
 
     it('must unlink before delete parent', async () => {
@@ -921,9 +927,17 @@ describe('Segment 11: Links (Chains)', () => {
       await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: childId, targetDistance: 15 });
 
       await unlinkSeries(adapter, childId);
-      const result = await deleteSeries(adapter, parentId);
 
-      expect(result.ok).toBe(true);
+      // Verify parent series exists with concrete values before deletion
+      const parentBefore = await getSeries(adapter, parentId);
+      expect(parentBefore).toMatchObject({ title: 'Parent' });
+      expect(parentBefore!.id).toBe(parentId);
+
+      await deleteSeries(adapter, parentId);
+
+      // Same getSeries call that returned concrete data above now returns null
+      const parentAfter = await getSeries(adapter, parentId);
+      expect(parentAfter).toBeNull();
     });
   });
 
@@ -939,11 +953,11 @@ describe('Segment 11: Links (Chains)', () => {
       await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: childId, targetDistance: 15 });
 
       // Reschedule parent to 14:00 (was 09:00)
-      await rescheduleInstance(adapter, parentId, parseDate('2024-01-15'), parseDateTime('2024-01-15T14:00:00'));
+      await rescheduleInstance(adapter, parentId, date('2024-01-15'), datetime('2024-01-15T14:00:00'));
 
       // Child target should now be 14:30 + 15 = 14:45
-      const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-      expect(target).toBe(parseDateTime('2024-01-15T14:45:00'));
+      const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+      expect(target).toBe(datetime('2024-01-15T14:45:00'));
     });
 
     it('child new target from new end', async () => {
@@ -953,11 +967,11 @@ describe('Segment 11: Links (Chains)', () => {
       await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: childId, targetDistance: 15 });
 
       // Reschedule parent to 10:00
-      await rescheduleInstance(adapter, parentId, parseDate('2024-01-15'), parseDateTime('2024-01-15T10:00:00'));
+      await rescheduleInstance(adapter, parentId, date('2024-01-15'), datetime('2024-01-15T10:00:00'));
 
       // New end: 10:30, new target: 10:45
-      const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-      expect(target).toBe(parseDateTime('2024-01-15T10:45:00'));
+      const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+      expect(target).toBe(datetime('2024-01-15T10:45:00'));
     });
 
     it('children maintain relative position', async () => {
@@ -973,12 +987,12 @@ describe('Segment 11: Links (Chains)', () => {
       });
 
       // Reschedule parent
-      await rescheduleInstance(adapter, parentId, parseDate('2024-01-15'), parseDateTime('2024-01-15T14:00:00'));
+      await rescheduleInstance(adapter, parentId, date('2024-01-15'), datetime('2024-01-15T14:00:00'));
 
       // Window should maintain same wobble
-      const window = await getChildValidWindow(adapter, childId, parseDate('2024-01-15'));
-      expect(window.earliest).toBe(parseDateTime('2024-01-15T14:40:00'));
-      expect(window.latest).toBe(parseDateTime('2024-01-15T14:55:00'));
+      const window = await getChildValidWindow(adapter, childId, date('2024-01-15'));
+      expect(window.earliest).toBe(datetime('2024-01-15T14:40:00'));
+      expect(window.latest).toBe(datetime('2024-01-15T14:55:00'));
     });
 
     it('conflict if bounds violated', async () => {
@@ -994,16 +1008,16 @@ describe('Segment 11: Links (Chains)', () => {
       });
 
       // Get the valid window
-      const window = await getChildValidWindow(adapter, childId, parseDate('2024-01-15'));
+      const window = await getChildValidWindow(adapter, childId, date('2024-01-15'));
 
       // Parent ends at 09:30, target = 09:30 + 15 = 09:45
       // With earlyWobble=0 and lateWobble=5, window is [09:45, 09:50]
-      expect(window.earliest).toBe(parseDateTime('2024-01-15T09:45:00'));
-      expect(window.latest).toBe(parseDateTime('2024-01-15T09:50:00'));
+      expect(window.earliest).toBe(datetime('2024-01-15T09:45:00'));
+      expect(window.latest).toBe(datetime('2024-01-15T09:50:00'));
 
       // Attempting to schedule child outside this window should produce conflict
-      const conflicts = await detectConflicts(adapter, childId, parseDate('2024-01-15'), {
-        proposedTime: parseDateTime('2024-01-15T10:00:00'),  // Outside window
+      const conflicts = await detectConflicts(adapter, childId, date('2024-01-15'), {
+        proposedTime: datetime('2024-01-15T10:00:00'),  // Outside window
       });
       expect(conflicts.some((c) => c.type === 'chainBoundsViolated')).toBe(true);
     });
@@ -1106,8 +1120,8 @@ describe('Segment 11: Links (Chains)', () => {
       });
 
       // Child starts exactly when parent ends
-      const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-      expect(target).toBe(parseDateTime('2024-01-15T09:30:00'));
+      const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+      expect(target).toBe(datetime('2024-01-15T09:30:00'));
     });
 
     it('B2: earlyWobble 0', async () => {
@@ -1122,8 +1136,8 @@ describe('Segment 11: Links (Chains)', () => {
         lateWobble: 10,
       });
 
-      const window = await getChildValidWindow(adapter, childId, parseDate('2024-01-15'));
-      expect(window.earliest).toBe(parseDateTime('2024-01-15T09:45:00'));
+      const window = await getChildValidWindow(adapter, childId, date('2024-01-15'));
+      expect(window.earliest).toBe(datetime('2024-01-15T09:45:00'));
     });
 
     it('B3: chain depth 5+', async () => {
@@ -1151,14 +1165,14 @@ describe('Segment 11: Links (Chains)', () => {
       // Complete parent early
       await logCompletion(adapter, {
         seriesId: parentId,
-        instanceDate: parseDate('2024-01-15'),
-        startTime: parseDateTime('2024-01-15T09:00:00'),
-        endTime: parseDateTime('2024-01-15T09:15:00'), // 15min early
+        instanceDate: date('2024-01-15'),
+        startTime: datetime('2024-01-15T09:00:00'),
+        endTime: datetime('2024-01-15T09:15:00'), // 15min early
       });
 
       // Child target should update
-      const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-      expect(target).toBe(parseDateTime('2024-01-15T09:30:00')); // 09:15 + 15
+      const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+      expect(target).toBe(datetime('2024-01-15T09:30:00')); // 09:15 + 15
     });
 
     it('B5: chain depth 32', async () => {
@@ -1206,11 +1220,11 @@ describe('Segment 11: Links (Chains)', () => {
       await linkSeries(adapter, { parentSeriesId: parentId, childSeriesId: childId, targetDistance: 15 });
 
       // Reschedule to next day
-      await rescheduleInstance(adapter, parentId, parseDate('2024-01-15'), parseDateTime('2024-01-16T09:00:00'));
+      await rescheduleInstance(adapter, parentId, date('2024-01-15'), datetime('2024-01-16T09:00:00'));
 
       // Child target should be on new day
-      const target = await calculateChildTarget(adapter, childId, parseDate('2024-01-15'));
-      expect(target).toBe(parseDateTime('2024-01-16T09:45:00'));
+      const target = await calculateChildTarget(adapter, childId, date('2024-01-15'));
+      expect(target).toBe(datetime('2024-01-16T09:45:00'));
     });
   });
 
@@ -1231,8 +1245,8 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         // Warmup 09:00-09:30, workout starts 5min after -> 09:35
-        const target = await calculateChildTarget(adapter, workoutId, parseDate('2024-01-15'));
-        expect(target).toBe(parseDateTime('2024-01-15T09:35:00'));
+        const target = await calculateChildTarget(adapter, workoutId, date('2024-01-15'));
+        expect(target).toBe(datetime('2024-01-15T09:35:00'));
       });
 
       it('workout completed early', async () => {
@@ -1248,14 +1262,14 @@ describe('Segment 11: Links (Chains)', () => {
         // Warmup completed 10 min early
         await logCompletion(adapter, {
           seriesId: warmupId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:20:00'),
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:20:00'),
         });
 
         // Workout target adjusts: 09:20 + 5 = 09:25
-        const target = await calculateChildTarget(adapter, workoutId, parseDate('2024-01-15'));
-        expect(target).toBe(parseDateTime('2024-01-15T09:25:00'));
+        const target = await calculateChildTarget(adapter, workoutId, date('2024-01-15'));
+        expect(target).toBe(datetime('2024-01-15T09:25:00'));
       });
     });
 
@@ -1271,8 +1285,8 @@ describe('Segment 11: Links (Chains)', () => {
         });
 
         // Cook 09:00-09:30, eat 10min after -> 09:40
-        const target = await calculateChildTarget(adapter, eatId, parseDate('2024-01-15'));
-        expect(target).toBe(parseDateTime('2024-01-15T09:40:00'));
+        const target = await calculateChildTarget(adapter, eatId, date('2024-01-15'));
+        expect(target).toBe(datetime('2024-01-15T09:40:00'));
       });
 
       it('prep to cook to eat', async () => {
@@ -1304,11 +1318,11 @@ describe('Segment 11: Links (Chains)', () => {
         await linkSeries(adapter, { parentSeriesId: bId, childSeriesId: cId, targetDistance: 15 });
 
         // Reschedule A
-        await rescheduleInstance(adapter, aId, parseDate('2024-01-15'), parseDateTime('2024-01-15T14:00:00'));
+        await rescheduleInstance(adapter, aId, date('2024-01-15'), datetime('2024-01-15T14:00:00'));
 
         // B and C should both move
-        const bTarget = await calculateChildTarget(adapter, bId, parseDate('2024-01-15'));
-        expect(bTarget).toBe(parseDateTime('2024-01-15T14:45:00')); // 14:30 + 15
+        const bTarget = await calculateChildTarget(adapter, bId, date('2024-01-15'));
+        expect(bTarget).toBe(datetime('2024-01-15T14:45:00')); // 14:30 + 15
       });
 
       it('complete first affects rest', async () => {
@@ -1322,14 +1336,14 @@ describe('Segment 11: Links (Chains)', () => {
         // A completes early
         await logCompletion(adapter, {
           seriesId: aId,
-          instanceDate: parseDate('2024-01-15'),
-          startTime: parseDateTime('2024-01-15T09:00:00'),
-          endTime: parseDateTime('2024-01-15T09:15:00'), // 15min early
+          instanceDate: date('2024-01-15'),
+          startTime: datetime('2024-01-15T09:00:00'),
+          endTime: datetime('2024-01-15T09:15:00'), // 15min early
         });
 
         // B target moves earlier: 09:15 + 15 = 09:30
-        const bTarget = await calculateChildTarget(adapter, bId, parseDate('2024-01-15'));
-        expect(bTarget).toBe(parseDateTime('2024-01-15T09:30:00'));
+        const bTarget = await calculateChildTarget(adapter, bId, date('2024-01-15'));
+        expect(bTarget).toBe(datetime('2024-01-15T09:30:00'));
       });
     });
   });

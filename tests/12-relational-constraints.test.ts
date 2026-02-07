@@ -32,7 +32,19 @@ import {
   parseDate,
   parseDateTime,
 } from '../src/time-date';
-import type { SeriesId, ConstraintId, LocalDate } from '../src/types';
+import type { SeriesId, ConstraintId, LocalDate, LocalDateTime } from '../src/types';
+
+function date(s: string): LocalDate {
+  const r = parseDate(s);
+  if (!r.ok) throw new Error(`Invalid test date: ${s}`);
+  return r.value;
+}
+
+function datetime(s: string): LocalDateTime {
+  const r = parseDateTime(s);
+  if (!r.ok) throw new Error(`Invalid test datetime: ${s}`);
+  return r.value;
+}
 
 describe('Segment 12: Relational Constraints', () => {
   let adapter: MockAdapter;
@@ -43,16 +55,14 @@ describe('Segment 12: Relational Constraints', () => {
 
   // Helper to create a series
   async function createTestSeries(title: string, tags?: string[]): Promise<SeriesId> {
-    const result = await createSeries(adapter, {
+    return await createSeries(adapter, {
       title,
-      startDate: parseDate('2024-01-01'),
+      startDate: date('2024-01-01'),
       pattern: { type: 'daily' },
-      time: parseDateTime('2024-01-01T09:00:00'),
+      time: datetime('2024-01-01T09:00:00'),
       durationMinutes: 60,
       tags,
-    });
-    if (!result.ok) throw new Error(`Failed to create series: ${title}`);
-    return result.value.id;
+    }) as SeriesId;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -349,54 +359,50 @@ describe('Segment 12: Relational Constraints', () => {
           type: 'mustBeOnSameDay',
           source: { type: 'seriesId', seriesId: seriesA },
           dest: { type: 'seriesId', seriesId: seriesB },
-        }, parseDate('2024-01-15'));
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true);
       });
 
       it('on different days', async () => {
         // Create series with different patterns
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'weekly', daysOfWeek: ['monday'] },
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'weekly', daysOfWeek: ['tuesday'] },
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         // Monday and Tuesday - different days
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeOnSameDay',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-08')); // A Monday
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-08')); // A Monday
 
         expect(satisfied).toBe(false);
       });
 
       it('source empty', async () => {
         // Create series with end date in past
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
-          endDate: parseDate('2024-01-05'),
+          startDate: date('2024-01-01'),
+          endDate: date('2024-01-05'),
           pattern: { type: 'daily' },
-        });
+        }) as SeriesId;
         const seriesB = await createTestSeries('B');
-
-        if (!resultA.ok) throw new Error('Failed to create series');
 
         // After end date, no instances
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeOnSameDay',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
+          source: { type: 'seriesId', seriesId: seriesA },
           dest: { type: 'seriesId', seriesId: seriesB },
-        }, parseDate('2024-01-15'));
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true); // Empty source = trivially satisfied
       });
@@ -404,24 +410,22 @@ describe('Segment 12: Relational Constraints', () => {
 
     describe('3.2 cantBeOnSameDay', () => {
       it('on different days', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'weekly', daysOfWeek: ['monday'] },
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'weekly', daysOfWeek: ['tuesday'] },
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'cantBeOnSameDay',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-08'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-08'));
 
         expect(satisfied).toBe(true);
       });
@@ -435,27 +439,25 @@ describe('Segment 12: Relational Constraints', () => {
           type: 'cantBeOnSameDay',
           source: { type: 'seriesId', seriesId: seriesA },
           dest: { type: 'seriesId', seriesId: seriesB },
-        }, parseDate('2024-01-15'));
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(false);
       });
 
       it('source empty', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
-          endDate: parseDate('2024-01-05'),
+          startDate: date('2024-01-01'),
+          endDate: date('2024-01-05'),
           pattern: { type: 'daily' },
-        });
+        }) as SeriesId;
         const seriesB = await createTestSeries('B');
-
-        if (!resultA.ok) throw new Error('Failed to create series');
 
         const satisfied = await checkConstraint(adapter, {
           type: 'cantBeOnSameDay',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
+          source: { type: 'seriesId', seriesId: seriesA },
           dest: { type: 'seriesId', seriesId: seriesB },
-        }, parseDate('2024-01-15'));
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true); // Empty source = trivially satisfied
       });
@@ -469,87 +471,81 @@ describe('Segment 12: Relational Constraints', () => {
   describe('4. Intra-Day Constraints', () => {
     describe('4.1 mustBeNextTo', () => {
       it('adjacent instances', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 60,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeNextTo',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true);
       });
 
       it('instance between', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 60,
-        });
-        const resultC = await createSeries(adapter, {
+        }) as SeriesId;
+        const _seriesC = await createSeries(adapter, {
           title: 'C',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 60,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T11:00:00'),
+          time: datetime('2024-01-01T11:00:00'),
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok || !resultC.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         // A at 09:00, C at 10:00, B at 11:00 - A and B not adjacent
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeNextTo',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(false);
       });
 
       it('on different days', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'weekly', daysOfWeek: ['monday'] },
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'weekly', daysOfWeek: ['tuesday'] },
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         // Not on same day - constraint N/A, treated as satisfied
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeNextTo',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-08'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-08'));
 
         expect(satisfied).toBe(true);
       });
@@ -557,62 +553,58 @@ describe('Segment 12: Relational Constraints', () => {
 
     describe('4.2 cantBeNextTo', () => {
       it('instance between', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 60,
-        });
-        const resultC = await createSeries(adapter, {
+        }) as SeriesId;
+        const _seriesC = await createSeries(adapter, {
           title: 'C',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 60,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T11:00:00'),
+          time: datetime('2024-01-01T11:00:00'),
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok || !resultC.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'cantBeNextTo',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true);
       });
 
       it('adjacent instances', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 60,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'cantBeNextTo',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(false);
       });
@@ -620,82 +612,76 @@ describe('Segment 12: Relational Constraints', () => {
 
     describe('4.3 mustBeBefore', () => {
       it('A before B', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 60,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeBefore',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true);
       });
 
       it('A after B', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T11:00:00'),
+          time: datetime('2024-01-01T11:00:00'),
           durationMinutes: 60,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeBefore',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(false);
       });
 
       it('A equals B time', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 60, // Ends at 10:00
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'), // Starts when A ends
+          time: datetime('2024-01-01T10:00:00'), // Starts when A ends
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeBefore',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true); // end <= start
       });
@@ -703,55 +689,51 @@ describe('Segment 12: Relational Constraints', () => {
 
     describe('4.4 mustBeAfter', () => {
       it('A after B', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T11:00:00'),
+          time: datetime('2024-01-01T11:00:00'),
           durationMinutes: 60,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeAfter',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true);
       });
 
       it('A before B', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 60,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 60,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeAfter',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
-        }, parseDate('2024-01-15'));
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(false);
       });
@@ -759,85 +741,79 @@ describe('Segment 12: Relational Constraints', () => {
 
     describe('4.5 mustBeWithin', () => {
       it('within time', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 30,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:20:00'),
+          time: datetime('2024-01-01T09:20:00'),
           durationMinutes: 30,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeWithin',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
           withinMinutes: 30,
-        }, parseDate('2024-01-15'));
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true);
       });
 
       it('outside time', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 30,
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'),
+          time: datetime('2024-01-01T10:00:00'),
           durationMinutes: 30,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeWithin',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
           withinMinutes: 30,
-        }, parseDate('2024-01-15'));
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(false);
       });
 
       it('exactly at boundary', async () => {
-        const resultA = await createSeries(adapter, {
+        const seriesA = await createSeries(adapter, {
           title: 'A',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T09:00:00'),
+          time: datetime('2024-01-01T09:00:00'),
           durationMinutes: 30, // Ends 09:30
-        });
-        const resultB = await createSeries(adapter, {
+        }) as SeriesId;
+        const seriesB = await createSeries(adapter, {
           title: 'B',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T10:00:00'), // 30 min from A end
+          time: datetime('2024-01-01T10:00:00'), // 30 min from A end
           durationMinutes: 30,
-        });
-
-        if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeWithin',
-          source: { type: 'seriesId', seriesId: resultA.value.id },
-          dest: { type: 'seriesId', seriesId: resultB.value.id },
+          source: { type: 'seriesId', seriesId: seriesA },
+          dest: { type: 'seriesId', seriesId: seriesB },
           withinMinutes: 30,
-        }, parseDate('2024-01-15'));
+        }, date('2024-01-15'));
 
         expect(satisfied).toBe(true);
       });
@@ -850,41 +826,37 @@ describe('Segment 12: Relational Constraints', () => {
 
   describe('5. Constraint Satisfaction', () => {
     it('empty source satisfied', async () => {
-      const resultA = await createSeries(adapter, {
+      const seriesA = await createSeries(adapter, {
         title: 'A',
-        startDate: parseDate('2024-01-01'),
-        endDate: parseDate('2024-01-05'),
+        startDate: date('2024-01-01'),
+        endDate: date('2024-01-05'),
         pattern: { type: 'daily' },
-      });
+      }) as SeriesId;
       const seriesB = await createTestSeries('B');
-
-      if (!resultA.ok) throw new Error('Failed to create series');
 
       const satisfied = await checkConstraint(adapter, {
         type: 'mustBeBefore',
-        source: { type: 'seriesId', seriesId: resultA.value.id },
+        source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, parseDate('2024-01-15'));
+      }, date('2024-01-15'));
 
       expect(satisfied).toBe(true);
     });
 
     it('empty dest satisfied', async () => {
       const seriesA = await createTestSeries('A');
-      const resultB = await createSeries(adapter, {
+      const seriesB = await createSeries(adapter, {
         title: 'B',
-        startDate: parseDate('2024-01-01'),
-        endDate: parseDate('2024-01-05'),
+        startDate: date('2024-01-01'),
+        endDate: date('2024-01-05'),
         pattern: { type: 'daily' },
-      });
-
-      if (!resultB.ok) throw new Error('Failed to create series');
+      }) as SeriesId;
 
       const satisfied = await checkConstraint(adapter, {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
-        dest: { type: 'seriesId', seriesId: resultB.value.id },
-      }, parseDate('2024-01-15'));
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, date('2024-01-15'));
 
       expect(satisfied).toBe(true);
     });
@@ -898,35 +870,33 @@ describe('Segment 12: Relational Constraints', () => {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, parseDate('2024-01-15'));
+      }, date('2024-01-15'));
 
       const jan16 = await checkConstraint(adapter, {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, parseDate('2024-01-16'));
+      }, date('2024-01-16'));
 
       // Both days should have same result (same schedule pattern)
       expect(jan15).toBe(jan16);
     });
 
     it('all-day instances excluded', async () => {
-      const resultA = await createSeries(adapter, {
+      const seriesA = await createSeries(adapter, {
         title: 'A',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
         allDay: true,
-      });
+      }) as SeriesId;
       const seriesB = await createTestSeries('B');
-
-      if (!resultA.ok) throw new Error('Failed to create series');
 
       // All-day instances excluded from intra-day constraints
       const satisfied = await checkConstraint(adapter, {
         type: 'mustBeBefore',
-        source: { type: 'seriesId', seriesId: resultA.value.id },
+        source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, parseDate('2024-01-15'));
+      }, date('2024-01-15'));
 
       expect(satisfied).toBe(true); // All-day excluded
     });
@@ -938,77 +908,71 @@ describe('Segment 12: Relational Constraints', () => {
 
   describe('6. Constraint Violations', () => {
     it('violation identifies instances', async () => {
-      const resultA = await createSeries(adapter, {
+      const seriesA = await createSeries(adapter, {
         title: 'A',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: parseDateTime('2024-01-01T11:00:00'),
-      });
-      const resultB = await createSeries(adapter, {
+        time: datetime('2024-01-01T11:00:00'),
+      }) as SeriesId;
+      const seriesB = await createSeries(adapter, {
         title: 'B',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: parseDateTime('2024-01-01T09:00:00'),
-      });
-
-      if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        time: datetime('2024-01-01T09:00:00'),
+      }) as SeriesId;
 
       const violations = await getConstraintViolations(adapter, {
         type: 'mustBeBefore',
-        source: { type: 'seriesId', seriesId: resultA.value.id },
-        dest: { type: 'seriesId', seriesId: resultB.value.id },
-      }, { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') });
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, { start: date('2024-01-15'), end: date('2024-01-15') });
 
       expect(violations.length === 1 && typeof violations[0].sourceInstance === 'string' && typeof violations[0].destInstance === 'string').toBe(true);
     });
 
     it('multiple violations same constraint', async () => {
-      const resultA = await createSeries(adapter, {
+      const seriesA = await createSeries(adapter, {
         title: 'A',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: parseDateTime('2024-01-01T11:00:00'),
-      });
-      const resultB = await createSeries(adapter, {
+        time: datetime('2024-01-01T11:00:00'),
+      }) as SeriesId;
+      const seriesB = await createSeries(adapter, {
         title: 'B',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: parseDateTime('2024-01-01T09:00:00'),
-      });
-
-      if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        time: datetime('2024-01-01T09:00:00'),
+      }) as SeriesId;
 
       const violations = await getConstraintViolations(adapter, {
         type: 'mustBeBefore',
-        source: { type: 'seriesId', seriesId: resultA.value.id },
-        dest: { type: 'seriesId', seriesId: resultB.value.id },
-      }, { start: parseDate('2024-01-15'), end: parseDate('2024-01-17') });
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, { start: date('2024-01-15'), end: date('2024-01-17') });
 
       // One per day
       expect(violations.length === 3 && violations.every(v => typeof v.sourceInstance === 'string' && typeof v.destInstance === 'string')).toBe(true);
     });
 
     it('violation includes description', async () => {
-      const resultA = await createSeries(adapter, {
+      const seriesA = await createSeries(adapter, {
         title: 'A',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: parseDateTime('2024-01-01T11:00:00'),
-      });
-      const resultB = await createSeries(adapter, {
+        time: datetime('2024-01-01T11:00:00'),
+      }) as SeriesId;
+      const seriesB = await createSeries(adapter, {
         title: 'B',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: parseDateTime('2024-01-01T09:00:00'),
-      });
-
-      if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+        time: datetime('2024-01-01T09:00:00'),
+      }) as SeriesId;
 
       const violations = await getConstraintViolations(adapter, {
         type: 'mustBeBefore',
-        source: { type: 'seriesId', seriesId: resultA.value.id },
-        dest: { type: 'seriesId', seriesId: resultB.value.id },
-      }, { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') });
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, { start: date('2024-01-15'), end: date('2024-01-15') });
 
       // Verify we have exactly one violation
       expect(violations).toHaveLength(1);
@@ -1112,8 +1076,8 @@ describe('Segment 12: Relational Constraints', () => {
 
         for (const constraint of constraints) {
           const violations = await getConstraintViolations(adapter, constraint, {
-            start: parseDate('2024-01-15'),
-            end: parseDate('2024-01-15'),
+            start: date('2024-01-15'),
+            end: date('2024-01-15'),
           });
           totalViolations += violations.length;
         }
@@ -1206,30 +1170,28 @@ describe('Segment 12: Relational Constraints', () => {
     });
 
     it('B2: withinMinutes 0', async () => {
-      const resultA = await createSeries(adapter, {
+      const seriesA = await createSeries(adapter, {
         title: 'A',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: parseDateTime('2024-01-01T09:00:00'),
+        time: datetime('2024-01-01T09:00:00'),
         durationMinutes: 30,
-      });
-      const resultB = await createSeries(adapter, {
+      }) as SeriesId;
+      const seriesB = await createSeries(adapter, {
         title: 'B',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: parseDateTime('2024-01-01T09:30:00'),
+        time: datetime('2024-01-01T09:30:00'),
         durationMinutes: 30,
-      });
-
-      if (!resultA.ok || !resultB.ok) throw new Error('Failed to create series');
+      }) as SeriesId;
 
       // withinMinutes=0 means must be adjacent
       const satisfied = await checkConstraint(adapter, {
         type: 'mustBeWithin',
-        source: { type: 'seriesId', seriesId: resultA.value.id },
-        dest: { type: 'seriesId', seriesId: resultB.value.id },
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
         withinMinutes: 0,
-      }, parseDate('2024-01-15'));
+      }, date('2024-01-15'));
 
       expect(satisfied).toBe(true);
     });
@@ -1243,7 +1205,7 @@ describe('Segment 12: Relational Constraints', () => {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, parseDate('2024-01-15'));
+      }, date('2024-01-15'));
 
       // A comes before B in default setup
       expect(satisfied).toBe(true);
@@ -1256,7 +1218,7 @@ describe('Segment 12: Relational Constraints', () => {
         type: 'mustBeBefore',
         source: { type: 'tag', tag: 'non-existent-tag' },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, parseDate('2024-01-15'));
+      }, date('2024-01-15'));
 
       expect(satisfied).toBe(true); // Empty source = trivially satisfied
     });

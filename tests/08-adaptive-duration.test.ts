@@ -27,8 +27,22 @@ import {
   parseDate,
   parseDateTime,
   addDays,
+  type LocalDate,
+  type LocalDateTime,
 } from '../src/time-date';
 import type { SeriesId } from '../src/types';
+
+function date(s: string): LocalDate {
+  const r = parseDate(s);
+  if (!r.ok) throw new Error(`Invalid test date: ${s}`);
+  return r.value;
+}
+
+function datetime(s: string): LocalDateTime {
+  const r = parseDateTime(s);
+  if (!r.ok) throw new Error(`Invalid test datetime: ${s}`);
+  return r.value;
+}
 
 describe('Segment 08: Adaptive Duration', () => {
   let adapter: MockAdapter;
@@ -36,27 +50,25 @@ describe('Segment 08: Adaptive Duration', () => {
 
   beforeEach(async () => {
     adapter = createMockAdapter();
-    const result = await createSeries(adapter, {
+    testSeriesId = await createSeries(adapter, {
       title: 'Test Series',
-      startDate: parseDate('2024-01-01'),
-    });
-    if (!result.ok) throw new Error('Failed to create test series');
-    testSeriesId = result.value.id;
+      startDate: date('2024-01-01'),
+    }) as SeriesId;
   });
 
   // Helper to log a completion with a specific duration
   async function logCompletionWithDuration(
     seriesId: SeriesId,
-    date: string,
+    dateStr: string,
     durationMinutes: number
   ): Promise<void> {
-    const d = parseDate(date);
-    const startTime = parseDateTime(`${date}T09:00:00`);
+    const d = date(dateStr);
+    const startTime = datetime(`${dateStr}T09:00:00`);
     const endMinutes = 9 * 60 + durationMinutes;
     const endHours = Math.floor(endMinutes / 60);
     const endMins = endMinutes % 60;
-    const endTimeStr = `${date}T${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}:00`;
-    const endTime = parseDateTime(endTimeStr);
+    const endTimeStr = `${dateStr}T${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}:00`;
+    const endTime = datetime(endTimeStr);
 
     await logCompletion(adapter, {
       seriesId,
@@ -78,7 +90,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(30);
     });
 
@@ -93,7 +105,7 @@ describe('Segment 08: Adaptive Duration', () => {
       };
 
       // Query from date far after the completion
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-02-01'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-02-01'));
       expect(result).toBe(30);
     });
 
@@ -104,7 +116,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(45);
     });
   });
@@ -126,7 +138,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(60);
       });
 
@@ -140,7 +152,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(15);
       });
 
@@ -153,7 +165,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(45);
       });
 
@@ -169,7 +181,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(35);
       });
     });
@@ -185,7 +197,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(11); // 10.5 rounds up
       });
 
@@ -200,7 +212,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(10); // 10.33 rounds to 10
       });
 
@@ -214,7 +226,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(11); // 10.5 rounds to 11
       });
     });
@@ -234,7 +246,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(60);
     });
 
@@ -247,7 +259,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.25,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(75);
     });
 
@@ -260,7 +272,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 0.5,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(30);
     });
 
@@ -273,7 +285,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 2.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(60);
     });
 
@@ -287,7 +299,7 @@ describe('Segment 08: Adaptive Duration', () => {
       };
 
       // 40 * 1.5 = 60 (before any clamping)
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(60);
     });
   });
@@ -308,7 +320,7 @@ describe('Segment 08: Adaptive Duration', () => {
           minimum: 45,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(60);
       });
 
@@ -322,7 +334,7 @@ describe('Segment 08: Adaptive Duration', () => {
           minimum: 45,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(45);
       });
 
@@ -336,7 +348,7 @@ describe('Segment 08: Adaptive Duration', () => {
           minimum: 45,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(45);
       });
     });
@@ -352,7 +364,7 @@ describe('Segment 08: Adaptive Duration', () => {
           maximum: 90,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(60);
       });
 
@@ -366,7 +378,7 @@ describe('Segment 08: Adaptive Duration', () => {
           maximum: 90,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(90);
       });
 
@@ -380,7 +392,7 @@ describe('Segment 08: Adaptive Duration', () => {
           maximum: 90,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(90);
       });
     });
@@ -397,7 +409,7 @@ describe('Segment 08: Adaptive Duration', () => {
           maximum: 90,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(60);
       });
 
@@ -412,7 +424,7 @@ describe('Segment 08: Adaptive Duration', () => {
           maximum: 50,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(50);
       });
 
@@ -427,7 +439,7 @@ describe('Segment 08: Adaptive Duration', () => {
           maximum: 90,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(45);
       });
 
@@ -442,7 +454,7 @@ describe('Segment 08: Adaptive Duration', () => {
           maximum: 90,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(90);
       });
     });
@@ -462,7 +474,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBeGreaterThanOrEqual(1);
     });
 
@@ -475,7 +487,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(1);
     });
 
@@ -490,7 +502,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(1);
     });
 
@@ -505,7 +517,7 @@ describe('Segment 08: Adaptive Duration', () => {
       };
 
       // 1 * 0.3 = 0.3, should clamp to 1
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(1);
     });
   });
@@ -528,7 +540,7 @@ describe('Segment 08: Adaptive Duration', () => {
       };
 
       // Most recent 5: 60, 70, 80, 90, 100 -> avg = 80
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(80);
     });
 
@@ -543,7 +555,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(60);
     });
 
@@ -559,7 +571,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(60);
     });
 
@@ -576,7 +588,7 @@ describe('Segment 08: Adaptive Duration', () => {
       };
 
       // Should use the 2 most recent: 30, 60 -> avg = 45
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(45);
     });
   });
@@ -587,7 +599,7 @@ describe('Segment 08: Adaptive Duration', () => {
 
   describe('7. Mode: windowDays', () => {
     it('uses completions in window', async () => {
-      const asOf = parseDate('2024-01-20');
+      const asOf = date('2024-01-20');
       // 3 completions in 7-day window
       await logCompletionWithDuration(testSeriesId, '2024-01-18', 30);
       await logCompletionWithDuration(testSeriesId, '2024-01-19', 60);
@@ -607,7 +619,7 @@ describe('Segment 08: Adaptive Duration', () => {
     });
 
     it('window includes today', async () => {
-      const asOf = parseDate('2024-01-20');
+      const asOf = date('2024-01-20');
       await logCompletionWithDuration(testSeriesId, '2024-01-20', 45);
 
       const config: AdaptiveDurationConfig = {
@@ -630,12 +642,12 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(45);
     });
 
     it('boundary: first day of window', async () => {
-      const asOf = parseDate('2024-01-20');
+      const asOf = date('2024-01-20');
       // Completion exactly at window start (7-day window: 2024-01-14 to 2024-01-20)
       await logCompletionWithDuration(testSeriesId, '2024-01-14', 60);
 
@@ -664,7 +676,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(50);
     });
 
@@ -677,7 +689,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.25,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(50);
     });
 
@@ -692,7 +704,7 @@ describe('Segment 08: Adaptive Duration', () => {
         maximum: 50,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(50);
     });
 
@@ -706,7 +718,7 @@ describe('Segment 08: Adaptive Duration', () => {
         minimum: 45,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(45);
     });
 
@@ -720,7 +732,7 @@ describe('Segment 08: Adaptive Duration', () => {
         maximum: 90,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(90);
     });
 
@@ -733,7 +745,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(45);
     });
 
@@ -746,7 +758,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(1);
     });
 
@@ -760,7 +772,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(1);
     });
   });
@@ -779,7 +791,7 @@ describe('Segment 08: Adaptive Duration', () => {
 
       // Should either throw or clamp fallback to 1
       await expect(async () => {
-        await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       }).rejects.toThrow(ValidationError);
     });
 
@@ -793,7 +805,7 @@ describe('Segment 08: Adaptive Duration', () => {
       };
 
       await expect(async () => {
-        await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       }).rejects.toThrow(ValidationError);
     });
 
@@ -805,7 +817,7 @@ describe('Segment 08: Adaptive Duration', () => {
       };
 
       await expect(async () => {
-        await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       }).rejects.toThrow(ValidationError);
     });
 
@@ -820,7 +832,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 0.1,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBeGreaterThanOrEqual(1);
     });
   });
@@ -841,7 +853,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(60);
     });
 
@@ -856,7 +868,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.25,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(75);
     });
 
@@ -873,7 +885,7 @@ describe('Segment 08: Adaptive Duration', () => {
         maximum: 90,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(60);
     });
 
@@ -890,7 +902,7 @@ describe('Segment 08: Adaptive Duration', () => {
         maximum: 100,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(75);
     });
 
@@ -907,7 +919,7 @@ describe('Segment 08: Adaptive Duration', () => {
         maximum: 50,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(50);
     });
 
@@ -921,7 +933,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(15);
     });
 
@@ -935,7 +947,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 2.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(30);
     });
 
@@ -946,7 +958,7 @@ describe('Segment 08: Adaptive Duration', () => {
         multiplier: 1.0,
       };
 
-      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+      const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
       expect(result).toBe(45);
     });
   });
@@ -971,7 +983,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(50);
       });
 
@@ -982,7 +994,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.0,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(30);
       });
     });
@@ -997,7 +1009,7 @@ describe('Segment 08: Adaptive Duration', () => {
           multiplier: 1.25,
         };
 
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(50);
       });
 
@@ -1012,7 +1024,7 @@ describe('Segment 08: Adaptive Duration', () => {
         };
 
         // 60 * 1.25 = 75, clamped to 70
-        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, parseDate('2024-01-20'));
+        const result = await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
         expect(result).toBe(70);
       });
     });

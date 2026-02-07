@@ -37,6 +37,18 @@ import {
 } from '../src/time-date';
 import type { LocalDate, LocalDateTime, SeriesId } from '../src/types';
 
+function date(s: string): LocalDate {
+  const r = parseDate(s);
+  if (!r.ok) throw new Error(`Invalid test date: ${s}`);
+  return r.value;
+}
+
+function datetime(s: string): LocalDateTime {
+  const r = parseDateTime(s);
+  if (!r.ok) throw new Error(`Invalid test datetime: ${s}`);
+  return r.value;
+}
+
 describe('Segment 09: Instance Exceptions', () => {
   let adapter: MockAdapter;
   let testSeriesId: SeriesId;
@@ -44,14 +56,12 @@ describe('Segment 09: Instance Exceptions', () => {
   beforeEach(async () => {
     adapter = createMockAdapter();
     // Create a daily series for testing exceptions
-    const result = await createSeries(adapter, {
+    testSeriesId = await createSeries(adapter, {
       title: 'Test Series',
-      startDate: parseDate('2024-01-01'),
+      startDate: date('2024-01-01'),
       pattern: { type: 'daily' },
-      time: parseDateTime('2024-01-01T09:00:00'),
-    });
-    if (!result.ok) throw new Error('Failed to create test series');
-    testSeriesId = result.value.id;
+      time: datetime('2024-01-01T09:00:00'),
+    }) as SeriesId;
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -61,12 +71,12 @@ describe('Segment 09: Instance Exceptions', () => {
   describe('1. Cancel Instance', () => {
     describe('1.1 Basic Cancel Tests', () => {
       it('cancel removes from schedule', async () => {
-        const targetDate = parseDate('2024-01-15');
+        const targetDate = date('2024-01-15');
         await cancelInstance(adapter, testSeriesId, targetDate);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-01'), end: parseDate('2024-01-31') },
+          range: { start: date('2024-01-01'), end: date('2024-01-31') },
         });
 
         // Verify cancelled instance is not in schedule
@@ -74,21 +84,21 @@ describe('Segment 09: Instance Exceptions', () => {
       });
 
       it('cancel doesnt affect pattern', async () => {
-        const cancelDate = parseDate('2024-01-15');
+        const cancelDate = date('2024-01-15');
         await cancelInstance(adapter, testSeriesId, cancelDate);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-14'), end: parseDate('2024-01-16') },
+          range: { start: date('2024-01-14'), end: date('2024-01-16') },
         });
 
         // Jan 14 and Jan 16 should still exist
-        expect(schedule.some(i => i.date === parseDate('2024-01-14'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-16'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-14'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-16'))).toBe(true);
       });
 
       it('cancel creates exception', async () => {
-        const targetDate = parseDate('2024-01-15');
+        const targetDate = date('2024-01-15');
         await cancelInstance(adapter, testSeriesId, targetDate);
 
         const exception = await getException(adapter, testSeriesId, targetDate);
@@ -99,25 +109,25 @@ describe('Segment 09: Instance Exceptions', () => {
       });
 
       it('series continues after cancel', async () => {
-        await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
+        await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
 
         // Other instances should be unaffected
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-01'), end: parseDate('2024-01-20') },
+          range: { start: date('2024-01-01'), end: date('2024-01-20') },
         });
 
         // Should have instances except Jan 15 (Jan 1-20 is 20 days, minus 1 cancelled = 19)
-        expect(schedule.some(i => i.date === parseDate('2024-01-10'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-20'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-15'))).toBe(false);
-        expect(schedule[0].date).toBe(parseDate('2024-01-01'));
-        expect(schedule[18].date).toBe(parseDate('2024-01-20'));
-        expect(schedule.every(i => i.seriesId === testSeriesId && i.date !== parseDate('2024-01-15'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-20'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-15'))).toBe(false);
+        expect(schedule[0].date).toBe(date('2024-01-01'));
+        expect(schedule[18].date).toBe(date('2024-01-20'));
+        expect(schedule.every(i => i.seriesId === testSeriesId && i.date !== date('2024-01-15'))).toBe(true);
         // 19 instances: Jan 1-14 (14 days) + Jan 16-20 (5 days) = 19 days
         const expectedDates = Array.from({ length: 19 }, (_, i) => {
           const day = i < 14 ? i + 1 : i + 2; // Skip day 15
-          return parseDate(`2024-01-${day.toString().padStart(2, '0')}`);
+          return date(`2024-01-${day.toString().padStart(2, '0')}`);
         });
         expect(schedule.map(i => i.date)).toEqual(expectedDates);
       });
@@ -128,7 +138,7 @@ describe('Segment 09: Instance Exceptions', () => {
         const result = await cancelInstance(
           adapter,
           'non-existent-series' as SeriesId,
-          parseDate('2024-01-15')
+          date('2024-01-15')
         );
 
         expect(result.ok).toBe(false);
@@ -139,19 +149,17 @@ describe('Segment 09: Instance Exceptions', () => {
 
       it('instance must exist', async () => {
         // Create a weekly series (only Mondays)
-        const weeklyResult = await createSeries(adapter, {
+        const weeklyId = await createSeries(adapter, {
           title: 'Weekly Series',
-          startDate: parseDate('2024-01-01'), // Monday
+          startDate: date('2024-01-01'), // Monday
           pattern: { type: 'weekly', daysOfWeek: ['monday'] },
-        });
-        expect(weeklyResult.ok).toBe(true);
-        if (!weeklyResult.ok) throw new Error(`'instance must exist' setup failed: ${weeklyResult.error.type}`);
+        }) as SeriesId;
 
         // Try to cancel a Tuesday (not in pattern)
         const result = await cancelInstance(
           adapter,
-          weeklyResult.value.id,
-          parseDate('2024-01-16') // Tuesday
+          weeklyId,
+          date('2024-01-16') // Tuesday
         );
 
         expect(result.ok).toBe(false);
@@ -161,7 +169,7 @@ describe('Segment 09: Instance Exceptions', () => {
       });
 
       it('cannot cancel already cancelled', async () => {
-        const targetDate = parseDate('2024-01-15');
+        const targetDate = date('2024-01-15');
         await cancelInstance(adapter, testSeriesId, targetDate);
 
         const result = await cancelInstance(adapter, testSeriesId, targetDate);
@@ -175,8 +183,8 @@ describe('Segment 09: Instance Exceptions', () => {
 
     describe('1.3 Cancel Rescheduled Instance', () => {
       it('can cancel rescheduled', async () => {
-        const targetDate = parseDate('2024-01-15');
-        const newTime = parseDateTime('2024-01-15T14:00:00');
+        const targetDate = date('2024-01-15');
+        const newTime = datetime('2024-01-15T14:00:00');
 
         // First reschedule
         await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
@@ -191,8 +199,8 @@ describe('Segment 09: Instance Exceptions', () => {
       });
 
       it('cancel overwrites reschedule', async () => {
-        const targetDate = parseDate('2024-01-15');
-        const newTime = parseDateTime('2024-01-15T14:00:00');
+        const targetDate = date('2024-01-15');
+        const newTime = datetime('2024-01-15T14:00:00');
 
         await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
         await cancelInstance(adapter, testSeriesId, targetDate);
@@ -216,14 +224,14 @@ describe('Segment 09: Instance Exceptions', () => {
   describe('2. Reschedule Instance', () => {
     describe('2.1 Basic Reschedule Tests', () => {
       it('reschedule moves instance', async () => {
-        const targetDate = parseDate('2024-01-15');
-        const newTime = parseDateTime('2024-01-15T14:00:00');
+        const targetDate = date('2024-01-15');
+        const newTime = datetime('2024-01-15T14:00:00');
 
         await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-15') },
         });
 
         const instance = schedule.find(i => i.date === targetDate);
@@ -234,26 +242,26 @@ describe('Segment 09: Instance Exceptions', () => {
       });
 
       it('original slot freed', async () => {
-        const targetDate = parseDate('2024-01-15');
-        const newTime = parseDateTime('2024-01-15T14:00:00');
+        const targetDate = date('2024-01-15');
+        const newTime = datetime('2024-01-15T14:00:00');
 
         await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-15') },
         });
 
         // Should not be at original 9am time
         const timesOnTargetDate = schedule
           .filter(i => i.date === targetDate)
           .map(i => i.time);
-        expect(timesOnTargetDate).not.toContain(parseDateTime('2024-01-15T09:00:00'));
+        expect(timesOnTargetDate).not.toContain(datetime('2024-01-15T09:00:00'));
       });
 
       it('exception record created', async () => {
-        const targetDate = parseDate('2024-01-15');
-        const newTime = parseDateTime('2024-01-15T14:00:00');
+        const targetDate = date('2024-01-15');
+        const newTime = datetime('2024-01-15T14:00:00');
 
         await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
 
@@ -271,8 +279,8 @@ describe('Segment 09: Instance Exceptions', () => {
         const result = await rescheduleInstance(
           adapter,
           'non-existent-series' as SeriesId,
-          parseDate('2024-01-15'),
-          parseDateTime('2024-01-15T14:00:00')
+          date('2024-01-15'),
+          datetime('2024-01-15T14:00:00')
         );
 
         expect(result.ok).toBe(false);
@@ -283,20 +291,18 @@ describe('Segment 09: Instance Exceptions', () => {
 
       it('instance must exist', async () => {
         // Create a weekly series (only Mondays)
-        const weeklyResult = await createSeries(adapter, {
+        const weeklyId = await createSeries(adapter, {
           title: 'Weekly Series',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'weekly', daysOfWeek: ['monday'] },
-        });
-        expect(weeklyResult.ok).toBe(true);
-        if (!weeklyResult.ok) throw new Error(`'instance must exist' setup failed: ${weeklyResult.error.type}`);
+        }) as SeriesId;
 
         // Try to reschedule a Tuesday
         const result = await rescheduleInstance(
           adapter,
-          weeklyResult.value.id,
-          parseDate('2024-01-16'), // Tuesday
-          parseDateTime('2024-01-16T14:00:00')
+          weeklyId,
+          date('2024-01-16'), // Tuesday
+          datetime('2024-01-16T14:00:00')
         );
 
         expect(result.ok).toBe(false);
@@ -306,14 +312,14 @@ describe('Segment 09: Instance Exceptions', () => {
       });
 
       it('cannot reschedule cancelled', async () => {
-        const targetDate = parseDate('2024-01-15');
+        const targetDate = date('2024-01-15');
         await cancelInstance(adapter, testSeriesId, targetDate);
 
         const result = await rescheduleInstance(
           adapter,
           testSeriesId,
           targetDate,
-          parseDateTime('2024-01-15T14:00:00')
+          datetime('2024-01-15T14:00:00')
         );
 
         expect(result.ok).toBe(false);
@@ -326,7 +332,7 @@ describe('Segment 09: Instance Exceptions', () => {
         const result = await rescheduleInstance(
           adapter,
           testSeriesId,
-          parseDate('2024-01-15'),
+          date('2024-01-15'),
           'invalid-datetime' as LocalDateTime
         );
 
@@ -339,9 +345,9 @@ describe('Segment 09: Instance Exceptions', () => {
 
     describe('2.3 Re-Reschedule Tests', () => {
       it('reschedule updates newTime', async () => {
-        const targetDate = parseDate('2024-01-15');
-        const firstTime = parseDateTime('2024-01-15T14:00:00');
-        const secondTime = parseDateTime('2024-01-15T16:00:00');
+        const targetDate = date('2024-01-15');
+        const firstTime = datetime('2024-01-15T14:00:00');
+        const secondTime = datetime('2024-01-15T16:00:00');
 
         await rescheduleInstance(adapter, testSeriesId, targetDate, firstTime);
         await rescheduleInstance(adapter, testSeriesId, targetDate, secondTime);
@@ -351,21 +357,21 @@ describe('Segment 09: Instance Exceptions', () => {
       });
 
       it('original still freed', async () => {
-        const targetDate = parseDate('2024-01-15');
+        const targetDate = date('2024-01-15');
 
-        await rescheduleInstance(adapter, testSeriesId, targetDate, parseDateTime('2024-01-15T14:00:00'));
-        await rescheduleInstance(adapter, testSeriesId, targetDate, parseDateTime('2024-01-15T16:00:00'));
+        await rescheduleInstance(adapter, testSeriesId, targetDate, datetime('2024-01-15T14:00:00'));
+        await rescheduleInstance(adapter, testSeriesId, targetDate, datetime('2024-01-15T16:00:00'));
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-15') },
         });
 
         // Original 9am slot should still be free
         const timesOnTargetDate = schedule
           .filter(i => i.date === targetDate)
           .map(i => i.time);
-        expect(timesOnTargetDate).not.toContain(parseDateTime('2024-01-15T09:00:00'));
+        expect(timesOnTargetDate).not.toContain(datetime('2024-01-15T09:00:00'));
       });
     });
   });
@@ -377,59 +383,59 @@ describe('Segment 09: Instance Exceptions', () => {
   describe('3. Restore Instance', () => {
     describe('3.1 Restore Cancelled Tests', () => {
       it('restore cancelled instance', async () => {
-        const targetDate = parseDate('2024-01-15');
+        const targetDate = date('2024-01-15');
         await cancelInstance(adapter, testSeriesId, targetDate);
         await restoreInstance(adapter, testSeriesId, targetDate);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-15') },
         });
 
         expect(schedule.some(i => i.date === targetDate)).toBe(true);
       });
 
       it('restored at original time', async () => {
-        const targetDate = parseDate('2024-01-15');
+        const targetDate = date('2024-01-15');
         await cancelInstance(adapter, testSeriesId, targetDate);
         await restoreInstance(adapter, testSeriesId, targetDate);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-15') },
         });
 
         const instance = schedule.find(i => i.date === targetDate);
         // Should be at original time (9am)
         expect(instance).toEqual(expect.objectContaining({
           date: targetDate,
-          time: parseDateTime('2024-01-15T09:00:00'),
+          time: datetime('2024-01-15T09:00:00'),
         }));
       });
     });
 
     describe('3.2 Restore Rescheduled Tests', () => {
       it('restore rescheduled instance', async () => {
-        const targetDate = parseDate('2024-01-15');
-        await rescheduleInstance(adapter, testSeriesId, targetDate, parseDateTime('2024-01-15T14:00:00'));
+        const targetDate = date('2024-01-15');
+        await rescheduleInstance(adapter, testSeriesId, targetDate, datetime('2024-01-15T14:00:00'));
         await restoreInstance(adapter, testSeriesId, targetDate);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-15') },
         });
 
         const instance = schedule.find(i => i.date === targetDate);
         // Should be back at original time
         expect(instance).toEqual(expect.objectContaining({
           date: targetDate,
-          time: parseDateTime('2024-01-15T09:00:00'),
+          time: datetime('2024-01-15T09:00:00'),
         }));
       });
 
       it('exception deleted', async () => {
-        const targetDate = parseDate('2024-01-15');
-        await rescheduleInstance(adapter, testSeriesId, targetDate, parseDateTime('2024-01-15T14:00:00'));
+        const targetDate = date('2024-01-15');
+        await rescheduleInstance(adapter, testSeriesId, targetDate, datetime('2024-01-15T14:00:00'));
 
         // Verify exception exists before restoring
         const exceptionBefore = await getException(adapter, testSeriesId, targetDate);
@@ -451,7 +457,7 @@ describe('Segment 09: Instance Exceptions', () => {
         const result = await restoreInstance(
           adapter,
           testSeriesId,
-          parseDate('2024-01-15')
+          date('2024-01-15')
         );
 
         expect(result.ok).toBe(false);
@@ -468,7 +474,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
   describe('4. Query Exceptions', () => {
     it('get exception for instance', async () => {
-      const targetDate = parseDate('2024-01-15');
+      const targetDate = date('2024-01-15');
       await cancelInstance(adapter, testSeriesId, targetDate);
 
       const exception = await getException(adapter, testSeriesId, targetDate);
@@ -480,72 +486,72 @@ describe('Segment 09: Instance Exceptions', () => {
 
     it('get non-excepted returns null', async () => {
       // Positive case: prove getException works when exception exists
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-16'));
-      const existingException = await getException(adapter, testSeriesId, parseDate('2024-01-16'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-16'));
+      const existingException = await getException(adapter, testSeriesId, date('2024-01-16'));
       expect(existingException).toMatchObject({
-        instanceDate: parseDate('2024-01-16'),
+        instanceDate: date('2024-01-16'),
         type: 'cancelled',
       });
 
       // Negative case: non-excepted date returns null
-      const exception = await getException(adapter, testSeriesId, parseDate('2024-01-15'));
+      const exception = await getException(adapter, testSeriesId, date('2024-01-15'));
       expect(exception).toBeNull();
     });
 
     it('get exceptions by series', async () => {
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-16'));
-      await rescheduleInstance(adapter, testSeriesId, parseDate('2024-01-17'), parseDateTime('2024-01-17T14:00:00'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-16'));
+      await rescheduleInstance(adapter, testSeriesId, date('2024-01-17'), datetime('2024-01-17T14:00:00'));
 
       const exceptions = await getExceptionsBySeries(adapter, testSeriesId);
-      expect(exceptions.some(e => e.instanceDate === parseDate('2024-01-15') && e.type === 'cancelled')).toBe(true);
-      expect(exceptions.some(e => e.instanceDate === parseDate('2024-01-16') && e.type === 'cancelled')).toBe(true);
-      expect(exceptions.some(e => e.instanceDate === parseDate('2024-01-17') && e.type === 'rescheduled')).toBe(true);
+      expect(exceptions.some(e => e.instanceDate === date('2024-01-15') && e.type === 'cancelled')).toBe(true);
+      expect(exceptions.some(e => e.instanceDate === date('2024-01-16') && e.type === 'cancelled')).toBe(true);
+      expect(exceptions.some(e => e.instanceDate === date('2024-01-17') && e.type === 'rescheduled')).toBe(true);
       expect(exceptions[0].seriesId).toBe(testSeriesId);
       expect(exceptions[2].seriesId).toBe(testSeriesId);
       expect(exceptions.map(e => e.instanceDate).sort()).toEqual([
-        parseDate('2024-01-15'),
-        parseDate('2024-01-16'),
-        parseDate('2024-01-17'),
+        date('2024-01-15'),
+        date('2024-01-16'),
+        date('2024-01-17'),
       ].sort());
     });
 
     it('range query inclusive', async () => {
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-10'));
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-20'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-10'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-20'));
 
       const exceptions = await getExceptionsInRange(adapter, testSeriesId, {
-        start: parseDate('2024-01-10'),
-        end: parseDate('2024-01-20'),
+        start: date('2024-01-10'),
+        end: date('2024-01-20'),
       });
 
-      expect(exceptions.some(e => e.instanceDate === parseDate('2024-01-10'))).toBe(true);
-      expect(exceptions.some(e => e.instanceDate === parseDate('2024-01-15'))).toBe(true);
-      expect(exceptions.some(e => e.instanceDate === parseDate('2024-01-20'))).toBe(true);
+      expect(exceptions.some(e => e.instanceDate === date('2024-01-10'))).toBe(true);
+      expect(exceptions.some(e => e.instanceDate === date('2024-01-15'))).toBe(true);
+      expect(exceptions.some(e => e.instanceDate === date('2024-01-20'))).toBe(true);
       expect(exceptions[0].type).toBe('cancelled');
       expect(exceptions[2].type).toBe('cancelled');
       expect(exceptions.map(e => e.instanceDate).sort()).toEqual([
-        parseDate('2024-01-10'),
-        parseDate('2024-01-15'),
-        parseDate('2024-01-20'),
+        date('2024-01-10'),
+        date('2024-01-15'),
+        date('2024-01-20'),
       ].sort());
     });
 
     it('range query excludes outside', async () => {
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-05'));
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-25'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-05'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-25'));
 
       const exceptions = await getExceptionsInRange(adapter, testSeriesId, {
-        start: parseDate('2024-01-10'),
-        end: parseDate('2024-01-20'),
+        start: date('2024-01-10'),
+        end: date('2024-01-20'),
       });
 
-      expect(exceptions[0].instanceDate).toBe(parseDate('2024-01-15'));
+      expect(exceptions[0].instanceDate).toBe(date('2024-01-15'));
       expect(exceptions[0].type).toBe('cancelled');
       expect(exceptions[0].seriesId).toBe(testSeriesId);
-      expect(exceptions.map(e => e.instanceDate)).toEqual([parseDate('2024-01-15')]);
+      expect(exceptions.map(e => e.instanceDate)).toEqual([date('2024-01-15')]);
     });
   });
 
@@ -556,26 +562,26 @@ describe('Segment 09: Instance Exceptions', () => {
   describe('5. Integration with Pattern Expansion', () => {
     describe('5.1 Expansion Respects Exceptions', () => {
       it('cancelled excluded from expansion', async () => {
-        const cancelDate = parseDate('2024-01-15');
+        const cancelDate = date('2024-01-15');
         await cancelInstance(adapter, testSeriesId, cancelDate);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-01'), end: parseDate('2024-01-31') },
+          range: { start: date('2024-01-01'), end: date('2024-01-31') },
         });
 
         expect(schedule.some(i => i.date === cancelDate)).toBe(false);
       });
 
       it('rescheduled at new time', async () => {
-        const targetDate = parseDate('2024-01-15');
-        const newTime = parseDateTime('2024-01-15T14:00:00');
+        const targetDate = date('2024-01-15');
+        const newTime = datetime('2024-01-15T14:00:00');
 
         await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-15') },
         });
 
         const instance = schedule.find(i => i.date === targetDate);
@@ -587,66 +593,66 @@ describe('Segment 09: Instance Exceptions', () => {
 
       it('non-excepted unchanged', async () => {
         // Cancel one instance
-        await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
+        await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-14'), end: parseDate('2024-01-16') },
+          range: { start: date('2024-01-14'), end: date('2024-01-16') },
         });
 
         // Jan 14 and 16 should be present and unaffected
-        expect(schedule.some(i => i.date === parseDate('2024-01-14'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-16'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-14'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-16'))).toBe(true);
       });
     });
 
     describe('5.2 Multiple Exceptions', () => {
       it('multiple cancelled', async () => {
-        await cancelInstance(adapter, testSeriesId, parseDate('2024-01-10'));
-        await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
-        await cancelInstance(adapter, testSeriesId, parseDate('2024-01-20'));
+        await cancelInstance(adapter, testSeriesId, date('2024-01-10'));
+        await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
+        await cancelInstance(adapter, testSeriesId, date('2024-01-20'));
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-01'), end: parseDate('2024-01-31') },
+          range: { start: date('2024-01-01'), end: date('2024-01-31') },
         });
 
-        expect(schedule.some(i => i.date === parseDate('2024-01-10'))).toBe(false);
-        expect(schedule.some(i => i.date === parseDate('2024-01-15'))).toBe(false);
-        expect(schedule.some(i => i.date === parseDate('2024-01-20'))).toBe(false);
+        expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(false);
+        expect(schedule.some(i => i.date === date('2024-01-15'))).toBe(false);
+        expect(schedule.some(i => i.date === date('2024-01-20'))).toBe(false);
       });
 
       it('multiple rescheduled', async () => {
-        await rescheduleInstance(adapter, testSeriesId, parseDate('2024-01-10'), parseDateTime('2024-01-10T14:00:00'));
-        await rescheduleInstance(adapter, testSeriesId, parseDate('2024-01-15'), parseDateTime('2024-01-15T16:00:00'));
+        await rescheduleInstance(adapter, testSeriesId, date('2024-01-10'), datetime('2024-01-10T14:00:00'));
+        await rescheduleInstance(adapter, testSeriesId, date('2024-01-15'), datetime('2024-01-15T16:00:00'));
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-10'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-10'), end: date('2024-01-15') },
         });
 
-        const jan10 = schedule.find(i => i.date === parseDate('2024-01-10'));
-        const jan15 = schedule.find(i => i.date === parseDate('2024-01-15'));
+        const jan10 = schedule.find(i => i.date === date('2024-01-10'));
+        const jan15 = schedule.find(i => i.date === date('2024-01-15'));
 
-        expect(jan10!.time).toBe(parseDateTime('2024-01-10T14:00:00'));
-        expect(jan15!.time).toBe(parseDateTime('2024-01-15T16:00:00'));
+        expect(jan10!.time).toBe(datetime('2024-01-10T14:00:00'));
+        expect(jan15!.time).toBe(datetime('2024-01-15T16:00:00'));
       });
 
       it('mixed exceptions', async () => {
-        await cancelInstance(adapter, testSeriesId, parseDate('2024-01-10'));
-        await rescheduleInstance(adapter, testSeriesId, parseDate('2024-01-15'), parseDateTime('2024-01-15T14:00:00'));
+        await cancelInstance(adapter, testSeriesId, date('2024-01-10'));
+        await rescheduleInstance(adapter, testSeriesId, date('2024-01-15'), datetime('2024-01-15T14:00:00'));
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-10'), end: parseDate('2024-01-15') },
+          range: { start: date('2024-01-10'), end: date('2024-01-15') },
         });
 
         // Jan 10 should be excluded
-        expect(schedule.some(i => i.date === parseDate('2024-01-10'))).toBe(false);
+        expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(false);
 
         // Jan 15 should be moved
-        const jan15 = schedule.find(i => i.date === parseDate('2024-01-15'));
-        expect(jan15!.time).toBe(parseDateTime('2024-01-15T14:00:00'));
+        const jan15 = schedule.find(i => i.date === date('2024-01-15'));
+        expect(jan15!.time).toBe(datetime('2024-01-15T14:00:00'));
       });
     });
   });
@@ -657,43 +663,41 @@ describe('Segment 09: Instance Exceptions', () => {
 
   describe('6. Boundary Conditions', () => {
     it('B1: cancel first instance', async () => {
-      const firstDate = parseDate('2024-01-01');
+      const firstDate = date('2024-01-01');
       await cancelInstance(adapter, testSeriesId, firstDate);
 
       const schedule = await getSchedule(adapter, {
         seriesId: testSeriesId,
-        range: { start: parseDate('2024-01-01'), end: parseDate('2024-01-10') },
+        range: { start: date('2024-01-01'), end: date('2024-01-10') },
       });
 
       expect(schedule.some(i => i.date === firstDate)).toBe(false);
-      expect(schedule.some(i => i.date === parseDate('2024-01-02'))).toBe(true);
+      expect(schedule.some(i => i.date === date('2024-01-02'))).toBe(true);
     });
 
     it('B2: cancel last instance', async () => {
       // Create a series with end date
-      const seriesResult = await createSeries(adapter, {
+      const boundedId = await createSeries(adapter, {
         title: 'Bounded Series',
-        startDate: parseDate('2024-01-01'),
-        endDate: parseDate('2024-01-10'),
+        startDate: date('2024-01-01'),
+        endDate: date('2024-01-10'),
         pattern: { type: 'daily' },
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'B2: cancel last instance' setup failed: ${seriesResult.error.type}`);
+      }) as SeriesId;
 
-      await cancelInstance(adapter, seriesResult.value.id, parseDate('2024-01-10'));
+      await cancelInstance(adapter, boundedId, date('2024-01-10'));
 
       const schedule = await getSchedule(adapter, {
-        seriesId: seriesResult.value.id,
-        range: { start: parseDate('2024-01-01'), end: parseDate('2024-01-10') },
+        seriesId: boundedId,
+        range: { start: date('2024-01-01'), end: date('2024-01-10') },
       });
 
-      expect(schedule.some(i => i.date === parseDate('2024-01-10'))).toBe(false);
-      expect(schedule.some(i => i.date === parseDate('2024-01-09'))).toBe(true);
+      expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(false);
+      expect(schedule.some(i => i.date === date('2024-01-09'))).toBe(true);
     });
 
     it('B3: reschedule same day different time', async () => {
-      const targetDate = parseDate('2024-01-15');
-      const newTime = parseDateTime('2024-01-15T17:00:00');
+      const targetDate = date('2024-01-15');
+      const newTime = datetime('2024-01-15T17:00:00');
 
       const result = await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
       expect(result.ok).toBe(true);
@@ -703,8 +707,8 @@ describe('Segment 09: Instance Exceptions', () => {
     });
 
     it('B4: reschedule to different day', async () => {
-      const targetDate = parseDate('2024-01-15');
-      const newTime = parseDateTime('2024-01-20T09:00:00');
+      const targetDate = date('2024-01-15');
+      const newTime = datetime('2024-01-20T09:00:00');
 
       const result = await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
       expect(result.ok).toBe(true);
@@ -714,39 +718,37 @@ describe('Segment 09: Instance Exceptions', () => {
     });
 
     it('B5: reschedule across month boundary', async () => {
-      const targetDate = parseDate('2024-01-31');
-      const newTime = parseDateTime('2024-02-01T09:00:00');
+      const targetDate = date('2024-01-31');
+      const newTime = datetime('2024-02-01T09:00:00');
 
       const result = await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
       expect(result.ok).toBe(true);
     });
 
     it('B5: reschedule across year boundary', async () => {
-      const seriesResult = await createSeries(adapter, {
+      const yearEndId = await createSeries(adapter, {
         title: 'Year End Series',
-        startDate: parseDate('2023-12-01'),
+        startDate: date('2023-12-01'),
         pattern: { type: 'daily' },
-      });
-      expect(seriesResult.ok).toBe(true);
-      if (!seriesResult.ok) throw new Error(`'B5: reschedule across year boundary' setup failed: ${seriesResult.error.type}`);
+      }) as SeriesId;
 
-      const targetDate = parseDate('2023-12-31');
-      const newTime = parseDateTime('2024-01-01T09:00:00');
+      const targetDate = date('2023-12-31');
+      const newTime = datetime('2024-01-01T09:00:00');
 
-      const result = await rescheduleInstance(adapter, seriesResult.value.id, targetDate, newTime);
+      const result = await rescheduleInstance(adapter, yearEndId, targetDate, newTime);
       expect(result.ok).toBe(true);
     });
 
     it('B6: reschedule outside range', async () => {
-      const targetDate = parseDate('2024-01-15');
-      const newTime = parseDateTime('2024-03-01T09:00:00');
+      const targetDate = date('2024-01-15');
+      const newTime = datetime('2024-03-01T09:00:00');
 
       await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
 
       // When querying January only, the rescheduled instance shouldn't appear
       const schedule = await getSchedule(adapter, {
         seriesId: testSeriesId,
-        range: { start: parseDate('2024-01-01'), end: parseDate('2024-01-31') },
+        range: { start: date('2024-01-01'), end: date('2024-01-31') },
       });
 
       expect(schedule.some(i => i.date === targetDate)).toBe(false);
@@ -754,19 +756,17 @@ describe('Segment 09: Instance Exceptions', () => {
 
     it('B7: exception on non-pattern date', async () => {
       // Create weekly series (only Mondays)
-      const weeklyResult = await createSeries(adapter, {
+      const weeklyId = await createSeries(adapter, {
         title: 'Weekly Series',
-        startDate: parseDate('2024-01-01'), // Monday
+        startDate: date('2024-01-01'), // Monday
         pattern: { type: 'weekly', daysOfWeek: ['monday'] },
-      });
-      expect(weeklyResult.ok).toBe(true);
-      if (!weeklyResult.ok) throw new Error(`'B7: exception on non-pattern date' setup failed: ${weeklyResult.error.type}`);
+      }) as SeriesId;
 
       // Try to cancel Tuesday (not in pattern)
       const result = await cancelInstance(
         adapter,
-        weeklyResult.value.id,
-        parseDate('2024-01-02') // Tuesday
+        weeklyId,
+        date('2024-01-02') // Tuesday
       );
 
       expect(result.ok).toBe(false);
@@ -782,7 +782,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
   describe('7. Invariants', () => {
     it('INV 1: one exception per instance', async () => {
-      const targetDate = parseDate('2024-01-15');
+      const targetDate = date('2024-01-15');
       await cancelInstance(adapter, testSeriesId, targetDate);
 
       const exceptions = await getExceptionsBySeries(adapter, testSeriesId);
@@ -794,8 +794,8 @@ describe('Segment 09: Instance Exceptions', () => {
     });
 
     it('INV 2: rescheduled has newTime', async () => {
-      const targetDate = parseDate('2024-01-15');
-      const newTime = parseDateTime('2024-01-15T14:00:00');
+      const targetDate = date('2024-01-15');
+      const newTime = datetime('2024-01-15T14:00:00');
 
       await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
 
@@ -806,7 +806,7 @@ describe('Segment 09: Instance Exceptions', () => {
     });
 
     it('INV 3: cancelled no newTime', async () => {
-      const targetDate = parseDate('2024-01-15');
+      const targetDate = date('2024-01-15');
       await cancelInstance(adapter, testSeriesId, targetDate);
 
       const exception = await getException(adapter, testSeriesId, targetDate);
@@ -821,36 +821,34 @@ describe('Segment 09: Instance Exceptions', () => {
 
     it('INV 4: exception only for pattern dates', async () => {
       // Create weekly series
-      const weeklyResult = await createSeries(adapter, {
+      const weeklyId = await createSeries(adapter, {
         title: 'Weekly',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'weekly', daysOfWeek: ['monday'] },
-      });
-      expect(weeklyResult.ok).toBe(true);
-      if (!weeklyResult.ok) throw new Error(`'INV 4: exception only for pattern dates' setup failed: ${weeklyResult.error.type}`);
+      }) as SeriesId;
 
       const result = await cancelInstance(
         adapter,
-        weeklyResult.value.id,
-        parseDate('2024-01-03') // Wednesday, not in pattern
+        weeklyId,
+        date('2024-01-03') // Wednesday, not in pattern
       );
 
       expect(result.ok).toBe(false);
     });
 
     it('INV 5: series delete cascades', async () => {
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
-      await rescheduleInstance(adapter, testSeriesId, parseDate('2024-01-16'), parseDateTime('2024-01-16T14:00:00'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
+      await rescheduleInstance(adapter, testSeriesId, date('2024-01-16'), datetime('2024-01-16T14:00:00'));
 
       // Verify exceptions exist
       let exceptions = await getExceptionsBySeries(adapter, testSeriesId);
-      expect(exceptions.some(e => e.instanceDate === parseDate('2024-01-15'))).toBe(true);
-      expect(exceptions.some(e => e.instanceDate === parseDate('2024-01-16'))).toBe(true);
+      expect(exceptions.some(e => e.instanceDate === date('2024-01-15'))).toBe(true);
+      expect(exceptions.some(e => e.instanceDate === date('2024-01-16'))).toBe(true);
       expect(exceptions[0].seriesId).toBe(testSeriesId);
       expect(exceptions[1].seriesId).toBe(testSeriesId);
       expect(exceptions.map(e => e.instanceDate).sort()).toEqual([
-        parseDate('2024-01-15'),
-        parseDate('2024-01-16'),
+        date('2024-01-15'),
+        date('2024-01-16'),
       ].sort());
 
       // Verify both exceptions have unique IDs
@@ -865,8 +863,8 @@ describe('Segment 09: Instance Exceptions', () => {
       expect(exceptions).toEqual([]);
 
       // Also verify via individual lookups
-      const ex1 = await adapter.getInstanceException(testSeriesId, parseDate('2024-01-15'));
-      const ex2 = await adapter.getInstanceException(testSeriesId, parseDate('2024-01-16'));
+      const ex1 = await adapter.getInstanceException(testSeriesId, date('2024-01-15'));
+      const ex2 = await adapter.getInstanceException(testSeriesId, date('2024-01-16'));
       expect(ex1).toBeNull();
       expect(ex2).toBeNull();
     });
@@ -878,18 +876,16 @@ describe('Segment 09: Instance Exceptions', () => {
 
   describe('8. Error Types', () => {
     it('NonExistentInstanceError: cancel instance not in pattern', async () => {
-      const weeklyResult = await createSeries(adapter, {
+      const weeklyId = await createSeries(adapter, {
         title: 'Weekly',
-        startDate: parseDate('2024-01-01'),
+        startDate: date('2024-01-01'),
         pattern: { type: 'weekly', daysOfWeek: ['monday'] },
-      });
-      expect(weeklyResult.ok).toBe(true);
-      if (!weeklyResult.ok) throw new Error(`'NonExistentInstanceError: cancel instance not in pattern' setup failed: ${weeklyResult.error.type}`);
+      }) as SeriesId;
 
       const result = await cancelInstance(
         adapter,
-        weeklyResult.value.id,
-        parseDate('2024-01-02') // Not a Monday
+        weeklyId,
+        date('2024-01-02') // Not a Monday
       );
 
       expect(result.ok).toBe(false);
@@ -899,9 +895,9 @@ describe('Segment 09: Instance Exceptions', () => {
     });
 
     it('AlreadyCancelledError: cancel already-cancelled instance', async () => {
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
 
-      const result = await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
+      const result = await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -910,13 +906,13 @@ describe('Segment 09: Instance Exceptions', () => {
     });
 
     it('CancelledInstanceError: reschedule cancelled instance', async () => {
-      await cancelInstance(adapter, testSeriesId, parseDate('2024-01-15'));
+      await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
 
       const result = await rescheduleInstance(
         adapter,
         testSeriesId,
-        parseDate('2024-01-15'),
-        parseDateTime('2024-01-15T14:00:00')
+        date('2024-01-15'),
+        datetime('2024-01-15T14:00:00')
       );
 
       expect(result.ok).toBe(false);
@@ -929,7 +925,7 @@ describe('Segment 09: Instance Exceptions', () => {
       const result = await restoreInstance(
         adapter,
         testSeriesId,
-        parseDate('2024-01-15')
+        date('2024-01-15')
       );
 
       expect(result.ok).toBe(false);
@@ -942,7 +938,7 @@ describe('Segment 09: Instance Exceptions', () => {
       const result = await cancelInstance(
         adapter,
         'non-existent' as SeriesId,
-        parseDate('2024-01-15')
+        date('2024-01-15')
       );
 
       expect(result.ok).toBe(false);
@@ -960,74 +956,70 @@ describe('Segment 09: Instance Exceptions', () => {
     describe('9.1 Skipping a Day', () => {
       it('skip workout one day', async () => {
         // Create weekday series
-        const seriesResult = await createSeries(adapter, {
+        const workoutId = await createSeries(adapter, {
           title: 'Daily Workout',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-        });
-        expect(seriesResult.ok).toBe(true);
-        if (!seriesResult.ok) throw new Error(`'skip workout one day' setup failed: ${seriesResult.error.type}`);
+        }) as SeriesId;
 
         // Skip Wednesday Jan 10
-        await cancelInstance(adapter, seriesResult.value.id, parseDate('2024-01-10'));
+        await cancelInstance(adapter, workoutId, date('2024-01-10'));
 
         const schedule = await getSchedule(adapter, {
-          seriesId: seriesResult.value.id,
-          range: { start: parseDate('2024-01-08'), end: parseDate('2024-01-12') },
+          seriesId: workoutId,
+          range: { start: date('2024-01-08'), end: date('2024-01-12') },
         });
 
         // Mon, Tue, Thu, Fri should appear; Wed should not
-        expect(schedule.some(i => i.date === parseDate('2024-01-08'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-09'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-10'))).toBe(false);
-        expect(schedule.some(i => i.date === parseDate('2024-01-11'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-12'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-08'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-09'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(false);
+        expect(schedule.some(i => i.date === date('2024-01-11'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-12'))).toBe(true);
       });
 
       it('restore skipped day', async () => {
-        await cancelInstance(adapter, testSeriesId, parseDate('2024-01-10'));
-        await restoreInstance(adapter, testSeriesId, parseDate('2024-01-10'));
+        await cancelInstance(adapter, testSeriesId, date('2024-01-10'));
+        await restoreInstance(adapter, testSeriesId, date('2024-01-10'));
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-08'), end: parseDate('2024-01-12') },
+          range: { start: date('2024-01-08'), end: date('2024-01-12') },
         });
 
         // All days including Wed should appear
-        expect(schedule.some(i => i.date === parseDate('2024-01-08'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-09'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-10'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-11'))).toBe(true);
-        expect(schedule.some(i => i.date === parseDate('2024-01-12'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-08'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-09'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-11'))).toBe(true);
+        expect(schedule.some(i => i.date === date('2024-01-12'))).toBe(true);
       });
     });
 
     describe('9.2 Moving an Appointment', () => {
       it('move meeting earlier', async () => {
         // Series has time at 14:00
-        const meetingResult = await createSeries(adapter, {
+        const meetingId = await createSeries(adapter, {
           title: 'Weekly Meeting',
-          startDate: parseDate('2024-01-01'),
+          startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: parseDateTime('2024-01-01T14:00:00'),
-        });
-        expect(meetingResult.ok).toBe(true);
-        if (!meetingResult.ok) throw new Error(`'move meeting earlier' setup failed: ${meetingResult.error.type}`);
+          time: datetime('2024-01-01T14:00:00'),
+        }) as SeriesId;
 
         // Move to 10am
         await rescheduleInstance(
           adapter,
-          meetingResult.value.id,
-          parseDate('2024-01-15'),
-          parseDateTime('2024-01-15T10:00:00')
+          meetingId,
+          date('2024-01-15'),
+          datetime('2024-01-15T10:00:00')
         );
 
         const schedule = await getSchedule(adapter, {
-          seriesId: meetingResult.value.id,
-          range: { start: parseDate('2024-01-15'), end: parseDate('2024-01-15') },
+          seriesId: meetingId,
+          range: { start: date('2024-01-15'), end: date('2024-01-15') },
         });
 
-        expect(schedule[0].time).toBe(parseDateTime('2024-01-15T10:00:00'));
+        expect(schedule[0].time).toBe(datetime('2024-01-15T10:00:00'));
       });
 
       it('move to next day', async () => {
@@ -1035,12 +1027,12 @@ describe('Segment 09: Instance Exceptions', () => {
         await rescheduleInstance(
           adapter,
           testSeriesId,
-          parseDate('2024-01-08'), // Monday
-          parseDateTime('2024-01-09T09:00:00') // Tuesday
+          date('2024-01-08'), // Monday
+          datetime('2024-01-09T09:00:00') // Tuesday
         );
 
-        const exception = await getException(adapter, testSeriesId, parseDate('2024-01-08'));
-        expect(exception!.newTime).toBe(parseDateTime('2024-01-09T09:00:00'));
+        const exception = await getException(adapter, testSeriesId, date('2024-01-08'));
+        expect(exception!.newTime).toBe(datetime('2024-01-09T09:00:00'));
       });
     });
 
@@ -1048,11 +1040,11 @@ describe('Segment 09: Instance Exceptions', () => {
       it('cancel week of instances', async () => {
         // Cancel Mon-Fri of week 2
         const dates = [
-          parseDate('2024-01-08'),
-          parseDate('2024-01-09'),
-          parseDate('2024-01-10'),
-          parseDate('2024-01-11'),
-          parseDate('2024-01-12'),
+          date('2024-01-08'),
+          date('2024-01-09'),
+          date('2024-01-10'),
+          date('2024-01-11'),
+          date('2024-01-12'),
         ];
 
         // Verify instances exist before cancellation
@@ -1078,7 +1070,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-08'), end: parseDate('2024-01-12') },
+          range: { start: date('2024-01-08'), end: date('2024-01-12') },
         });
 
         expect(schedule).toEqual([]);
@@ -1086,22 +1078,22 @@ describe('Segment 09: Instance Exceptions', () => {
         // LAW 2: Verify other instances still exist
         const afterRange = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-13'), end: parseDate('2024-01-14') },
+          range: { start: date('2024-01-13'), end: date('2024-01-14') },
         });
         expect(afterRange).toHaveLength(2);
         expect(afterRange.map(i => i.date)).toEqual([
-          parseDate('2024-01-13'),
-          parseDate('2024-01-14'),
+          date('2024-01-13'),
+          date('2024-01-14'),
         ]);
       });
 
       it('restore after vacation', async () => {
         const dates = [
-          parseDate('2024-01-08'),
-          parseDate('2024-01-09'),
-          parseDate('2024-01-10'),
-          parseDate('2024-01-11'),
-          parseDate('2024-01-12'),
+          date('2024-01-08'),
+          date('2024-01-09'),
+          date('2024-01-10'),
+          date('2024-01-11'),
+          date('2024-01-12'),
         ];
 
         // Cancel all
@@ -1116,14 +1108,14 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: parseDate('2024-01-08'), end: parseDate('2024-01-12') },
+          range: { start: date('2024-01-08'), end: date('2024-01-12') },
         });
 
         for (const date of dates) {
           expect(schedule.some(i => i.date === date)).toBe(true);
         }
-        expect(schedule[0].date).toBe(parseDate('2024-01-08'));
-        expect(schedule[4].date).toBe(parseDate('2024-01-12'));
+        expect(schedule[0].date).toBe(date('2024-01-08'));
+        expect(schedule[4].date).toBe(date('2024-01-12'));
         expect(schedule.map(i => i.date)).toEqual(dates);
       });
     });
