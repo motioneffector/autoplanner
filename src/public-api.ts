@@ -13,6 +13,7 @@ import {
   dateOf, timeOf, daysBetween, weekdayToIndex, daysInMonth,
 } from './time-date'
 import { expandPattern, type Pattern } from './pattern-expansion'
+import type { Adapter } from './adapter'
 
 // ============================================================================
 // Error Classes
@@ -66,30 +67,7 @@ export class DuplicateCompletionError extends Error {
 // Types
 // ============================================================================
 
-export type Adapter = {
-  getSeries: (id: string) => Promise<any>
-  saveSeries: (series: any) => Promise<void>
-  deleteSeries: (id: string) => Promise<void>
-  getAllSeries: () => Promise<any[]>
-  getCompletion?: (id: string) => Promise<any>
-  saveCompletion?: (completion: any) => Promise<void>
-  deleteCompletion?: (id: string) => Promise<void>
-  getCompletionsBySeries?: (seriesId: string) => Promise<any[]>
-  getReminder?: (id: string) => Promise<any>
-  saveReminder?: (reminder: any) => Promise<void>
-  deleteReminder?: (id: string) => Promise<void>
-  getException?: (key: string) => Promise<any>
-  saveException?: (exception: any) => Promise<void>
-  deleteException?: (key: string) => Promise<void>
-  getLink?: (id: string) => Promise<any>
-  saveLink?: (link: any) => Promise<void>
-  deleteLink?: (id: string) => Promise<void>
-  getConstraint?: (id: string) => Promise<any>
-  saveConstraint?: (constraint: any) => Promise<void>
-  deleteConstraint?: (id: string) => Promise<void>
-  transaction?: <T>(fn: () => T) => T | Promise<T>
-  close?: () => Promise<void>
-}
+export type { Adapter } from './adapter'
 
 export type AutoplannerConfig = {
   adapter: Adapter
@@ -168,71 +146,11 @@ export type Autoplanner = {
 // Mock Adapter
 // ============================================================================
 
-export function createMockAdapter(): Adapter {
-  const seriesMap = new Map<string, any>()
-  const completionMap = new Map<string, any>()
-  const completionsBySeriesMap = new Map<string, any[]>()
-
-  return {
-    getSeries: async (id) => {
-      const s = seriesMap.get(id)
-      return s ? { ...s } : null
-    },
-    saveSeries: async (s) => {
-      seriesMap.set(s.id, { ...s })
-    },
-    deleteSeries: async (id) => {
-      seriesMap.delete(id)
-    },
-    getAllSeries: async () => {
-      return [...seriesMap.values()].map(s => ({ ...s }))
-    },
-    saveCompletion: async (c) => {
-      completionMap.set(c.id, { ...c })
-      if (!completionsBySeriesMap.has(c.seriesId)) completionsBySeriesMap.set(c.seriesId, [])
-      const list = completionsBySeriesMap.get(c.seriesId)!
-      if (!list.some(x => x.id === c.id)) list.push({ ...c })
-    },
-    getCompletion: async (id) => {
-      const c = completionMap.get(id)
-      return c ? { ...c } : null
-    },
-    deleteCompletion: async (id) => {
-      const c = completionMap.get(id)
-      if (c) {
-        completionMap.delete(id)
-        const list = completionsBySeriesMap.get(c.seriesId)
-        if (list) {
-          const idx = list.findIndex((x: any) => x.id === id)
-          if (idx >= 0) list.splice(idx, 1)
-        }
-      }
-    },
-    getCompletionsBySeries: async (seriesId) => {
-      return (completionsBySeriesMap.get(seriesId) || []).map(c => ({ ...c }))
-    },
-    saveReminder: async () => {},
-    getReminder: async () => null,
-    deleteReminder: async () => {},
-    saveException: async () => {},
-    getException: async () => null,
-    deleteException: async () => {},
-    saveLink: async () => {},
-    getLink: async () => null,
-    deleteLink: async () => {},
-    saveConstraint: async () => {},
-    getConstraint: async () => null,
-    deleteConstraint: async () => {},
-    transaction: async (fn: any) => fn(),
-    close: async () => {},
-  }
-}
 
 // ============================================================================
 // SQLite Adapter Re-export
 // ============================================================================
 
-export { createSqliteAdapter } from './sqlite-adapter'
 
 // ============================================================================
 // Helpers

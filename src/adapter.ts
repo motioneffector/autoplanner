@@ -200,6 +200,7 @@ export interface Adapter {
   getInstanceException(seriesId: string, originalDate: LocalDate): Promise<InstanceException | null>
   getExceptionsBySeries(seriesId: string): Promise<InstanceException[]>
   getExceptionsInRange(seriesId: string, start: LocalDate, end: LocalDate): Promise<InstanceException[]>
+  getAllExceptions(): Promise<InstanceException[]>
   deleteInstanceException(id: string): Promise<void>
 
   // Completion
@@ -253,6 +254,9 @@ export interface Adapter {
   getAllLinks(): Promise<Link[]>
   updateLink(id: string, changes: Partial<Link>): Promise<void>
   deleteLink(id: string): Promise<void>
+
+  // Lifecycle (optional — persistent adapters may implement)
+  close?(): Promise<void>
 }
 
 // ============================================================================
@@ -677,6 +681,10 @@ export function createMockAdapter(): Adapter {
             (e.originalDate as string) <= (end as string)
         )
         .map(ca)
+    },
+
+    async getAllExceptions() {
+      return [...state.exceptions.values()].map(ca)
     },
 
     async deleteInstanceException(id: string) {
