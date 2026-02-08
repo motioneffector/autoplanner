@@ -9,14 +9,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   createAutoplanner,
-  createMockAdapter,
-  createSqliteAdapter,
   type Autoplanner,
-  type Adapter,
   LockedSeriesError,
   ValidationError,
   ChainDepthExceededError,
 } from '../src/public-api';
+import { createMockAdapter, type Adapter } from '../src/adapter';
+import { createSqliteAdapter } from '../src/sqlite-adapter';
 import {
   type LocalDate,
   type LocalTime,

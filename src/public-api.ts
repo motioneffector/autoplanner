@@ -506,7 +506,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function loadFullSeries(id: string): Promise<any | null> {
-    const s = await getFullSeries(id)
+    const s = await adapter.getSeries(id)
     if (!s) return null
     const result: any = { ...s }
 
@@ -567,7 +567,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function loadAllFullSeries(): Promise<any[]> {
-    const allSeries = await loadAllFullSeries()
+    const allSeries = await adapter.getAllSeries()
     const results: any[] = []
     for (const s of allSeries) {
       if (s && s.id) {
