@@ -43,6 +43,7 @@ export type {
 
 // Completion store (derived query interface)
 export type { CompletionStore } from './completion-store'
+export { createCompletionStore } from './completion-store'
 
 // Branded ID types
 export type { Duration } from './core'

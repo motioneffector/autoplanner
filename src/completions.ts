@@ -261,6 +261,30 @@ export async function daysSinceLastCompletion(
   return daysBetween(mostRecentDate, input.asOf)
 }
 
+export async function getLastCompletion(
+  adapter: Adapter,
+  input: { target: Target }
+): Promise<DomainCompletion | null> {
+  const seriesIds = await resolveSeriesIds(adapter, input.target)
+
+  let bestRow: import('./adapter').Completion | null = null
+  let bestDate: LocalDate | null = null
+
+  for (const seriesId of seriesIds) {
+    const rows = await adapter.getCompletionsBySeries(seriesId)
+    for (const row of rows) {
+      const date = row.date ?? row.instanceDate
+      if (!bestDate || date > bestDate) {
+        bestDate = date
+        bestRow = row
+      }
+    }
+  }
+
+  if (!bestRow) return null
+  return enrichCompletion(bestRow)
+}
+
 export async function getDurationsForAdaptive(
   adapter: Adapter,
   input: AdaptiveInput

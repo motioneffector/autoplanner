@@ -7,11 +7,21 @@
  * primitive storage operations.
  *
  * The completions module (completions.ts) provides the implementation via
- * its exported functions. This file defines the canonical interface.
+ * its exported functions. This file defines the canonical interface and
+ * the factory function that bridges to those implementations.
  */
 
+import type { Adapter } from './adapter'
 import type { LocalDate } from './time-date'
+import { makeDate } from './time-date'
 import type { Target, DomainCompletion } from './domain-types'
+import {
+  countCompletionsInWindow,
+  daysSinceLastCompletion,
+  getDurationsForAdaptive,
+  getCompletionsByTarget,
+  getLastCompletion,
+} from './completions'
 
 /** Derived completion query interface */
 export type CompletionStore = {
@@ -29,4 +39,43 @@ export type CompletionStore = {
 
   /** Most recent completion for a target, or null if none */
   getLastCompletion(target: Target): Promise<DomainCompletion | null>
+}
+
+/**
+ * Create a CompletionStore backed by an adapter.
+ * Bridges the CompletionStore interface to the standalone functions in completions.ts.
+ */
+export function createCompletionStore(adapter: Adapter): CompletionStore {
+  return {
+    countInWindow(target, windowDays, asOf) {
+      return countCompletionsInWindow(adapter, { target, windowDays, asOf })
+    },
+
+    daysSinceLast(target, asOf) {
+      return daysSinceLastCompletion(adapter, { target, asOf })
+    },
+
+    getRecentDurations(seriesId, options) {
+      if ('lastN' in options) {
+        return getDurationsForAdaptive(adapter, {
+          seriesId,
+          mode: { type: 'lastN', n: options.lastN },
+          asOf: makeDate(9999, 12, 31),
+        })
+      }
+      return getDurationsForAdaptive(adapter, {
+        seriesId,
+        mode: { type: 'windowDays', days: options.windowDays },
+        asOf: options.asOf,
+      })
+    },
+
+    getCompletionsInWindow(target, windowDays, asOf) {
+      return getCompletionsByTarget(adapter, { target, windowDays, asOf })
+    },
+
+    getLastCompletion(target) {
+      return getLastCompletion(adapter, { target })
+    },
+  }
 }
