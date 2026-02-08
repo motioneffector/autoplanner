@@ -143,8 +143,8 @@ export async function linkSeries(
 
   try {
     await adapter.createLink(link)
-  } catch (e: any) {
-    if (e.name === 'InvalidDataError' && /cycle/i.test(e.message)) {
+  } catch (e: unknown) {
+    if (e instanceof Error && e.name === 'InvalidDataError' && /cycle/i.test(e.message)) {
       return err('CycleDetectedError', 'Link would create a cycle')
     }
     throw e

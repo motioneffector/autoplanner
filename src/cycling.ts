@@ -5,7 +5,7 @@
  * Supports sequential and random modes, with optional gap-leap behavior.
  */
 
-import type { Adapter } from './adapter'
+import type { Adapter, Series } from './adapter'
 import type { CyclingConfig } from './types'
 import type { LocalDate } from './time-date'
 
@@ -123,13 +123,13 @@ export async function resetCycling(
 }
 
 export function resolveInstanceTitle(
-  series: any,
+  series: Series,
   opts: { instanceNumber: number }
 ): string {
   if (!series.cycling) {
     return series.title
   }
-  return getCyclingItem(series.cycling, opts)
+  return getCyclingItem(series.cycling as CyclingConfig, opts)
 }
 
 export function getInstanceNumber(

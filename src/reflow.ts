@@ -287,7 +287,7 @@ function generateSlotsBetween(earliest: LocalDateTime, latest: LocalDateTime): L
 
 export function propagateConstraints(
   inputDomains: Map<Instance, LocalDateTime[]>,
-  constraints: any[]
+  constraints: InternalConstraint[]
 ): Map<Instance, LocalDateTime[]> {
   // Deep copy domains
   const domains = new Map<Instance, LocalDateTime[]>()
@@ -348,7 +348,7 @@ export function propagateConstraints(
   return domains
 }
 
-function getArcPairs(constraint: any): [Instance, Instance][] {
+function getArcPairs(constraint: InternalConstraint): [Instance, Instance][] {
   if (constraint.type === 'noOverlap') {
     return [
       [constraint.instances[0], constraint.instances[1]],
@@ -372,9 +372,9 @@ function getArcPairs(constraint: any): [Instance, Instance][] {
 
 function requeueArcs(
   changedVariable: Instance,
-  sourceConstraint: any,
-  allConstraints: any[],
-  queue: [Instance, Instance, any][]
+  sourceConstraint: InternalConstraint,
+  allConstraints: InternalConstraint[],
+  queue: [Instance, Instance, InternalConstraint][]
 ): void {
   for (const c of allConstraints) {
     for (const [v, o] of getArcPairs(c)) {
@@ -386,7 +386,7 @@ function requeueArcs(
 }
 
 function isArcConsistent(
-  constraint: any,
+  constraint: InternalConstraint,
   varInst: Instance,
   varVal: LocalDateTime,
   otherInst: Instance,
@@ -551,7 +551,7 @@ function isConsistentWithAssignment(
   inst: Instance,
   value: LocalDateTime,
   assignment: Map<Instance, LocalDateTime>,
-  constraints: any[]
+  constraints: InternalConstraint[]
 ): boolean {
   for (const c of constraints) {
     if (c.type === 'noOverlap') {
@@ -625,7 +625,7 @@ function isConsistentWithAssignment(
 export function handleNoSolution(
   instances: Instance[],
   domains: Map<Instance, LocalDateTime[]>,
-  constraints: any[]
+  constraints: InternalConstraint[]
 ): { assignments: Map<Instance, LocalDateTime>; conflicts: Conflict[] } {
   const assignments = new Map<Instance, LocalDateTime>()
   const conflicts: Conflict[] = []
