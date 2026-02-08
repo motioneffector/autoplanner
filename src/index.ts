@@ -105,8 +105,8 @@ export {
 } from './relational-constraints'
 
 // Schedule engine (pure per-series expand → schedule pipeline)
-export type { ExpandScheduleInput } from './schedule'
-export { expandSchedule } from './schedule'
+export type { ExpandScheduleInput, ScheduleInstance as RawScheduleInstance } from './schedule'
+export { expandSchedule, getSchedule } from './schedule'
 
 // Reflow (CSP solver — public interface only; internals accessed via src/reflow directly)
 export type {
