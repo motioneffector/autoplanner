@@ -446,7 +446,7 @@ function isArcConsistent(
 export function backtrackSearch(
   instances: Instance[],
   domains: Map<Instance, LocalDateTime[]>,
-  constraints: any[],
+  constraints: InternalConstraint[],
   options?: { workload?: Map<string, number> }
 ): Map<Instance, LocalDateTime> | null {
   // Filter to instances that have domains
@@ -524,7 +524,7 @@ function backtrack(
   index: number,
   assignment: Map<Instance, LocalDateTime>,
   domains: Map<Instance, LocalDateTime[]>,
-  constraints: any[],
+  constraints: InternalConstraint[],
   workload?: Map<string, number>
 ): Map<Instance, LocalDateTime> | null {
   if (index >= instances.length) {
