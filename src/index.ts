@@ -4,12 +4,35 @@
  * Public API exports
  */
 
+// Error system (canonical source — base class, codes, all error classes)
+export {
+  AutoplannerError, AutoplannerErrorCode,
+  DuplicateKeyError, NotFoundError, ForeignKeyError, InvalidDataError,
+  ValidationError, LockedSeriesError, CompletionsExistError, LinkedChildrenExistError,
+  NonExistentInstanceError, AlreadyCancelledError, CancelledInstanceError,
+  CycleDetectedError, ChainDepthExceededError, DuplicateCompletionError,
+  ParseError, InvalidPatternError, InvalidRangeError, InvalidConditionError,
+} from './errors'
+export type { AutoplannerErrorCode as AutoplannerErrorCodeType } from './errors'
+
 // Result type
 export type { Result } from './result'
 export { Ok, Err } from './result'
 
 // Time & Date (canonical source — branded types + utilities)
-export * from './time-date'
+export type { LocalDate, LocalTime, LocalDateTime, Weekday } from './time-date'
+export {
+  isLeapYear, daysInMonth, daysInYear,
+  parseDate, parseTime, parseDateTime,
+  makeDate, makeTime, makeDateTime,
+  yearOf, monthOf, dayOf, hourOf, minuteOf, secondOf, dateOf, timeOf,
+  formatDate, formatTime, formatDateTime,
+  addDays, daysBetween, addMinutes, minutesBetween,
+  dayOfWeek, weekdayToIndex, indexToWeekday,
+  compareDates, compareTimes, compareDateTimes,
+  dateEquals, dateBefore, dateAfter,
+  toLocal, toUTC, isDSTAt,
+} from './time-date'
 
 // Branded ID types
 export type { Duration } from './core'
@@ -27,7 +50,6 @@ export {
   yearly, weekdays, weekdaysOnly, weekendsOnly,
   nthWeekdayOfMonth, lastWeekdayOfMonth, nthToLastWeekdayOfMonth,
   unionPatterns, exceptPatterns,
-  InvalidPatternError, InvalidRangeError,
 } from './pattern-expansion'
 
 // Adapter (persistence interface + in-memory mock)
@@ -42,10 +64,7 @@ export type {
   CyclingItem as AdapterCyclingItem,
   Reminder, ReminderAck, RelationalConstraint, Link, Tag,
 } from './adapter'
-export {
-  createMockAdapter,
-  DuplicateKeyError, ForeignKeyError, InvalidDataError,
-} from './adapter'
+export { createMockAdapter } from './adapter'
 
 // SQLite adapter
 export { createSqliteAdapter } from './sqlite-adapter'
@@ -59,8 +78,6 @@ export {
   createSeries, getSeries, getSeriesByTag, getAllSeries,
   updateSeries, deleteSeries, lockSeries, unlockSeries, splitSeries,
   addTagToSeries, removeTagFromSeries, getTagsForSeries,
-  ValidationError, NotFoundError, LockedSeriesError,
-  CompletionsExistError, LinkedChildrenExistError,
 } from './series-crud'
 
 // Cycling

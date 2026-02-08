@@ -31,12 +31,8 @@ export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 // Errors
 // ============================================================================
 
-export class ParseError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ParseError'
-  }
-}
+export { ParseError } from './errors'
+import { ParseError } from './errors'
 
 // ============================================================================
 // Helpers

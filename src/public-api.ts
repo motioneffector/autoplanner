@@ -19,49 +19,18 @@ import type { Adapter, Completion, Condition } from './adapter'
 // Error Classes
 // ============================================================================
 
-export class ValidationError extends Error {
-  constructor(message: string) { super(message); this.name = 'ValidationError' }
-}
-
-export class NotFoundError extends Error {
-  constructor(message: string) { super(message); this.name = 'NotFoundError' }
-}
-
-export class LockedSeriesError extends Error {
-  constructor(message: string) { super(message); this.name = 'LockedSeriesError' }
-}
-
-export class CompletionsExistError extends Error {
-  constructor(message: string) { super(message); this.name = 'CompletionsExistError' }
-}
-
-export class LinkedChildrenExistError extends Error {
-  constructor(message: string) { super(message); this.name = 'LinkedChildrenExistError' }
-}
-
-export class NonExistentInstanceError extends Error {
-  constructor(message: string) { super(message); this.name = 'NonExistentInstanceError' }
-}
-
-export class AlreadyCancelledError extends Error {
-  constructor(message: string) { super(message); this.name = 'AlreadyCancelledError' }
-}
-
-export class CancelledInstanceError extends Error {
-  constructor(message: string) { super(message); this.name = 'CancelledInstanceError' }
-}
-
-export class CycleDetectedError extends Error {
-  constructor(message: string) { super(message); this.name = 'CycleDetectedError' }
-}
-
-export class ChainDepthExceededError extends Error {
-  constructor(message: string) { super(message); this.name = 'ChainDepthExceededError' }
-}
-
-export class DuplicateCompletionError extends Error {
-  constructor(message: string) { super(message); this.name = 'DuplicateCompletionError' }
-}
+export {
+  ValidationError, NotFoundError, LockedSeriesError,
+  CompletionsExistError, LinkedChildrenExistError,
+  NonExistentInstanceError, AlreadyCancelledError, CancelledInstanceError,
+  CycleDetectedError, ChainDepthExceededError, DuplicateCompletionError,
+} from './errors'
+import {
+  ValidationError, NotFoundError, LockedSeriesError,
+  CompletionsExistError, LinkedChildrenExistError,
+  NonExistentInstanceError, AlreadyCancelledError, CancelledInstanceError,
+  CycleDetectedError, ChainDepthExceededError, DuplicateCompletionError,
+} from './errors'
 
 // ============================================================================
 // Types

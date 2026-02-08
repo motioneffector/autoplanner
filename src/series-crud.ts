@@ -16,7 +16,7 @@ import {
   makeTime,
 } from './time-date'
 
-import { type Adapter, type Series as AdapterSeries, NotFoundError as AdapterNotFoundError } from './adapter'
+import { type Adapter, type Series as AdapterSeries } from './adapter'
 
 export type { LocalDate, LocalDateTime, LocalTime } from './time-date'
 
@@ -24,40 +24,14 @@ export type { LocalDate, LocalDateTime, LocalTime } from './time-date'
 // Error Classes
 // ============================================================================
 
-export class ValidationError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ValidationError'
-  }
-}
-
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'NotFoundError'
-  }
-}
-
-export class LockedSeriesError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'LockedSeriesError'
-  }
-}
-
-export class CompletionsExistError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'CompletionsExistError'
-  }
-}
-
-export class LinkedChildrenExistError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'LinkedChildrenExistError'
-  }
-}
+export {
+  ValidationError, NotFoundError, LockedSeriesError,
+  CompletionsExistError, LinkedChildrenExistError,
+} from './errors'
+import {
+  ValidationError, NotFoundError, LockedSeriesError,
+  CompletionsExistError, LinkedChildrenExistError,
+} from './errors'
 
 // ============================================================================
 // Types

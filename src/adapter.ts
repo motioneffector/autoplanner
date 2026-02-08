@@ -13,33 +13,12 @@ export type { LocalDate, LocalDateTime } from './time-date'
 // Error Classes
 // ============================================================================
 
-export class DuplicateKeyError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'DuplicateKeyError'
-  }
-}
-
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'NotFoundError'
-  }
-}
-
-export class ForeignKeyError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ForeignKeyError'
-  }
-}
-
-export class InvalidDataError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'InvalidDataError'
-  }
-}
+export {
+  DuplicateKeyError, NotFoundError, ForeignKeyError, InvalidDataError,
+} from './errors'
+import {
+  DuplicateKeyError, NotFoundError, ForeignKeyError, InvalidDataError,
+} from './errors'
 
 // ============================================================================
 // Entity Types

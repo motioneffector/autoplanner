@@ -40,12 +40,8 @@ export type Condition =
 // Errors
 // ============================================================================
 
-export class InvalidConditionError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'InvalidConditionError'
-  }
-}
+export { InvalidConditionError } from './errors'
+import { InvalidConditionError } from './errors'
 
 // ============================================================================
 // Target Constructors

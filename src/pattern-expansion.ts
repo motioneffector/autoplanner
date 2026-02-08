@@ -54,19 +54,8 @@ interface ExpandOptions {
 // Errors
 // ============================================================================
 
-export class InvalidPatternError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'InvalidPatternError'
-  }
-}
-
-export class InvalidRangeError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'InvalidRangeError'
-  }
-}
+export { InvalidPatternError, InvalidRangeError } from './errors'
+import { InvalidPatternError, InvalidRangeError } from './errors'
 
 // ============================================================================
 // Pattern Constructors
