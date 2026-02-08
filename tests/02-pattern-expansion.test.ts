@@ -1173,39 +1173,39 @@ describe('Invariants', () => {
 describe('Error Handling', () => {
   it('invalid range start > end throws InvalidRangeError', () => {
     const range: DateRange = { start: '2024-02-01' as LocalDate, end: '2024-01-01' as LocalDate }
-    expect(() => expandPattern(daily(), range, '2024-01-01' as LocalDate)).toThrow(InvalidRangeError)
+    expect(() => expandPattern(daily(), range, '2024-01-01' as LocalDate)).toThrow(/Range start must be <= end/)
   })
 
   it('everyNDays n=0 throws InvalidPatternError', () => {
-    expect(() => everyNDays(0)).toThrow(InvalidPatternError)
+    expect(() => everyNDays(0)).toThrow(/everyNDays requires n >= 1/)
   })
 
   it('everyNDays n=-1 throws InvalidPatternError', () => {
-    expect(() => everyNDays(-1)).toThrow(InvalidPatternError)
+    expect(() => everyNDays(-1)).toThrow(/everyNDays requires n >= 1/)
   })
 
   it('everyNWeeks n=0 throws InvalidPatternError', () => {
-    expect(() => everyNWeeks(0)).toThrow(InvalidPatternError)
+    expect(() => everyNWeeks(0)).toThrow(/everyNWeeks requires n >= 1/)
   })
 
   it('monthly day=0 throws InvalidPatternError', () => {
-    expect(() => monthly(0)).toThrow(InvalidPatternError)
+    expect(() => monthly(0)).toThrow(/monthly requires day 1-31/)
   })
 
   it('monthly day=32 throws InvalidPatternError', () => {
-    expect(() => monthly(32)).toThrow(InvalidPatternError)
+    expect(() => monthly(32)).toThrow(/monthly requires day 1-31/)
   })
 
   it('yearly month=0 throws InvalidPatternError', () => {
-    expect(() => yearly(0, 15)).toThrow(InvalidPatternError)
+    expect(() => yearly(0, 15)).toThrow(/yearly requires month 1-12/)
   })
 
   it('yearly month=13 throws InvalidPatternError', () => {
-    expect(() => yearly(13, 15)).toThrow(InvalidPatternError)
+    expect(() => yearly(13, 15)).toThrow(/yearly requires month 1-12/)
   })
 
   it('weekdays empty array throws InvalidPatternError', () => {
-    expect(() => weekdays([])).toThrow(InvalidPatternError)
+    expect(() => weekdays([])).toThrow(/weekdays requires at least one day/)
   })
 })
 

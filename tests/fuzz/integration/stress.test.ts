@@ -4686,35 +4686,36 @@ describe('SQLite Error Mapping Tests', () => {
   })
 
   it('Property #414b: specific SQLite codes map to correct domain types', () => {
+    const mapper = SQLiteErrorMapper // local binding for test visibility
     // UNIQUE constraint -> ALREADY_EXISTS
-    const uniqueError = SQLiteErrorMapper.mapError(
-      SQLiteErrorMapper.SQLITE_CONSTRAINT_UNIQUE,
+    const uniqueError = mapper.mapError(
+      mapper.SQLITE_CONSTRAINT_UNIQUE,
       'UNIQUE constraint failed'
     )
     expect(uniqueError.type).toBe('ALREADY_EXISTS')
 
     // FOREIGN KEY constraint -> FOREIGN_KEY_VIOLATION
-    const fkError = SQLiteErrorMapper.mapError(
-      SQLiteErrorMapper.SQLITE_CONSTRAINT_FOREIGNKEY,
+    const fkError = mapper.mapError(
+      mapper.SQLITE_CONSTRAINT_FOREIGNKEY,
       'FOREIGN KEY constraint failed'
     )
     expect(fkError.type).toBe('FOREIGN_KEY_VIOLATION')
 
     // BUSY/LOCKED -> LOCKED
-    const busyError = SQLiteErrorMapper.mapError(
-      SQLiteErrorMapper.SQLITE_BUSY,
+    const busyError = mapper.mapError(
+      mapper.SQLITE_BUSY,
       'database is locked'
     )
     expect(busyError.type).toBe('LOCKED')
-    expect(SQLiteErrorMapper.isRecoverable(busyError)).toBe(true)
+    expect(mapper.isRecoverable(busyError)).toBe(true)
 
     // NOT FOUND -> NOT_FOUND
-    const notFoundError = SQLiteErrorMapper.mapError(
-      SQLiteErrorMapper.SQLITE_NOTFOUND,
+    const notFoundError = mapper.mapError(
+      mapper.SQLITE_NOTFOUND,
       'record not found'
     )
     expect(notFoundError.type).toBe('NOT_FOUND')
-    expect(SQLiteErrorMapper.isRecoverable(notFoundError)).toBe(false)
+    expect(mapper.isRecoverable(notFoundError)).toBe(false)
   })
 
   it('Property #415: schema version tracked', () => {

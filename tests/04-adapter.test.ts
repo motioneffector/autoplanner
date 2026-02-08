@@ -262,7 +262,7 @@ describe('Series Operations', () => {
           title: 'Second',
           createdAt: '2024-01-15T10:00:00' as LocalDateTime,
         })
-      ).rejects.toThrow(DuplicateKeyError)
+      ).rejects.toThrow(/already exists/)
     })
 
     it('get non-existent series returns null', async () => {
@@ -327,7 +327,7 @@ describe('Series Operations', () => {
     it('update non-existent throws NotFoundError', async () => {
       await expect(
         adapter.updateSeries('nonexistent', { title: 'X' })
-      ).rejects.toThrow(NotFoundError)
+      ).rejects.toThrow(/not found/)
     })
 
     it('delete series', async () => {
@@ -355,7 +355,7 @@ describe('Series Operations', () => {
         startTime: '2024-01-15T13:30:00' as LocalDateTime,
         endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
-      await expect(adapter.deleteSeries('series-1')).rejects.toThrow(ForeignKeyError)
+      await expect(adapter.deleteSeries('series-1')).rejects.toThrow(/has completions/)
     })
 
     it('delete with child links throws ForeignKeyError', async () => {
@@ -377,7 +377,7 @@ describe('Series Operations', () => {
         earlyWobble: 0,
         lateWobble: 10,
       })
-      await expect(adapter.deleteSeries('parent')).rejects.toThrow(ForeignKeyError)
+      await expect(adapter.deleteSeries('parent')).rejects.toThrow(/has linked children/)
     })
 
     it('delete cascades patterns', async () => {
@@ -473,7 +473,7 @@ describe('Pattern Operations', () => {
         type: 'daily',
         conditionId: null,
       } as Pattern)
-    ).rejects.toThrow(ForeignKeyError)
+    ).rejects.toThrow(/Series 'nonexistent' not found/)
   })
 
   it('get patterns by series', async () => {
@@ -660,7 +660,7 @@ describe('Condition Operations', () => {
         value: 1,
         windowDays: 7,
       } as Condition)
-    ).rejects.toThrow(ForeignKeyError)
+    ).rejects.toThrow(/Parent condition 'nonexistent' not found/)
   })
 
   it('delete cascades children', async () => {
@@ -707,7 +707,7 @@ describe('Condition Operations', () => {
     // Attempt to create cycle: c → a
     await expect(
       adapter.updateCondition('a', { parentId: 'c' })
-    ).rejects.toThrow(InvalidDataError)
+    ).rejects.toThrow(/would create a cycle/)
   })
 
   it('get conditions by series', async () => {
@@ -1015,7 +1015,7 @@ describe('Instance Exception Operations', () => {
         type: 'reschedule',
         newDate: '2024-01-16' as LocalDate,
       })
-    ).rejects.toThrow(DuplicateKeyError)
+    ).rejects.toThrow(/already exists/)
   })
 
   it('get exceptions by series', async () => {
@@ -1146,7 +1146,7 @@ describe('Completion Operations', () => {
           startTime: '2024-01-15T13:30:00' as LocalDateTime,
           endTime: '2024-01-15T14:00:00' as LocalDateTime,
         })
-      ).rejects.toThrow(ForeignKeyError)
+      ).rejects.toThrow(/Series 'nonexistent' not found/)
     })
 
     it('series delete blocked by completions', async () => {
@@ -1158,7 +1158,7 @@ describe('Completion Operations', () => {
         startTime: '2024-01-15T13:30:00' as LocalDateTime,
         endTime: '2024-01-15T14:00:00' as LocalDateTime,
       })
-      await expect(adapter.deleteSeries('series-1')).rejects.toThrow(ForeignKeyError)
+      await expect(adapter.deleteSeries('series-1')).rejects.toThrow(/has completions/)
     })
 
     it('one per series+instance throws error', async () => {
@@ -1179,7 +1179,7 @@ describe('Completion Operations', () => {
           startTime: '2024-01-15T14:30:00' as LocalDateTime,
           endTime: '2024-01-15T15:00:00' as LocalDateTime,
         })
-      ).rejects.toThrow(DuplicateKeyError)
+      ).rejects.toThrow(/already exists/)
     })
 
     it('get completions by series', async () => {
@@ -1858,7 +1858,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 20,
         })
-      ).rejects.toThrow(DuplicateKeyError)
+      ).rejects.toThrow(/already has a parent link/)
     })
 
     it('parent can have many children', async () => {
@@ -1899,7 +1899,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 10,
         })
-      ).rejects.toThrow(InvalidDataError)
+      ).rejects.toThrow(/Cannot link a series to itself/)
     })
 
     it('child delete cascades link', async () => {
@@ -1925,7 +1925,7 @@ describe('Link Operations', () => {
         earlyWobble: 0,
         lateWobble: 10,
       })
-      await expect(adapter.deleteSeries('parent')).rejects.toThrow(ForeignKeyError)
+      await expect(adapter.deleteSeries('parent')).rejects.toThrow(/has linked children/)
     })
 
     it('no cycles allowed', async () => {
@@ -1960,7 +1960,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 10,
         })
-      ).rejects.toThrow(InvalidDataError)
+      ).rejects.toThrow(/would create a cycle/)
     })
 
     it('parent must exist', async () => {
@@ -1973,7 +1973,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 10,
         })
-      ).rejects.toThrow(ForeignKeyError)
+      ).rejects.toThrow(/Parent series 'nonexistent' not found/)
     })
 
     it('child must exist', async () => {
@@ -1986,7 +1986,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 10,
         })
-      ).rejects.toThrow(ForeignKeyError)
+      ).rejects.toThrow(/Child series 'nonexistent' not found/)
     })
 
     it('max chain depth 33 throws error', async () => {
@@ -2029,7 +2029,7 @@ describe('Link Operations', () => {
           earlyWobble: 0,
           lateWobble: 10,
         })
-      ).rejects.toThrow(InvalidDataError)
+      ).rejects.toThrow(/exceeds maximum of 32/)
     })
   })
 })
@@ -2047,7 +2047,7 @@ describe('Invariants', () => {
         type: 'daily',
         conditionId: null,
       } as Pattern)
-    ).rejects.toThrow(ForeignKeyError)
+    ).rejects.toThrow(/Series 'nonexistent' not found/)
   })
 
   it('INV 2: All unique constraints enforced', async () => {
@@ -2062,7 +2062,7 @@ describe('Invariants', () => {
         title: 'Duplicate',
         createdAt: '2024-01-15T10:00:00' as LocalDateTime,
       })
-    ).rejects.toThrow(DuplicateKeyError)
+    ).rejects.toThrow(/already exists/)
   })
 
   it('INV 4: CASCADE deletes work', async () => {
@@ -2096,7 +2096,7 @@ describe('Invariants', () => {
       startTime: '2024-01-15T13:30:00' as LocalDateTime,
       endTime: '2024-01-15T14:00:00' as LocalDateTime,
     })
-    await expect(adapter.deleteSeries('s1')).rejects.toThrow(ForeignKeyError)
+    await expect(adapter.deleteSeries('s1')).rejects.toThrow(/has completions/)
   })
 
   it('INV 6: Timestamps are valid ISO', async () => {

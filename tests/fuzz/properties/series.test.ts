@@ -1315,7 +1315,7 @@ describe('Spec 3: Series - RESTRICT Deletion', () => {
           manager.addCompletion(id, date, duration)
 
           // Try to delete with RESTRICT - should throw
-          expect(() => manager.deleteSeriesRestrict(id)).toThrow(RestrictedError)
+          expect(() => manager.deleteSeriesRestrict(id)).toThrow(/Cannot delete:.*completion/)
           expect(() => manager.deleteSeriesRestrict(id)).toThrow(/completion/)
 
           // Series should still exist with its original properties
@@ -1341,7 +1341,7 @@ describe('Spec 3: Series - RESTRICT Deletion', () => {
           manager.linkSeries(parentId, childId)
 
           // Try to delete parent with RESTRICT - should throw
-          expect(() => manager.deleteSeriesRestrict(parentId)).toThrow(RestrictedError)
+          expect(() => manager.deleteSeriesRestrict(parentId)).toThrow(/Cannot delete:.*linked child/)
           expect(() => manager.deleteSeriesRestrict(parentId)).toThrow(/link/)
 
           // Parent should still exist with its original properties

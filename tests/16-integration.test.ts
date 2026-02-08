@@ -11,8 +11,6 @@ import {
   createAutoplanner,
   type Autoplanner,
   LockedSeriesError,
-  ValidationError,
-  ChainDepthExceededError,
 } from '../src/public-api';
 import { createMockAdapter, type Adapter } from '../src/adapter';
 import { createSqliteAdapter } from '../src/sqlite-adapter';
@@ -583,7 +581,7 @@ describe('Segment 16: Integration Tests', () => {
       // Try to reschedule transfer before chain target
       await expect(
         planner.rescheduleInstance(transferId, date('2025-01-19'), datetime('2025-01-19T09:30:00'))
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toThrow(/outside chain bounds/);
     });
 
     it('chain bounds enforced - instances within wobble limits', async () => {
@@ -1627,7 +1625,7 @@ describe('Segment 16: Integration Tests', () => {
       }
 
       // 33rd link should fail
-      await expect(planner.linkSeries(ids[32], ids[33], { distance: 0 })).rejects.toThrow(ChainDepthExceededError);
+      await expect(planner.linkSeries(ids[32], ids[33], { distance: 0 })).rejects.toThrow(/exceeds maximum/);
     });
   });
 
@@ -2209,7 +2207,10 @@ describe('Segment 16: Integration Tests', () => {
 
       const sched = await planner.getSchedule(date('2026-06-01'), date('2026-06-02'));
       const childInst = sched.instances.find(i => i.seriesId === childId);
-      expect(childInst).toBeDefined();
+      expect(childInst).toEqual(expect.objectContaining({
+        seriesId: childId,
+        title: 'Child',
+      }));
       // Parent ends at 10:00 + 15 min distance = 10:15
       expect((childInst!.time as string)).toContain('10:15');
     });
@@ -2260,11 +2261,12 @@ describe('Segment 16: Integration Tests', () => {
 
       const sched = await planner.getSchedule(date('2026-08-01'), date('2026-08-02'));
       // Should detect constraint violation as a conflict
-      expect(sched.conflicts.length).toBeGreaterThan(0);
+      expect(sched.conflicts).toHaveLength(1);
       const violation = sched.conflicts.find(c =>
         c.type === 'constraintViolation' || c.type === 'mustBeBefore'
       );
-      expect(violation).toBeDefined();
+      expect(violation).not.toBeUndefined();
+      expect(violation!.type).toMatch(/constraintViolation|mustBeBefore/);
     });
 
     it('nested condition tree (and/or/not) gates pattern correctly', async () => {
@@ -2292,15 +2294,17 @@ describe('Segment 16: Integration Tests', () => {
         ],
       });
 
-      // 0 completions → pattern inactive
+      // 0 completions → pattern inactive (needs ≥2 completions to activate)
       let sched = await planner.getSchedule(date('2026-09-15'), date('2026-09-16'));
       expect(sched.instances.filter(i => i.seriesId === id)).toHaveLength(0);
 
-      // 2 completions → pattern active
+      // 2 completions → pattern active (2 ≥ 2 and ¬(2 ≥ 5))
       await planner.logCompletion(id, date('2026-09-10'));
       await planner.logCompletion(id, date('2026-09-12'));
       sched = await planner.getSchedule(date('2026-09-15'), date('2026-09-16'));
-      expect(sched.instances.filter(i => i.seriesId === id)).toHaveLength(1);
+      const activeInstances = sched.instances.filter(i => i.seriesId === id);
+      expect(activeInstances).toHaveLength(1);
+      expect(activeInstances[0].title).toBe('Condition Tree');
 
       // 5 completions → NOT clause triggers, pattern inactive again
       await planner.logCompletion(id, date('2026-09-13'));
@@ -2456,14 +2460,14 @@ describe('Segment 16: Integration Tests', () => {
         const restored = await planner2.getSeries(id);
         expect(restored.title).toBe('SQLite Canary');
         expect(restored.patterns).toHaveLength(2);
+        const everyNPat = restored.patterns.find((p: any) => p.type === 'everyNDays');
+        const weekdaysPat = restored.patterns.find((p: any) => p.type === 'weekdays');
+        expect(everyNPat).not.toBeUndefined();
+        expect(weekdaysPat).not.toBeUndefined();
         expect(restored.tags).toContain('sqlite');
         expect(restored.tags).toContain('canary');
         expect(restored.cycling).toMatchObject({ mode: 'sequential', gapLeap: true });
         expect(restored.cycling.items).toEqual(['Step 1', 'Step 2']);
-
-        // Verify pattern details survived
-        const everyNPat = restored.patterns.find((p: any) => p.type === 'everyNDays');
-        const weekdaysPat = restored.patterns.find((p: any) => p.type === 'weekdays');
         expect(everyNPat).toMatchObject({ n: 3, time: '08:30', duration: 45, fixed: true });
         expect(weekdaysPat).toMatchObject({ time: '16:00', duration: 90 });
         expect(weekdaysPat.days).toEqual([2, 4]);

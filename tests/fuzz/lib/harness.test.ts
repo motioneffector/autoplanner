@@ -113,8 +113,8 @@ describe('test harness', () => {
     })
 
     it('throws for unequal values', () => {
-      expect(() => assertDeepEquals(5, 6)).toThrow('Expected')
-      expect(() => assertDeepEquals({ a: 1 }, { a: 2 })).toThrow('Expected')
+      expect(() => assertDeepEquals(5, 6)).toThrow(/Expected 6 but got 5/)
+      expect(() => assertDeepEquals({ a: 1 }, { a: 2 })).toThrow(/but got/)
     })
   })
 
@@ -148,7 +148,7 @@ describe('test harness', () => {
           },
           TypeError
         )
-      ).toThrow('Expected error of type')
+      ).toThrow(/Expected error of type/)
     })
   })
 

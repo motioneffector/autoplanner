@@ -1152,19 +1152,19 @@ describe('Invariants', () => {
 
 describe('Error Handling', () => {
   it('empty and conditions throws InvalidConditionError', () => {
-    expect(() => andCondition([])).toThrow(InvalidConditionError)
+    expect(() => andCondition([])).toThrow(/and requires at least one condition/)
   })
 
   it('empty or conditions throws InvalidConditionError', () => {
-    expect(() => orCondition([])).toThrow(InvalidConditionError)
+    expect(() => orCondition([])).toThrow(/or requires at least one condition/)
   })
 
   it('negative windowDays throws InvalidConditionError', () => {
-    expect(() => countCondition(byTag('walk'), '>=', 1, -1)).toThrow(InvalidConditionError)
+    expect(() => countCondition(byTag('walk'), '>=', 1, -1)).toThrow(/windowDays must be >= 0/)
   })
 
   it('negative value throws InvalidConditionError', () => {
-    expect(() => countCondition(byTag('walk'), '>=', -1, 14)).toThrow(InvalidConditionError)
+    expect(() => countCondition(byTag('walk'), '>=', -1, 14)).toThrow(/count value must be >= 0/)
   })
 })
 

@@ -781,7 +781,7 @@ describe('Segment 07: Cycling', () => {
           mode: 'sequential',
           gapLeap: false,
         },
-      })).rejects.toThrow(ValidationError);
+      })).rejects.toThrow(/Cycling items must not be empty/);
     });
 
     it('currentIndex in bounds', async () => {

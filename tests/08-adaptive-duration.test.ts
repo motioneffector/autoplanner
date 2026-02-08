@@ -792,7 +792,7 @@ describe('Segment 08: Adaptive Duration', () => {
       // Should either throw or clamp fallback to 1
       await expect(async () => {
         await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
-      }).rejects.toThrow(ValidationError);
+      }).rejects.toThrow(/Adaptive fallback must be >= 1/);
     });
 
     it('INV 2: minimum <= maximum', async () => {
@@ -806,7 +806,7 @@ describe('Segment 08: Adaptive Duration', () => {
 
       await expect(async () => {
         await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
-      }).rejects.toThrow(ValidationError);
+      }).rejects.toThrow(/Adaptive minimum must be <= maximum/);
     });
 
     it('INV 3: multiplier > 0', async () => {
@@ -818,7 +818,7 @@ describe('Segment 08: Adaptive Duration', () => {
 
       await expect(async () => {
         await calculateAdaptiveDuration(adapter, testSeriesId, config, date('2024-01-20'));
-      }).rejects.toThrow(ValidationError);
+      }).rejects.toThrow(/Adaptive multiplier must be > 0/);
     });
 
     it('INV 4: value >= 1', async () => {

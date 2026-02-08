@@ -255,7 +255,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/Title must not be empty/)
     })
 
     it('whitespace only title rejected', async () => {
@@ -265,7 +265,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/Title must not be empty/)
     })
   })
 
@@ -288,7 +288,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/Invalid startDate/)
     })
 
     it('endDate equals startDate accepted', async () => {
@@ -311,7 +311,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/endDate must be >= startDate/)
     })
 
     it('endDate after startDate accepted', async () => {
@@ -335,7 +335,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/count and endDate are mutually exclusive/)
     })
 
     it('count = 0 rejected', async () => {
@@ -346,7 +346,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/count must be >= 1/)
     })
 
     it('count = 1 accepted', async () => {
@@ -369,7 +369,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/count must be >= 1/)
     })
   })
 
@@ -403,7 +403,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '9am' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/Invalid timeOfDay/)
     })
 
     it('allDay time with non-allDay duration rejected', async () => {
@@ -413,7 +413,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: 'allDay',
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/allDay timeOfDay requires allDay duration/)
     })
 
     it('non-allDay time with allDay duration rejected', async () => {
@@ -423,7 +423,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 'allDay',
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/non-allDay timeOfDay cannot have allDay duration/)
     })
 
     it('allDay consistency accepted', async () => {
@@ -457,7 +457,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 0,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/duration must be > 0/)
     })
 
     it('negative duration rejected', async () => {
@@ -467,7 +467,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: -10,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/duration must be > 0/)
     })
 
     it('allDay duration accepted', async () => {
@@ -507,7 +507,7 @@ describe('Precondition Validation (Create)', () => {
           bufferPercent: 25,
         },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/adaptive fallback must be >= 1/)
     })
 
     it('adaptive min >= max rejected', async () => {
@@ -523,7 +523,7 @@ describe('Precondition Validation (Create)', () => {
           max: 30,
         },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/adaptive min must be < max/)
     })
 
     it('adaptive min < max accepted', async () => {
@@ -565,7 +565,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         patterns: [{ invalid: true } as any],
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/Each pattern must have a type/)
     })
   })
 
@@ -590,7 +590,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         wiggle: { daysBefore: -1, daysAfter: 0 },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/wiggle daysBefore must be >= 0/)
     })
 
     it('negative daysAfter rejected', async () => {
@@ -601,7 +601,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         wiggle: { daysBefore: 0, daysAfter: -1 },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/wiggle daysAfter must be >= 0/)
     })
 
     it('valid timeWindow accepted', async () => {
@@ -634,7 +634,7 @@ describe('Precondition Validation (Create)', () => {
           latest: '08:00' as LocalTime,
         },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/wiggle earliest must be < latest/)
     })
 
     it('fixed with non-zero wiggle rejected', async () => {
@@ -646,7 +646,7 @@ describe('Precondition Validation (Create)', () => {
         fixed: true,
         wiggle: { daysBefore: 1, daysAfter: 0 },
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/fixed series cannot have non-zero wiggle/)
     })
 
     it('fixed with null wiggle accepted', async () => {
@@ -697,7 +697,7 @@ describe('Precondition Validation (Create)', () => {
         duration: 30,
         reminders: [{ minutes: -5 }],
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(ValidationError)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/reminder minutes must be >= 0/)
     })
 
     it('zero reminder minutes accepted', async () => {
@@ -885,7 +885,7 @@ describe('Update Series', () => {
     it('update non-existent series throws NotFoundError', async () => {
       await expect(
         updateSeries(adapter, 'nonexistent', { title: 'X' })
-      ).rejects.toThrow(NotFoundError)
+      ).rejects.toThrow(/not found/)
     })
   })
 
@@ -899,7 +899,7 @@ describe('Update Series', () => {
       })
       await lockSeries(adapter, id)
       await expect(updateSeries(adapter, id, { title: 'New' })).rejects.toThrow(
-        LockedSeriesError
+        /is locked/
       )
     })
 
@@ -941,7 +941,7 @@ describe('Update Series', () => {
       })
       await expect(
         updateSeries(adapter, id, { id: 'new-id' } as any)
-      ).rejects.toThrow(ValidationError)
+      ).rejects.toThrow(/Cannot change series id/)
     })
 
     it('cannot change createdAt throws ValidationError', async () => {
@@ -953,7 +953,7 @@ describe('Update Series', () => {
       })
       await expect(
         updateSeries(adapter, id, { createdAt: '2020-01-01T00:00:00' } as any)
-      ).rejects.toThrow(ValidationError)
+      ).rejects.toThrow(/Cannot change createdAt/)
     })
 
     it('update validation applied', async () => {
@@ -1021,7 +1021,7 @@ describe('Delete Series', () => {
       startTime: '2024-01-15T13:30:00' as LocalDateTime,
       endTime: '2024-01-15T14:00:00' as LocalDateTime,
     })
-    await expect(deleteSeries(adapter, id)).rejects.toThrow(CompletionsExistError)
+    await expect(deleteSeries(adapter, id)).rejects.toThrow(/has completions/)
   })
 
   it('delete with child links throws LinkedChildrenExistError', async () => {
@@ -1327,7 +1327,7 @@ describe('Series Splitting', () => {
     it('split non-existent series throws NotFoundError', async () => {
       await expect(
         splitSeries(adapter, 'nonexistent', '2024-01-15' as LocalDate, {})
-      ).rejects.toThrow(NotFoundError)
+      ).rejects.toThrow(/not found/)
     })
 
     it('split at startDate throws ValidationError', async () => {
@@ -1340,7 +1340,7 @@ describe('Series Splitting', () => {
       })
       await expect(
         splitSeries(adapter, id, '2024-01-01' as LocalDate, {})
-      ).rejects.toThrow(ValidationError)
+      ).rejects.toThrow(/splitDate must be after startDate/)
     })
 
     it('split before startDate throws ValidationError', async () => {
@@ -1353,7 +1353,7 @@ describe('Series Splitting', () => {
       })
       await expect(
         splitSeries(adapter, id, '2024-01-10' as LocalDate, {})
-      ).rejects.toThrow(ValidationError)
+      ).rejects.toThrow(/splitDate must be after startDate/)
     })
 
     it('split after endDate throws ValidationError', async () => {
@@ -1366,7 +1366,7 @@ describe('Series Splitting', () => {
       })
       await expect(
         splitSeries(adapter, id, '2024-01-20' as LocalDate, {})
-      ).rejects.toThrow(ValidationError)
+      ).rejects.toThrow(/splitDate must be <= endDate/)
     })
 
     it('split locked series throws LockedSeriesError', async () => {
@@ -1380,7 +1380,7 @@ describe('Series Splitting', () => {
       await lockSeries(adapter, id)
       await expect(
         splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
-      ).rejects.toThrow(LockedSeriesError)
+      ).rejects.toThrow(/is locked/)
     })
   })
 
@@ -1581,7 +1581,7 @@ describe('Invariants', () => {
     })
     await expect(
       updateSeries(adapter, id, { id: 'new-id' } as any)
-    ).rejects.toThrow(ValidationError)
+    ).rejects.toThrow(/Cannot change series id/)
   })
 
   it('INV 3: createdAt immutable', async () => {
@@ -1593,6 +1593,6 @@ describe('Invariants', () => {
     })
     await expect(
       updateSeries(adapter, id, { createdAt: '2020-01-01T00:00:00' } as any)
-    ).rejects.toThrow(ValidationError)
+    ).rejects.toThrow(/Cannot change createdAt/)
   })
 })

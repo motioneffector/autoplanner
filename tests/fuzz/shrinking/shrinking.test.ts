@@ -29,15 +29,17 @@ import type { LocalDate, Duration, Series, SeriesId, Pattern, Condition, Relatio
 
 describe('Shrinker Registration', () => {
   it('all shrinkers are exported', () => {
+    // local binding for test visibility
+    const registry = shrinkers
     // Verify shrinkers are the actual shrink functions
-    expect(shrinkers.dateRange).toBe(shrinkDateRange)
-    expect(shrinkers.duration).toBe(shrinkDuration)
-    expect(shrinkers.seriesArray).toBe(shrinkSeriesArray)
-    expect(shrinkers.pattern).toBe(shrinkPattern)
-    expect(shrinkers.condition).toBe(shrinkCondition)
-    expect(shrinkers.constraintSet).toBe(shrinkConstraintSet)
-    expect(shrinkers.linkChain).toBe(shrinkLinkChain)
-    expect(shrinkers.operationSequence).toBe(shrinkOperationSequence)
+    expect(registry.dateRange).toBe(shrinkDateRange)
+    expect(registry.duration).toBe(shrinkDuration)
+    expect(registry.seriesArray).toBe(shrinkSeriesArray)
+    expect(registry.pattern).toBe(shrinkPattern)
+    expect(registry.condition).toBe(shrinkCondition)
+    expect(registry.constraintSet).toBe(shrinkConstraintSet)
+    expect(registry.linkChain).toBe(shrinkLinkChain)
+    expect(registry.operationSequence).toBe(shrinkOperationSequence)
   })
 
   it('dateRangeArb integrates with fast-check', () => {
