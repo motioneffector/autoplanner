@@ -41,6 +41,9 @@ export type {
   DomainException, Constraint, ConstraintViolation,
 } from './domain-types'
 
+// Completion store (derived query interface)
+export type { CompletionStore } from './completion-store'
+
 // Branded ID types
 export type { Duration } from './core'
 export type {

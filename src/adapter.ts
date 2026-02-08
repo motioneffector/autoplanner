@@ -206,13 +206,6 @@ export interface Adapter {
   getCompletionByInstance(seriesId: string, instanceDate: LocalDate): Promise<Completion | null>
   deleteCompletion(id: string): Promise<void>
   getAllCompletions(): Promise<Completion[]>
-  countCompletionsInWindow(seriesId: string, start: LocalDate, end: LocalDate): Promise<number>
-  daysSinceLastCompletion(seriesId: string, asOf: LocalDate): Promise<number | null>
-  getRecentDurations(
-    seriesId: string,
-    options: { lastN: number } | { windowDays: number; asOf: LocalDate }
-  ): Promise<number[]>
-
   // Tag
   createTag(name: string): Promise<string>
   getTagByName(name: string): Promise<Tag | null>
@@ -733,55 +726,6 @@ export function createMockAdapter(): Adapter {
       return [...state.completions.values()].map(ca)
     },
 
-    async countCompletionsInWindow(seriesId: string, start: LocalDate, end: LocalDate) {
-      let count = 0
-      for (const c of state.completions.values()) {
-        if (
-          c.seriesId === seriesId &&
-          (c.date as string) >= (start as string) &&
-          (c.date as string) <= (end as string)
-        ) {
-          count++
-        }
-      }
-      return count
-    },
-
-    async daysSinceLastCompletion(seriesId: string, asOf: LocalDate) {
-      let latest: LocalDate | null = null
-      for (const c of state.completions.values()) {
-        if (c.seriesId === seriesId) {
-          if (latest === null || (c.date as string) > (latest as string)) {
-            latest = c.date
-          }
-        }
-      }
-      if (latest === null) return null
-      return daysBetween(latest, asOf)
-    },
-
-    async getRecentDurations(
-      seriesId: string,
-      options: { lastN: number } | { windowDays: number; asOf: LocalDate }
-    ) {
-      const completions = [...state.completions.values()]
-        .filter((c) => c.seriesId === seriesId)
-        .sort((a, b) => ((b.date as string) > (a.date as string) ? 1 : -1))
-
-      let filtered: Completion[]
-      if ('lastN' in options) {
-        filtered = completions.slice(0, options.lastN)
-      } else {
-        const windowStart = addDays(options.asOf, -(options.windowDays - 1))
-        filtered = completions.filter(
-          (c) =>
-            (c.date as string) >= (windowStart as string) &&
-            (c.date as string) <= (options.asOf as string)
-        )
-      }
-
-      return filtered.map((c) => durationMinutes(c.startTime as string, c.endTime as string))
-    },
 
     // ================================================================
     // Tag

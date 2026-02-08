@@ -33,7 +33,6 @@ import {
   type LocalDateTime,
 } from '../src/adapter'
 
-import { addDays } from '../src/time-date'
 
 // Fresh adapter for each test
 let adapter: Adapter
@@ -1237,117 +1236,6 @@ describe('Completion Operations', () => {
     })
   })
 
-  describe('Query Tests', () => {
-    it('count completions in window', async () => {
-      const asOf = '2024-01-15' as LocalDate
-      // 3 in window
-      const day1 = addDays(asOf, -1)
-      await adapter.createCompletion({
-        id: 'c1',
-        seriesId: 'series-1',
-        instanceDate: day1,
-        date: day1,
-        startTime: `${day1}T13:30:00` as LocalDateTime,
-        endTime: `${day1}T14:00:00` as LocalDateTime,
-      })
-      const day3 = addDays(asOf, -3)
-      await adapter.createCompletion({
-        id: 'c2',
-        seriesId: 'series-1',
-        instanceDate: day3,
-        date: day3,
-        startTime: `${day3}T13:30:00` as LocalDateTime,
-        endTime: `${day3}T14:00:00` as LocalDateTime,
-      })
-      const day6 = addDays(asOf, -6)
-      await adapter.createCompletion({
-        id: 'c3',
-        seriesId: 'series-1',
-        instanceDate: day6,
-        date: day6,
-        startTime: `${day6}T13:30:00` as LocalDateTime,
-        endTime: `${day6}T14:00:00` as LocalDateTime,
-      })
-      // 1 outside window
-      const day10 = addDays(asOf, -10)
-      await adapter.createCompletion({
-        id: 'c4',
-        seriesId: 'series-1',
-        instanceDate: day10,
-        date: day10,
-        startTime: `${day10}T13:30:00` as LocalDateTime,
-        endTime: `${day10}T14:00:00` as LocalDateTime,
-      })
-
-      const count = await adapter.countCompletionsInWindow('series-1', addDays(asOf, -6), asOf)
-      expect(count).toBe(3)
-    })
-
-    it('days since last completion', async () => {
-      const asOf = '2024-01-15' as LocalDate
-      const day5 = addDays(asOf, -5)
-      await adapter.createCompletion({
-        id: 'c1',
-        seriesId: 'series-1',
-        instanceDate: day5,
-        date: day5,
-        startTime: `${day5}T13:30:00` as LocalDateTime,
-        endTime: `${day5}T14:00:00` as LocalDateTime,
-      })
-      const days = await adapter.daysSinceLastCompletion('series-1', asOf)
-      expect(days).toBe(5)
-    })
-
-    it('days since never completed returns null', async () => {
-      // Verify series exists but has no completions - negative case
-      const series = await adapter.getSeries('series-1')
-      expect(series).toMatchObject({ id: 'series-1', title: 'Test' })
-      // Companion positive test 'days since last completion' above verifies numeric return
-      const days = await adapter.daysSinceLastCompletion('series-1', '2024-01-15' as LocalDate)
-      expect(days).toBe(null)
-    })
-
-    it('recent durations lastN', async () => {
-      const asOf = '2024-01-15' as LocalDate
-      for (let i = 0; i < 5; i++) {
-        const day = addDays(asOf, -i)
-        const duration = 30 + i * 5
-        await adapter.createCompletion({
-          id: `c${i}`,
-          seriesId: 'series-1',
-          instanceDate: day,
-          date: day,
-          startTime: `${day}T14:00:00` as LocalDateTime,
-          endTime: `${day}T14:${String(duration).padStart(2, '0')}:00` as LocalDateTime,
-        })
-      }
-      const durations = await adapter.getRecentDurations('series-1', { lastN: 3 })
-      // Most recent completions: i=0 (30min), i=1 (35min), i=2 (40min)
-      expect(durations.sort((a, b) => a - b)).toEqual([30, 35, 40])
-    })
-
-    it('recent durations windowDays', async () => {
-      const asOf = '2024-01-15' as LocalDate
-      for (let i = 0; i < 10; i++) {
-        const day = addDays(asOf, -i * 5)
-        await adapter.createCompletion({
-          id: `c${i}`,
-          seriesId: 'series-1',
-          instanceDate: day,
-          date: day,
-          startTime: `${day}T14:00:00` as LocalDateTime,
-          endTime: `${day}T14:30:00` as LocalDateTime, // 30 min duration
-        })
-      }
-      const durations = await adapter.getRecentDurations('series-1', {
-        windowDays: 14,
-        asOf,
-      })
-      // Only dates 0, -5, -10 are within 14 days of asOf
-      // All durations should be 30 minutes (time between 14:00 and 14:30)
-      expect(durations).toEqual([30, 30, 30])
-    })
-  })
 })
 
 // ============================================================================

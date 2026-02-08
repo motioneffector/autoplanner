@@ -858,42 +858,6 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
       return rows.map(toCompletion)
     },
 
-    async countCompletionsInWindow(seriesId: string, start: LocalDate, end: LocalDate) {
-      const row = db.prepare(
-        'SELECT COUNT(*) as cnt FROM completion WHERE series_id = ? AND instance_date >= ? AND instance_date <= ?',
-      ).get(seriesId, start, end) as CountRow
-      return row.cnt
-    },
-
-    async daysSinceLastCompletion(seriesId: string, asOf: LocalDate) {
-      const row = db.prepare(
-        'SELECT MAX(date) as last_date FROM completion WHERE series_id = ?',
-      ).get(seriesId) as { last_date: string | null }
-      if (!row?.last_date) return null
-      const lastMs = new Date(row.last_date).getTime()
-      const asOfMs = new Date(asOf as string).getTime()
-      return Math.round((asOfMs - lastMs) / 86400000)
-    },
-
-    async getRecentDurations(
-      seriesId: string,
-      options: { lastN: number } | { windowDays: number; asOf: LocalDate },
-    ) {
-      let rows: CompletionRow[]
-      if ('lastN' in options) {
-        rows = db.prepare(
-          'SELECT start_time, end_time FROM completion WHERE series_id = ? ORDER BY date DESC LIMIT ?',
-        ).all(seriesId, options.lastN) as CompletionRow[]
-      } else {
-        const asOfMs = new Date(options.asOf as string).getTime()
-        const windowStartMs = asOfMs - (options.windowDays - 1) * 86400000
-        const windowStart = new Date(windowStartMs).toISOString().slice(0, 10)
-        rows = db.prepare(
-          'SELECT start_time, end_time FROM completion WHERE series_id = ? AND date >= ? AND date <= ? ORDER BY date DESC',
-        ).all(seriesId, windowStart, options.asOf) as CompletionRow[]
-      }
-      return rows.map((r: CompletionRow) => durationMinutes(r.start_time!, r.end_time!))
-    },
 
     // ================================================================
     // Tag
