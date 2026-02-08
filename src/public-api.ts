@@ -19,6 +19,8 @@ import {
   loadAllFullSeries as _loadAllFullSeries,
   persistNewSeries as _persistNewSeries,
 } from './series-assembly'
+import { reflow, type ReflowInput } from './reflow'
+import type { SeriesId } from './types'
 
 // ============================================================================
 // Error Classes
@@ -73,7 +75,7 @@ export type Conflict = {
   childId?: string
 }
 
-type InternalInstance = ScheduleInstance & { _patternTime?: LocalDateTime }
+type InternalInstance = ScheduleInstance & { _patternTime?: LocalDateTime; _hasExplicitTime?: boolean }
 
 export type PendingReminder = {
   id: string
@@ -795,6 +797,113 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     return 60
   }
 
+  // ========== Reflow Integration ==========
+  // After buildSchedule generates instances, applyReflow runs the CSP solver
+  // per-day to distribute flexible items and avoid overlaps.
+
+  function applyReflow(
+    instances: InternalInstance[],
+    linksMap: Map<string, InternalLink>
+  ): Conflict[] {
+    const allConflicts: Conflict[] = []
+
+    // Group by date
+    const byDate = new Map<string, InternalInstance[]>()
+    for (const inst of instances) {
+      const d = inst.date as string
+      if (!byDate.has(d)) byDate.set(d, [])
+      byDate.get(d)!.push(inst)
+    }
+
+    for (const [dateStr, dayInstances] of byDate) {
+      const date = dateStr as LocalDate
+
+      // Build SeriesInput[] — one entry per instance with count=1
+      // Synthetic IDs ensure uniqueness when multiple instances share a seriesId
+      const seriesInputs: ReflowInput['series'] = []
+      const instanceMap = new Map<string, InternalInstance>()
+
+      for (let i = 0; i < dayInstances.length; i++) {
+        const inst = dayInstances[i]!
+        const syntheticId = `${inst.seriesId}::${i}` as SeriesId
+        instanceMap.set(syntheticId as string, inst)
+
+        const isFixed = !!(inst.fixed || inst._hasExplicitTime)
+
+        seriesInputs.push({
+          id: syntheticId,
+          fixed: isFixed,
+          idealTime: inst.time,
+          duration: (inst.duration || 60) as Duration,
+          daysBefore: 0,
+          daysAfter: 0,
+          ...(!isFixed && !inst.allDay ? { timeWindow: { start: '07:00:00' as LocalTime, end: '23:00:00' as LocalTime } } : {}),
+          allDay: inst.allDay || false,
+          count: 1,
+          cancelled: false,
+          conditionSatisfied: true,
+          rescheduledTo: undefined,
+          adaptiveDuration: false,
+        })
+      }
+
+      // Build ChainInput[] for chains where both parent and child exist on this day
+      const chains: ReflowInput['chains'] = []
+      const daySeriesIds = new Set(dayInstances.map(i => i.seriesId as string))
+
+      for (let i = 0; i < dayInstances.length; i++) {
+        const inst = dayInstances[i]!
+        const link = linksMap.get(inst.seriesId as string)
+        if (!link || !daySeriesIds.has(link.parentId)) continue
+
+        const childSynth = `${inst.seriesId}::${i}` as SeriesId
+        // Find the parent's synthetic ID
+        const parentIdx = dayInstances.findIndex(di => (di.seriesId as string) === link.parentId)
+        if (parentIdx < 0) continue
+        const parentSynth = `${link.parentId}::${parentIdx}` as SeriesId
+
+        chains.push({
+          parentId: parentSynth,
+          childId: childSynth,
+          distance: link.distance || 0,
+          earlyWobble: link.earlyWobble || 0,
+          lateWobble: link.lateWobble || 0,
+        })
+      }
+
+      // Run CSP solver for this day
+      const result = reflow({
+        series: seriesInputs,
+        constraints: [],
+        chains,
+        today: date,
+        windowStart: date,
+        windowEnd: date,
+      })
+
+      // Apply optimized times back to instances
+      for (const assignment of result.assignments) {
+        const inst = instanceMap.get(assignment.seriesId as string)
+        if (inst) {
+          inst.time = assignment.time
+        }
+      }
+
+      // Convert reflow conflicts to public Conflict type
+      for (const c of result.conflicts) {
+        allConflicts.push({
+          type: c.type,
+          seriesIds: [],
+          instances: [],
+          date,
+          description: c.message || `Reflow conflict: ${c.type}`,
+        })
+      }
+    }
+
+    return allConflicts
+  }
+
   // Build schedule for [start, end] — both ends inclusive
   async function buildSchedule(start: LocalDate, end: LocalDate): Promise<Schedule> {
     // Use local cache if available (has full data including patterns),
@@ -913,8 +1022,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           const isAllDay = pattern.allDay === true
           let patternTimeOriginal: LocalDateTime | undefined
 
+          // Track whether this instance has an explicitly-set time or fell to the 09:00 default
+          let hasExplicitTime = !!pattern.time
+
           if (exception?.type === 'rescheduled' && exception.newTime) {
             instanceTime = exception.newTime
+            hasExplicitTime = true  // rescheduled = explicit placement
             // Update date if rescheduled to a different day
             const newDate = dateOf(exception.newTime)
             if ((newDate as string) !== (date as string)) {
@@ -922,6 +1035,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
             }
           } else if (isAllDay) {
             instanceTime = makeDateTime(date, makeTime(0, 0, 0))
+            hasExplicitTime = true  // all-day items are intentionally placed
           } else {
             const patternTime = (pattern.time || '09:00:00') as LocalTime
             const resolvedTime = resolveTimeForDate(date, patternTime, timezone)
@@ -967,14 +1081,20 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           if (pattern.fixed != null) inst.fixed = pattern.fixed
           if (isAllDay) inst.allDay = true
           inst._patternTime = patternTimeOriginal
+          inst._hasExplicitTime = hasExplicitTime
           instances.push(inst)
         }
       }
     }
 
+    // Run CSP solver to distribute flexible items (mutates instance times in-place)
+    applyReflow(instances, links)
+
+    // Detect conflicts using the repositioned instances (proper format with seriesIds/instances)
+    const conflicts = detectConflicts(instances, allConstraintsList, seriesById)
+
     instances.sort((a, b) => (a.time as string).localeCompare(b.time as string))
 
-    const conflicts = detectConflicts(instances, allConstraintsList, seriesById)
     return { instances, conflicts }
   }
 
