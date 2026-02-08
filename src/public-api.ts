@@ -160,6 +160,7 @@ export type Autoplanner = {
   evaluateCondition(condition: any, date: LocalDate): Promise<boolean>
   getActiveConditions(seriesId: string, date: LocalDate): Promise<any[]>
   getChainDepth(seriesId: string): Promise<number>
+  hydrate(): Promise<void>
   on(event: string, handler: (...args: any[]) => void): void
 }
 
@@ -1714,6 +1715,53 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     return getChainDepthSync(seriesId)
   }
 
+  // ========== Hydration ==========
+  // Load persisted state from adapter into in-memory maps.
+  // Call once after createAutoplanner() when using a persistent adapter.
+
+  async function hydrate(): Promise<void> {
+    // Hydrate links
+    if (typeof adapter.getAllLinks === 'function') {
+      const allLinks = await adapter.getAllLinks()
+      for (const l of allLinks) {
+        if (!links.has(l.childId)) {
+          links.set(l.childId, l)
+          if (!linksByParent.has(l.parentId)) linksByParent.set(l.parentId, [])
+          if (!linksByParent.get(l.parentId)!.includes(l.childId)) {
+            linksByParent.get(l.parentId)!.push(l.childId)
+          }
+        }
+      }
+    }
+
+    // Hydrate completions
+    if (typeof adapter.getAllCompletions === 'function') {
+      const allComps = await adapter.getAllCompletions()
+      for (const c of allComps) {
+        if (!completions.has(c.id)) {
+          completions.set(c.id, c)
+          const dateKey = `${c.seriesId}:${c.date ?? c.instanceDate}`
+          completionsByKey.set(dateKey, c.id)
+          if (!completionsBySeries.has(c.seriesId)) completionsBySeries.set(c.seriesId, [])
+          if (!completionsBySeries.get(c.seriesId)!.includes(c.id)) {
+            completionsBySeries.get(c.seriesId)!.push(c.id)
+          }
+        }
+      }
+    }
+
+    // Hydrate exceptions
+    if (typeof adapter.getAllExceptions === 'function') {
+      const allExceptions = await adapter.getAllExceptions()
+      for (const e of allExceptions) {
+        const key = `${e.seriesId}:${e.instanceDate}`
+        if (!exceptions.has(key)) {
+          exceptions.set(key, e)
+        }
+      }
+    }
+  }
+
   return {
     createSeries,
     getSeries,
@@ -1744,6 +1792,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     evaluateCondition,
     getActiveConditions,
     getChainDepth: getChainDepthAsync,
+    hydrate,
     on,
   }
 }
