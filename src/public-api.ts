@@ -99,6 +99,8 @@ export type Conflict = {
   childId?: string
 }
 
+type InternalInstance = ScheduleInstance & { _patternTime?: LocalDateTime }
+
 export type PendingReminder = {
   id: string
   seriesId: string
@@ -594,7 +596,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       startDate: data.startDate,
       endDate: data.endDate,
       updatedAt: data.updatedAt,
-    } as any)
+    })
 
     if (data.patterns && Array.isArray(data.patterns)) {
       for (const p of data.patterns) {
@@ -616,7 +618,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           ...(p.allDay != null ? { allDay: p.allDay } : {}),
           ...(p.duration != null ? { duration: p.duration } : {}),
           ...(p.fixed != null ? { fixed: p.fixed } : {}),
-        } as any)
+        })
         if (p.days && Array.isArray(p.days)) {
           await adapter.setPatternWeekdays(patternId, p.days.map(String))
         }
@@ -673,7 +675,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       ...(condition.windowDays != null ? { windowDays: condition.windowDays } : {}),
       ...(condition.seriesRef != null ? { seriesRef: condition.seriesRef } : {}),
       ...(condition.days != null ? { days: condition.days } : {}),
-    } as any)
+    })
 
     if ((condition.type === 'and' || condition.type === 'or') && condition.conditions) {
       for (const child of condition.conditions) {
@@ -1072,16 +1074,17 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
             title = getCyclingTitle(s, s.id)
           }
 
-          instances.push({
+          const inst: InternalInstance = {
             seriesId: s.id,
             title,
             date: instanceDate,
             time: instanceTime,
-            duration,
-            fixed: pattern.fixed,
-            allDay: isAllDay || undefined,
-            _patternTime: patternTimeOriginal,
-          } as any)
+          }
+          if (duration != null) inst.duration = duration
+          if (pattern.fixed != null) inst.fixed = pattern.fixed
+          if (isAllDay) inst.allDay = true
+          inst._patternTime = patternTimeOriginal
+          instances.push(inst)
         }
       }
     }
@@ -1222,7 +1225,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         const latest = addMinutesToTime(target, link.lateWobble || 0)
 
         // Use original pattern time (before chain adjustment) for conflict detection
-        const originalTime = (childInst as any)._patternTime || childInst.time
+        const originalTime = (childInst as InternalInstance)._patternTime || childInst.time
         const childTimeStr = originalTime as string
         const earliestStr = earliest as string
         const latestStr = latest as string
@@ -1322,7 +1325,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
 
     await triggerReflow()
-    return id as any
+    return id
   }
 
   async function getSeries(id: string): Promise<any> {
@@ -1436,7 +1439,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     await persistNewSeries(newSeries)
     seriesCache.set(newId, { ...newSeries })
     await triggerReflow()
-    return newId as any
+    return newId
   }
 
   // ========== Links ==========
@@ -1523,7 +1526,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const id = uuid()
     const data = { id, ...constraint }
     constraints.set(id, data)
-    await adapter.createRelationalConstraint(data as any)
+    await adapter.createRelationalConstraint(data)
     await triggerReflow()
     return id
   }
@@ -1602,7 +1605,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     exceptions.set(exKey, { seriesId, date, type: 'cancelled' })
     await adapter.createInstanceException({
       id: uuid(), seriesId, originalDate: date, type: 'cancelled',
-    } as any)
+    })
     await triggerReflow()
   }
 
@@ -1636,8 +1639,8 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
     exceptions.set(exKey, { seriesId, date, type: 'rescheduled', newTime })
     await adapter.createInstanceException({
-      id: uuid(), seriesId, originalDate: date, type: 'rescheduled', newDate: newTime,
-    } as any)
+      id: uuid(), seriesId, originalDate: date, type: 'rescheduled', newTime,
+    })
     await triggerReflow()
   }
 
@@ -1673,7 +1676,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       date,
       startTime: options?.startTime,
       endTime: options?.endTime,
-    } as any)
+    })
     await triggerReflow()
     return id
   }
@@ -1867,10 +1870,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     // Hydrate links
     const allLinks = await adapter.getAllLinks()
     for (const l of allLinks) {
-      const childId = (l as any).childId ?? l.childSeriesId
-      const parentId = (l as any).parentId ?? l.parentSeriesId
+      const childId = l.childSeriesId
+      const parentId = l.parentSeriesId
       if (!links.has(childId)) {
-        links.set(childId, { parentId, childId, distance: (l as any).distance ?? l.targetDistance, earlyWobble: l.earlyWobble, lateWobble: l.lateWobble })
+        links.set(childId, { parentId, childId, distance: l.targetDistance, earlyWobble: l.earlyWobble, lateWobble: l.lateWobble })
         if (!linksByParent.has(parentId)) linksByParent.set(parentId, [])
         if (!linksByParent.get(parentId)!.includes(childId)) {
           linksByParent.get(parentId)!.push(childId)
@@ -1895,7 +1898,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     // Hydrate exceptions
     const allExceptions = await adapter.getAllExceptions()
     for (const e of allExceptions) {
-      const key = `${e.seriesId}:${(e as any).instanceDate ?? e.originalDate}`
+      const key = `${e.seriesId}:${e.originalDate}`
       if (!exceptions.has(key)) {
         exceptions.set(key, e)
       }
