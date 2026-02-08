@@ -50,6 +50,10 @@ export type Series = {
   title: string
   description?: string
   createdAt: LocalDateTime
+  locked?: boolean
+  startDate?: LocalDate
+  endDate?: LocalDate
+  updatedAt?: LocalDateTime
   [key: string]: unknown
 }
 
@@ -58,6 +62,14 @@ export type Pattern = {
   seriesId: string
   type: string
   conditionId: string | null
+  time?: string
+  n?: number
+  day?: number
+  month?: number
+  weekday?: number | string
+  allDay?: boolean
+  duration?: number
+  fixed?: boolean
   [key: string]: unknown
 }
 
@@ -69,6 +81,9 @@ export type Condition = {
   operator?: string
   value?: number
   windowDays?: number
+  seriesRef?: string
+  comparison?: string
+  days?: number[]
   [key: string]: unknown
 }
 
@@ -77,8 +92,8 @@ export type Completion = {
   seriesId: string
   instanceDate: LocalDate
   date: LocalDate
-  startTime: LocalDateTime
-  endTime: LocalDateTime
+  startTime?: LocalDateTime
+  endTime?: LocalDateTime
   durationMinutes?: number
   createdAt?: string
 }
@@ -89,6 +104,7 @@ export type InstanceException = {
   originalDate: LocalDate
   type: string
   newDate?: LocalDate
+  newTime?: LocalDateTime
   [key: string]: unknown
 }
 
@@ -132,6 +148,7 @@ export type RelationalConstraint = {
   type: string
   sourceTarget: { tag: string } | { seriesId: string }
   destinationTarget: { tag: string } | { seriesId: string }
+  withinMinutes?: number
   [key: string]: unknown
 }
 

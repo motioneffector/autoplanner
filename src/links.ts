@@ -252,7 +252,7 @@ async function getParentEndTime(
   const completion = completions.find(
     (c) => (c.instanceDate as string) === (instanceDate as string)
   )
-  if (completion) {
+  if (completion && completion.endTime) {
     return completion.endTime
   }
 

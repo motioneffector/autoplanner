@@ -23,9 +23,9 @@ export type DomainCompletion = {
   seriesId: string
   date: LocalDate
   instanceDate: LocalDate
-  startTime: LocalDateTime
-  endTime: LocalDateTime
-  durationMinutes: number
+  startTime?: LocalDateTime
+  endTime?: LocalDateTime
+  durationMinutes?: number
   createdAt: string
 }
 
@@ -68,16 +68,21 @@ function err<T>(type: string, message: string): CompletionResult<T> {
 }
 
 function enrichCompletion(row: AdapterCompletion): DomainCompletion {
-  return {
+  const result: DomainCompletion = {
     id: row.id,
     seriesId: row.seriesId,
     date: row.date ?? row.instanceDate,
     instanceDate: row.instanceDate,
-    startTime: row.startTime,
-    endTime: row.endTime,
-    durationMinutes: row.durationMinutes ?? minutesBetween(row.startTime, row.endTime),
     createdAt: row.createdAt ?? new Date().toISOString(),
   }
+  if (row.startTime) result.startTime = row.startTime
+  if (row.endTime) result.endTime = row.endTime
+  if (row.durationMinutes != null) {
+    result.durationMinutes = row.durationMinutes
+  } else if (row.startTime && row.endTime) {
+    result.durationMinutes = minutesBetween(row.startTime, row.endTime)
+  }
+  return result
 }
 
 function generateId(): string {
@@ -287,5 +292,5 @@ export async function getDurationsForAdaptive(
     filtered = filtered.filter(c => isInWindow(c.date, start, input.asOf))
   }
 
-  return filtered.map(c => c.durationMinutes)
+  return filtered.map(c => c.durationMinutes).filter((d): d is number => d != null)
 }
