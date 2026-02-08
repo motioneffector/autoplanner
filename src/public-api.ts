@@ -516,7 +516,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     for (const p of patterns) {
       const pat: any = { ...p }
       const weekdays = await adapter.getPatternWeekdays(p.id)
-      if (weekdays.length > 0) pat.days = weekdays
+      if (weekdays.length > 0) pat.days = weekdays.map((d: string) => Number(d))
       // Remove adapter-level fields not expected by internal code
       delete pat.seriesId
       enrichedPatterns.push(pat)
@@ -618,10 +618,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           ...(p.fixed != null ? { fixed: p.fixed } : {}),
         } as any)
         if (p.days && Array.isArray(p.days)) {
-          await adapter.setPatternWeekdays(patternId, p.days)
+          await adapter.setPatternWeekdays(patternId, p.days.map(String))
         }
         if (p.daysOfWeek && Array.isArray(p.daysOfWeek)) {
-          await adapter.setPatternWeekdays(patternId, p.daysOfWeek)
+          await adapter.setPatternWeekdays(patternId, p.daysOfWeek.map(String))
         }
       }
     }
