@@ -129,6 +129,7 @@ export type {
   ScheduleInstance,
   ConditionNode, PatternInput, CyclingInput,
   CreateSeriesInput,
+  StoredConstraint, ConstraintInput,
 } from './public-api'
 export type { Conflict } from './public-api'
 export { createAutoplanner } from './public-api'

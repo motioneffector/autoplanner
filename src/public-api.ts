@@ -224,7 +224,7 @@ type InternalLink = {
   lateWobble?: number
 }
 
-type StoredConstraint = ConstraintInput & { id: string }
+export type StoredConstraint = ConstraintInput & { id: string }
 
 type InternalReminder = {
   id: string
