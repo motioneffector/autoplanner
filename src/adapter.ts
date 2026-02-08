@@ -305,9 +305,7 @@ export function createMockAdapter(): Adapter {
   let snapshot: typeof state | null = null
 
   function restoreState(snap: typeof state) {
-    for (const key of Object.keys(snap) as (keyof typeof state)[]) {
-      ;(state as any)[key] = (snap as any)[key]
-    }
+    Object.assign(state, snap)
   }
 
   // ---- Helpers ----
@@ -317,10 +315,11 @@ export function createMockAdapter(): Adapter {
 
   function addAliases<T>(obj: T): T {
     if (typeof obj !== 'object' || obj === null) return obj
-    for (const key of Object.keys(obj)) {
+    const record = obj as Record<string, unknown>
+    for (const key of Object.keys(record)) {
       const sk = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase())
-      if (sk !== key && !(sk in (obj as any))) {
-        ;(obj as any)[sk] = (obj as any)[key]
+      if (sk !== key && !(sk in record)) {
+        record[sk] = record[key]
       }
     }
     return obj

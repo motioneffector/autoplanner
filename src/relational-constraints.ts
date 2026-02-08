@@ -10,7 +10,7 @@
 
 import type { Adapter, RelationalConstraint as AdapterConstraint } from './adapter'
 import type { LocalDate, LocalDateTime, LocalTime } from './time-date'
-import { makeDateTime, addMinutes, addDays, minutesBetween } from './time-date'
+import { makeDateTime, makeTime, addMinutes, addDays, minutesBetween } from './time-date'
 import { expandPattern, type Pattern } from './pattern-expansion'
 
 // ============================================================================
@@ -71,8 +71,8 @@ function toAdapterTarget(t: ConstraintTarget): { tag: string } | { seriesId: str
 }
 
 function fromAdapterTarget(t: { tag: string } | { seriesId: string }): ConstraintTarget {
-  if ('tag' in t) return { type: 'tag', tag: (t as any).tag }
-  return { type: 'seriesId', seriesId: (t as any).seriesId }
+  if ('tag' in t) return { type: 'tag', tag: t.tag }
+  return { type: 'seriesId', seriesId: t.seriesId }
 }
 
 function toDomain(c: AdapterConstraint): Constraint {
@@ -93,11 +93,11 @@ async function getInstanceInfo(
   seriesId: string,
   date: LocalDate
 ): Promise<TimedInstance | null> {
-  const series = await adapter.getSeries(seriesId) as any
+  const series = await adapter.getSeries(seriesId)
   if (!series) return null
 
   // Check date bounds
-  if ((date as string) < (series.startDate as string)) return null
+  if (series.startDate && (date as string) < (series.startDate as string)) return null
   if (series.endDate && (date as string) > (series.endDate as string)) return null
 
   // Expand patterns for this date
@@ -107,7 +107,7 @@ async function getInstanceInfo(
     const expanded = expandPattern(
       p as unknown as Pattern,
       { start: date, end: date },
-      series.startDate as LocalDate
+      (series.startDate ?? date) as LocalDate
     )
     if (expanded.has(date)) { found = true; break }
   }
@@ -119,12 +119,12 @@ async function getInstanceInfo(
   const exception = exceptions.find(e => (e.originalDate as string) === (date as string))
   if (exception?.type === 'cancelled') return null
 
-  const isAllDay = series.allDay || series.timeOfDay === 'allDay'
+  const isAllDay = series['allDay'] || series['timeOfDay'] === 'allDay'
   if (isAllDay) {
     return {
       seriesId,
-      startTime: makeDateTime(date, '00:00:00' as any),
-      endTime: makeDateTime(date, '23:59:59' as any),
+      startTime: makeDateTime(date, makeTime(0, 0, 0)),
+      endTime: makeDateTime(date, makeTime(23, 59, 59)),
       allDay: true,
       date,
     }
@@ -132,13 +132,13 @@ async function getInstanceInfo(
 
   // Determine start time
   let startTime: LocalDateTime
-  if (exception?.type === 'rescheduled' && (exception as any).newTime) {
-    startTime = (exception as any).newTime as LocalDateTime
+  if (exception?.type === 'rescheduled' && exception.newTime) {
+    startTime = exception.newTime
   } else {
-    startTime = makeDateTime(date, series.timeOfDay as LocalTime)
+    startTime = makeDateTime(date, series['timeOfDay'] as LocalTime)
   }
 
-  const duration = typeof series.duration === 'number' ? series.duration : 0
+  const duration = typeof series['duration'] === 'number' ? series['duration'] : 0
   const endTime = addMinutes(startTime, duration)
 
   return { seriesId, startTime, endTime, allDay: false, date }

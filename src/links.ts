@@ -7,8 +7,8 @@
  */
 
 import type { Adapter, Link as AdapterLink } from './adapter'
-import type { LocalDate, LocalDateTime } from './time-date'
-import { addMinutes, makeDateTime } from './time-date'
+import type { LocalDate, LocalDateTime, LocalTime } from './time-date'
+import { addMinutes, makeDateTime, makeTime } from './time-date'
 
 // ============================================================================
 // Types
@@ -244,7 +244,7 @@ async function getParentEndTime(
   parentSeriesId: string,
   instanceDate: LocalDate
 ): Promise<LocalDateTime> {
-  const series = (await adapter.getSeries(parentSeriesId)) as any
+  const series = await adapter.getSeries(parentSeriesId)
   if (!series) throw new Error(`Series '${parentSeriesId}' not found`)
 
   // Check if parent completed → use actual end time
@@ -265,16 +265,16 @@ async function getParentEndTime(
   )
 
   let parentTime: LocalDateTime
-  if (exception && (exception as any).newTime) {
-    parentTime = (exception as any).newTime as LocalDateTime
-  } else if (series.allDay || series.timeOfDay === 'allDay') {
-    parentTime = makeDateTime(instanceDate, '00:00:00' as any)
+  if (exception && exception.newTime) {
+    parentTime = exception.newTime
+  } else if (series['allDay'] || series['timeOfDay'] === 'allDay') {
+    parentTime = makeDateTime(instanceDate, makeTime(0, 0, 0))
   } else {
-    parentTime = makeDateTime(instanceDate, series.timeOfDay)
+    parentTime = makeDateTime(instanceDate, series['timeOfDay'] as LocalTime)
   }
 
   // Add duration
-  const duration = typeof series.duration === 'number' ? series.duration : 0
+  const duration = typeof series['duration'] === 'number' ? series['duration'] : 0
   return addMinutes(parentTime, duration)
 }
 

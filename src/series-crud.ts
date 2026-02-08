@@ -16,7 +16,7 @@ import {
   makeTime,
 } from './time-date'
 
-import { type Adapter, NotFoundError as AdapterNotFoundError } from './adapter'
+import { type Adapter, type Series as AdapterSeries, NotFoundError as AdapterNotFoundError } from './adapter'
 
 export type { LocalDate, LocalDateTime, LocalTime } from './time-date'
 
@@ -236,7 +236,7 @@ function validateSeriesInput(input: SeriesInput): void {
     if (input.duration <= 0) {
       throw new ValidationError('duration must be > 0')
     }
-  } else if (typeof input.duration === 'object' && input.duration !== null && (input.duration as any).type === 'adaptive') {
+  } else if (typeof input.duration === 'object' && input.duration !== null && 'type' in input.duration && (input.duration as { type: string }).type === 'adaptive') {
     const adaptive = input.duration as AdaptiveDurationInput
     if (adaptive.fallback < 1) {
       throw new ValidationError('adaptive fallback must be >= 1')
@@ -340,7 +340,7 @@ export async function createSeries(
     } : undefined,
   }
 
-  await adapter.createSeries(series as any)
+  await adapter.createSeries(series as AdapterSeries)
 
   // Create patterns
   if (input.patterns) {
@@ -350,7 +350,7 @@ export async function createSeries(
         id: crypto.randomUUID(),
         seriesId: id,
         conditionId: null,
-      } as any)
+      })
     }
   }
 
@@ -386,7 +386,7 @@ export async function createSeries(
   }
 
   // Create adaptive duration config
-  if (typeof input.duration === 'object' && (input.duration as any).type === 'adaptive') {
+  if (typeof input.duration === 'object' && input.duration !== null && 'type' in input.duration && (input.duration as { type: string }).type === 'adaptive') {
     const adaptive = input.duration as AdaptiveDurationInput
     await adapter.setAdaptiveDuration(id, {
       seriesId: id,
@@ -438,7 +438,7 @@ export async function updateSeries(
   }
 
   // Lock check: allow only if unlocking
-  if ((existing as any).locked && changes.locked !== false) {
+  if (existing.locked && changes.locked !== false) {
     throw new LockedSeriesError(`Series '${id}' is locked`)
   }
 
@@ -450,7 +450,7 @@ export async function updateSeries(
   }
 
   const now = nowISO()
-  await adapter.updateSeries(id, { ...changes, updatedAt: now } as any)
+  await adapter.updateSeries(id, { ...changes, updatedAt: now })
 }
 
 export async function deleteSeries(
@@ -482,7 +482,7 @@ export async function lockSeries(adapter: Adapter, id: string): Promise<void> {
   if (!existing) {
     throw new NotFoundError(`Series '${id}' not found`)
   }
-  await adapter.updateSeries(id, { locked: true } as any)
+  await adapter.updateSeries(id, { locked: true })
 }
 
 export async function unlockSeries(adapter: Adapter, id: string): Promise<void> {
@@ -490,7 +490,7 @@ export async function unlockSeries(adapter: Adapter, id: string): Promise<void> 
   if (!existing) {
     throw new NotFoundError(`Series '${id}' not found`)
   }
-  await adapter.updateSeries(id, { locked: false } as any)
+  await adapter.updateSeries(id, { locked: false })
 }
 
 export async function splitSeries(
@@ -521,7 +521,7 @@ export async function splitSeries(
 
   // Set original endDate to splitDate - 1
   const newOriginalEndDate = addDays(splitDate, -1)
-  await adapter.updateSeries(id, { endDate: newOriginalEndDate, updatedAt: now } as any)
+  await adapter.updateSeries(id, { endDate: newOriginalEndDate, updatedAt: now })
 
   // Create new series inheriting from original
   const newSeries: Record<string, unknown> = {
@@ -540,7 +540,7 @@ export async function splitSeries(
     wiggle: existing.wiggle,
   }
 
-  await adapter.createSeries(newSeries as any)
+  await adapter.createSeries(newSeries as AdapterSeries)
 
   // Copy patterns
   const patterns = await adapter.getPatternsBySeries(id)

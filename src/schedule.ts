@@ -5,8 +5,8 @@
  * (remove cancelled, use rescheduled times). Pre-reflow, single-series.
  */
 
-import type { Adapter } from './adapter'
-import type { LocalDate, LocalDateTime } from './time-date'
+import type { Adapter, InstanceException } from './adapter'
+import type { LocalDate, LocalDateTime, LocalTime } from './time-date'
 import { makeDateTime, makeTime, dateOf } from './time-date'
 import { expandPattern, type Pattern, type DateRange } from './pattern-expansion'
 
@@ -33,12 +33,12 @@ export async function getSchedule(
   adapter: Adapter,
   input: ScheduleInput
 ): Promise<ScheduleInstance[]> {
-  const series = (await adapter.getSeries(input.seriesId)) as any
+  const series = await adapter.getSeries(input.seriesId)
   if (!series) return []
 
   // Determine effective range (intersect with series date bounds)
   const effectiveStart =
-    series.startDate > input.range.start ? series.startDate : input.range.start
+    series.startDate && series.startDate > input.range.start ? series.startDate : input.range.start
   const effectiveEnd =
     series.endDate && series.endDate < input.range.end
       ? series.endDate
@@ -54,7 +54,7 @@ export async function getSchedule(
     const expanded = expandPattern(
       p as unknown as Pattern,
       { start: effectiveStart, end: effectiveEnd },
-      series.startDate as LocalDate
+      (series.startDate ?? input.range.start) as LocalDate
     )
     for (const d of expanded) {
       allDates.add(d)
@@ -63,7 +63,7 @@ export async function getSchedule(
 
   // Get exceptions for this series
   const exceptions = await adapter.getExceptionsBySeries(input.seriesId)
-  const exceptionMap = new Map<string, any>()
+  const exceptionMap = new Map<string, InstanceException>()
   for (const e of exceptions) {
     exceptionMap.set(e.originalDate as string, e)
   }
@@ -95,9 +95,9 @@ export async function getSchedule(
 
     // Normal instance
     const time =
-      series.timeOfDay === 'allDay'
+      series['timeOfDay'] === 'allDay'
         ? makeDateTime(date, makeTime(0, 0, 0))
-        : makeDateTime(date, series.timeOfDay)
+        : makeDateTime(date, series['timeOfDay'] as LocalTime)
 
     instances.push({
       date,

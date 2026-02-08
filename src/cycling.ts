@@ -74,7 +74,7 @@ export async function advanceCycling(
     return err('NotFoundError', `Series '${seriesId}' not found`)
   }
 
-  const cycling = (series as any).cycling
+  const cycling = series['cycling'] as CyclingConfig | undefined
   if (!cycling) {
     return err('NoCyclingError', `Series '${seriesId}' has no cycling config`)
   }
@@ -92,7 +92,7 @@ export async function advanceCycling(
   // Update series object's cycling property
   await adapter.updateSeries(seriesId, {
     cycling: { ...cycling, currentIndex: newIndex },
-  } as any)
+  })
 
   return ok({ currentIndex: newIndex })
 }
@@ -106,7 +106,7 @@ export async function resetCycling(
     return err('NotFoundError', `Series '${seriesId}' not found`)
   }
 
-  const cycling = (series as any).cycling
+  const cycling = series['cycling'] as CyclingConfig | undefined
   if (!cycling) {
     return err('NoCyclingError', `Series '${seriesId}' has no cycling config`)
   }
@@ -117,7 +117,7 @@ export async function resetCycling(
   // Update series object's cycling property
   await adapter.updateSeries(seriesId, {
     cycling: { ...cycling, currentIndex: 0 },
-  } as any)
+  })
 
   return ok({ currentIndex: 0 })
 }

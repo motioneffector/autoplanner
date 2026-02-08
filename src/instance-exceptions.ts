@@ -43,8 +43,8 @@ function toDomain(e: AdapterException): DomainException {
     instanceDate: e.originalDate,
     type: e.type as 'cancelled' | 'rescheduled',
   }
-  if (e.type === 'rescheduled' && (e as any).newTime) {
-    result.newTime = (e as any).newTime
+  if (e.type === 'rescheduled' && e.newTime) {
+    result.newTime = e.newTime
   }
   return result
 }
@@ -54,10 +54,10 @@ async function isValidInstance(
   seriesId: string,
   date: LocalDate
 ): Promise<boolean> {
-  const series = (await adapter.getSeries(seriesId)) as any
+  const series = await adapter.getSeries(seriesId)
   if (!series) return false
 
-  if (date < series.startDate) return false
+  if (series.startDate && date < series.startDate) return false
   if (series.endDate && date > series.endDate) return false
 
   const patterns = await adapter.getPatternsBySeries(seriesId)
@@ -69,7 +69,7 @@ async function isValidInstance(
     const expanded = expandPattern(
       p as unknown as Pattern,
       { start: date, end: date },
-      series.startDate as LocalDate
+      (series.startDate ?? date) as LocalDate
     )
     if (expanded.has(date)) return true
   }
@@ -151,7 +151,7 @@ export async function rescheduleInstance(
     originalDate: targetDate,
     type: 'rescheduled',
     newTime,
-  } as any)
+  })
 
   return ok(undefined as void)
 }

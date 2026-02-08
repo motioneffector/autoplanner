@@ -5,8 +5,8 @@
  * acknowledgment management, and purging.
  */
 
-import type { Adapter, Reminder as AdapterReminder } from './adapter'
-import type { LocalDate, LocalDateTime } from './time-date'
+import type { Adapter, Reminder as AdapterReminder, InstanceException } from './adapter'
+import type { LocalDate, LocalDateTime, LocalTime } from './time-date'
 import { addMinutes, makeDateTime, makeTime, dateOf } from './time-date'
 import { expandPattern, type Pattern } from './pattern-expansion'
 
@@ -150,13 +150,13 @@ export async function getPendingReminders(
   const pending: PendingReminder[] = []
 
   for (const [seriesId, seriesReminders] of bySeriesId) {
-    const series = (await adapter.getSeries(seriesId)) as any
+    const series = await adapter.getSeries(seriesId)
     if (!series) continue
 
     // Determine effective range (intersect with series date bounds)
-    const effectiveStart =
-      series.startDate > opts.range.start ? series.startDate : opts.range.start
-    const effectiveEnd =
+    const effectiveStart: LocalDate =
+      series.startDate && series.startDate > opts.range.start ? series.startDate : opts.range.start
+    const effectiveEnd: LocalDate =
       series.endDate && series.endDate < opts.range.end
         ? series.endDate
         : opts.range.end
@@ -167,11 +167,12 @@ export async function getPendingReminders(
     const patterns = await adapter.getPatternsBySeries(seriesId)
     const allDates = new Set<LocalDate>()
 
+    const seriesStart: LocalDate = series.startDate ?? opts.range.start
     for (const p of patterns) {
       const expanded = expandPattern(
         p as unknown as Pattern,
         { start: effectiveStart, end: effectiveEnd },
-        series.startDate as LocalDate
+        seriesStart
       )
       for (const d of expanded) {
         allDates.add(d)
@@ -180,7 +181,7 @@ export async function getPendingReminders(
 
     // Get exceptions for this series
     const exceptions = await adapter.getExceptionsBySeries(seriesId)
-    const exceptionMap = new Map<string, any>()
+    const exceptionMap = new Map<string, InstanceException>()
     for (const e of exceptions) {
       exceptionMap.set(e.originalDate as string, e)
     }
@@ -203,11 +204,11 @@ export async function getPendingReminders(
       // Determine instance time
       let instanceTime: LocalDateTime
       if (exception?.type === 'rescheduled') {
-        instanceTime = (exception as any).newTime as LocalDateTime
-      } else if (series.allDay || series.timeOfDay === 'allDay') {
+        instanceTime = exception.newTime!
+      } else if (series['allDay'] || series['timeOfDay'] === 'allDay') {
         instanceTime = makeDateTime(date, makeTime(0, 0, 0))
       } else {
-        instanceTime = makeDateTime(date, series.timeOfDay)
+        instanceTime = makeDateTime(date, series['timeOfDay'] as LocalTime)
       }
 
       // Check each reminder for this series

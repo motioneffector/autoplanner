@@ -32,7 +32,7 @@ export type DateRange = {
 export type Pattern =
   | { type: 'daily' }
   | { type: 'everyNDays'; n: number }
-  | { type: 'weekly' }
+  | { type: 'weekly'; daysOfWeek?: string[] }
   | { type: 'everyNWeeks'; n: number; weekday?: Weekday }
   | { type: 'monthly'; day: number }
   | { type: 'lastDayOfMonth' }
@@ -170,15 +170,14 @@ function expandInner(pattern: Pattern, range: DateRange, seriesStart: LocalDate)
     case 'everyNDays':
       return expandEveryNDays(pattern.n, range, seriesStart)
     case 'weekly': {
-      const pw = pattern as any
-      if (pw.daysOfWeek && Array.isArray(pw.daysOfWeek)) {
+      if (pattern.daysOfWeek && Array.isArray(pattern.daysOfWeek)) {
         const dayMap: Record<string, Weekday> = {
           monday: 'mon', tuesday: 'tue', wednesday: 'wed',
           thursday: 'thu', friday: 'fri', saturday: 'sat', sunday: 'sun',
           mon: 'mon', tue: 'tue', wed: 'wed', thu: 'thu',
           fri: 'fri', sat: 'sat', sun: 'sun',
         }
-        const days = pw.daysOfWeek.map((d: string) => dayMap[d.toLowerCase()] || d) as Weekday[]
+        const days = pattern.daysOfWeek.map((d: string) => dayMap[d.toLowerCase()] || d) as Weekday[]
         return expandWeekdays(days, range, seriesStart)
       }
       return expandEveryNWeeksCore(1, dayOfWeek(seriesStart), range, seriesStart)
