@@ -115,10 +115,19 @@ export type {
 export type { Conflict as ReflowConflict } from './reflow'
 export { reflow, generateInstances } from './reflow'
 
+// Series assembly (fat-series marshaling — storage ↔ domain boundary)
+export type { FullSeries, EnrichedPattern } from './public-api'
+export {
+  reconstructConditionTree, loadFullSeries, loadAllFullSeries,
+  persistNewSeries, persistConditionTree,
+} from './series-assembly'
+
 // High-level API (wraps all modules into a stateful planner object)
 export type {
   Autoplanner, AutoplannerConfig, Schedule,
   ScheduleInstance,
+  ConditionNode, PatternInput, CyclingInput,
+  CreateSeriesInput,
 } from './public-api'
 export type { Conflict } from './public-api'
 export { createAutoplanner } from './public-api'
