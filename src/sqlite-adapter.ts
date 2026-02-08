@@ -24,9 +24,9 @@ export type SqliteExtras = {
   listTables(): Promise<string[]>
   getTableColumns(table: string): Promise<string[]>
   listIndices(table: string): Promise<string[]>
-  pragma(name: string): Promise<any>
+  pragma(name: string): Promise<unknown>
   execute(sql: string): Promise<void>
-  rawQuery(sql: string): Promise<any[]>
+  rawQuery(sql: string): Promise<unknown[]>
   explainQueryPlan(sql: string): Promise<string>
   getTransactionType(): Promise<string | null>
   inTransaction(): Promise<boolean>
@@ -209,10 +209,147 @@ function safe<T>(fn: () => T): T {
 }
 
 // ============================================================================
+// SQL Row Types
+// ============================================================================
+
+type SeriesRow = {
+  id: string
+  title: string
+  description: string | null
+  locked: number
+  start_date: string | null
+  end_date: string | null
+  created_at: string
+  updated_at: string
+}
+
+type PatternRow = {
+  id: string
+  series_id: string
+  type: string
+  time: string | null
+  condition_id: string | null
+  n: number | null
+  day: number | null
+  month: number | null
+  weekday: number | null
+  allday: number | null
+  duration: number | null
+  fixed: number | null
+}
+
+type ConditionRow = {
+  id: string
+  series_id: string
+  type: string
+  parent_id: string | null
+  series_ref: string | null
+  window_days: number | null
+  comparison: string | null
+  operator: string | null
+  value: number | null
+  days: string | null
+}
+
+type CompletionRow = {
+  id: string
+  series_id: string
+  instance_date: string
+  date: string
+  start_time: string | null
+  end_time: string | null
+}
+
+type ExceptionRow = {
+  id: string
+  series_id: string
+  original_date: string
+  type: string
+  new_date: string | null
+}
+
+type ReminderRow = {
+  id: string
+  series_id: string
+  label: string
+  minutes_before: number
+}
+
+type ReminderAckRow = {
+  reminder_id: string
+  instance_date: string
+  acknowledged_at: string
+}
+
+type LinkRow = {
+  id: string
+  parent_series_id: string
+  child_series_id: string
+  target_distance: number
+  early_wobble: number
+  late_wobble: number
+}
+
+type ConstraintRow = {
+  id: string
+  type: string
+  source_type: string
+  source_value: string
+  dest_type: string
+  dest_value: string
+  within_minutes: number | null
+}
+
+type TagRow = {
+  id: string
+  name: string
+}
+
+type PatternWeekdayRow = {
+  pattern_id: string
+  day_of_week: string
+}
+
+type AdaptiveDurationRow = {
+  series_id: string
+  fallback_duration: number
+  buffer_percent: number
+  last_n: number
+  window_days: number
+}
+
+type CyclingConfigRow = {
+  series_id: string
+  mode: string | null
+  current_index: number
+  gap_leap: number
+}
+
+type CyclingItemRow = {
+  series_id: string
+  position: number
+  title: string
+  duration: number
+}
+
+type SchemaVersionRow = {
+  v: number | null
+}
+
+type CountRow = {
+  cnt: number
+}
+
+type SeriesTagRow = {
+  series_id: string
+  tag_id: string
+}
+
+// ============================================================================
 // Row → Domain Mappers
 // ============================================================================
 
-function toSeries(row: any): Series {
+function toSeries(row: SeriesRow): Series {
   return {
     id: row.id,
     title: row.title,
@@ -225,7 +362,7 @@ function toSeries(row: any): Series {
   } as Series
 }
 
-function toPattern(row: any): Pattern {
+function toPattern(row: PatternRow): Pattern {
   return {
     id: row.id,
     seriesId: row.series_id,
@@ -242,7 +379,7 @@ function toPattern(row: any): Pattern {
   } as Pattern
 }
 
-function toCondition(row: any): Condition {
+function toCondition(row: ConditionRow): Condition {
   return {
     id: row.id,
     seriesId: row.series_id,
@@ -253,22 +390,22 @@ function toCondition(row: any): Condition {
     ...(row.window_days != null ? { windowDays: row.window_days } : {}),
     ...(row.comparison != null ? { comparison: row.comparison } : {}),
     ...(row.value != null ? { value: row.value } : {}),
-    ...(row.days != null ? { days: JSON.parse(row.days) } : {}),
+    ...(row.days != null ? { days: JSON.parse(row.days) as number[] } : {}),
   } as Condition
 }
 
-function toCompletion(row: any): Completion {
+function toCompletion(row: CompletionRow): Completion {
   return {
     id: row.id,
     seriesId: row.series_id,
-    instanceDate: row.instance_date,
-    date: row.date,
-    startTime: row.start_time,
-    endTime: row.end_time,
+    instanceDate: row.instance_date as LocalDate,
+    date: row.date as LocalDate,
+    ...(row.start_time != null ? { startTime: row.start_time as LocalDateTime } : {}),
+    ...(row.end_time != null ? { endTime: row.end_time as LocalDateTime } : {}),
   }
 }
 
-function toException(row: any): InstanceException {
+function toException(row: ExceptionRow): InstanceException {
   return {
     id: row.id,
     seriesId: row.series_id,
@@ -278,7 +415,7 @@ function toException(row: any): InstanceException {
   } as InstanceException
 }
 
-function toReminder(row: any): Reminder {
+function toReminder(row: ReminderRow): Reminder {
   return {
     id: row.id,
     seriesId: row.series_id,
@@ -287,7 +424,7 @@ function toReminder(row: any): Reminder {
   }
 }
 
-function toLink(row: any): Link {
+function toLink(row: LinkRow): Link {
   return {
     id: row.id,
     parentSeriesId: row.parent_series_id,
@@ -298,7 +435,7 @@ function toLink(row: any): Link {
   }
 }
 
-function toConstraint(row: any): RelationalConstraint {
+function toConstraint(row: ConstraintRow): RelationalConstraint {
   const sourceTarget = row.source_type === 'tag'
     ? { tag: row.source_value }
     : { seriesId: row.source_value }
@@ -324,7 +461,7 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
   db.exec(SCHEMA_SQL)
 
   // Seed initial schema version if empty
-  const ver = db.prepare('SELECT MAX(version) as v FROM schema_version').get() as any
+  const ver = db.prepare('SELECT MAX(version) as v FROM schema_version').get() as SchemaVersionRow | undefined
   if (ver?.v == null) {
     db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
       1, new Date().toISOString(),
@@ -377,23 +514,23 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
         ).run(
           series.id,
           series.title,
-          (series as any).description ?? null,
-          (series as any).locked ? 1 : 0,
-          (series as any).startDate ?? null,
-          (series as any).endDate ?? null,
+          series.description ?? null,
+          series.locked ? 1 : 0,
+          series.startDate ?? null,
+          series.endDate ?? null,
           series.createdAt,
-          (series as any).updatedAt ?? series.createdAt,
+          series.updatedAt ?? series.createdAt,
         ),
       )
     },
 
     async getSeries(id: string) {
-      const row = db.prepare('SELECT * FROM series WHERE id = ?').get(id) as any
+      const row = db.prepare('SELECT * FROM series WHERE id = ?').get(id) as SeriesRow | undefined
       return row ? toSeries(row) : null
     },
 
     async getAllSeries() {
-      const rows = db.prepare('SELECT * FROM series ORDER BY id').all() as any[]
+      const rows = db.prepare('SELECT * FROM series ORDER BY id').all() as SeriesRow[]
       return rows.map(toSeries)
     },
 
@@ -403,12 +540,12 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
         JOIN series_tag st ON st.series_id = s.id
         JOIN tag t ON t.id = st.tag_id
         WHERE t.name = ?
-      `).all(tagName) as any[]
+      `).all(tagName) as SeriesRow[]
       return rows.map(toSeries)
     },
 
     async updateSeries(id: string, changes: Partial<Series>) {
-      const existing = db.prepare('SELECT * FROM series WHERE id = ?').get(id) as any
+      const existing = db.prepare('SELECT * FROM series WHERE id = ?').get(id) as SeriesRow | undefined
       if (!existing) throw new NotFoundError(`Series '${id}' not found`)
       const merged = { ...toSeries(existing), ...changes }
       safe(() =>
@@ -416,11 +553,11 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
           'UPDATE series SET title = ?, description = ?, locked = ?, start_date = ?, end_date = ?, updated_at = ? WHERE id = ?',
         ).run(
           merged.title,
-          (merged as any).description ?? null,
-          (merged as any).locked ? 1 : 0,
-          (merged as any).startDate ?? null,
-          (merged as any).endDate ?? null,
-          (merged as any).updatedAt ?? new Date().toISOString(),
+          merged.description ?? null,
+          merged.locked ? 1 : 0,
+          merged.startDate ?? null,
+          merged.endDate ?? null,
+          merged.updatedAt ?? new Date().toISOString(),
           id,
         ),
       )
@@ -441,26 +578,26 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
           pattern.id,
           pattern.seriesId,
           pattern.type,
-          (pattern as any).time ?? null,
+          pattern.time ?? null,
           pattern.conditionId ?? null,
-          (pattern as any).n ?? null,
-          (pattern as any).day ?? null,
-          (pattern as any).month ?? null,
-          (pattern as any).weekday ?? null,
-          (pattern as any).allDay != null ? ((pattern as any).allDay ? 1 : 0) : null,
-          (pattern as any).duration ?? null,
-          (pattern as any).fixed != null ? ((pattern as any).fixed ? 1 : 0) : null,
+          pattern.n ?? null,
+          pattern.day ?? null,
+          pattern.month ?? null,
+          pattern.weekday ?? null,
+          pattern.allDay != null ? (pattern.allDay ? 1 : 0) : null,
+          pattern.duration ?? null,
+          pattern.fixed != null ? (pattern.fixed ? 1 : 0) : null,
         ),
       )
     },
 
     async getPattern(id: string) {
-      const row = db.prepare('SELECT * FROM pattern WHERE id = ?').get(id) as any
+      const row = db.prepare('SELECT * FROM pattern WHERE id = ?').get(id) as PatternRow | undefined
       return row ? toPattern(row) : null
     },
 
     async getPatternsBySeries(seriesId: string) {
-      const rows = db.prepare('SELECT * FROM pattern WHERE series_id = ?').all(seriesId) as any[]
+      const rows = db.prepare('SELECT * FROM pattern WHERE series_id = ?').all(seriesId) as PatternRow[]
       return rows.map(toPattern)
     },
 
@@ -481,13 +618,13 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getPatternWeekdays(patternId: string) {
-      const rows = db.prepare('SELECT day_of_week FROM pattern_weekday WHERE pattern_id = ?').all(patternId) as any[]
-      return rows.map((r: any) => r.day_of_week)
+      const rows = db.prepare('SELECT day_of_week FROM pattern_weekday WHERE pattern_id = ?').all(patternId) as PatternWeekdayRow[]
+      return rows.map((r: PatternWeekdayRow) => r.day_of_week)
     },
 
     async getAllPatternWeekdays() {
-      const rows = db.prepare('SELECT pattern_id, day_of_week FROM pattern_weekday').all() as any[]
-      return rows.map((r: any) => ({ patternId: r.pattern_id, weekday: r.day_of_week }))
+      const rows = db.prepare('SELECT pattern_id, day_of_week FROM pattern_weekday').all() as PatternWeekdayRow[]
+      return rows.map((r: PatternWeekdayRow) => ({ patternId: r.pattern_id, weekday: r.day_of_week }))
     },
 
     // ================================================================
@@ -502,28 +639,28 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
           condition.seriesId,
           condition.type,
           condition.parentId ?? null,
-          (condition as any).seriesRef ?? null,
+          condition.seriesRef ?? null,
           condition.windowDays ?? null,
-          (condition as any).comparison ?? null,
+          condition.comparison ?? null,
           condition.operator ?? null,
           condition.value ?? null,
-          (condition as any).days ? JSON.stringify((condition as any).days) : null,
+          condition.days ? JSON.stringify(condition.days) : null,
         ),
       )
     },
 
     async getCondition(id: string) {
-      const row = db.prepare('SELECT * FROM condition WHERE id = ?').get(id) as any
+      const row = db.prepare('SELECT * FROM condition WHERE id = ?').get(id) as ConditionRow | undefined
       return row ? toCondition(row) : null
     },
 
     async getConditionsBySeries(seriesId: string) {
-      const rows = db.prepare('SELECT * FROM condition WHERE series_id = ?').all(seriesId) as any[]
+      const rows = db.prepare('SELECT * FROM condition WHERE series_id = ?').all(seriesId) as ConditionRow[]
       return rows.map(toCondition)
     },
 
     async updateCondition(id: string, changes: Partial<Condition>) {
-      const existing = db.prepare('SELECT * FROM condition WHERE id = ?').get(id) as any
+      const existing = db.prepare('SELECT * FROM condition WHERE id = ?').get(id) as ConditionRow | undefined
       if (!existing) throw new NotFoundError(`Condition '${id}' not found`)
       const merged = { ...toCondition(existing), ...changes }
       safe(() =>
@@ -532,12 +669,12 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
         ).run(
           merged.type,
           merged.parentId ?? null,
-          (merged as any).seriesRef ?? null,
+          merged.seriesRef ?? null,
           merged.windowDays ?? null,
-          (merged as any).comparison ?? null,
+          merged.comparison ?? null,
           merged.operator ?? null,
           merged.value ?? null,
-          (merged as any).days ? JSON.stringify((merged as any).days) : null,
+          merged.days ? JSON.stringify(merged.days) : null,
           id,
         ),
       )
@@ -569,7 +706,7 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getAdaptiveDuration(seriesId: string) {
-      const row = db.prepare('SELECT * FROM adaptive_duration WHERE series_id = ?').get(seriesId) as any
+      const row = db.prepare('SELECT * FROM adaptive_duration WHERE series_id = ?').get(seriesId) as AdaptiveDurationRow | undefined
       if (!row) return null
       return {
         seriesId: row.series_id,
@@ -596,18 +733,18 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getCyclingConfig(seriesId: string) {
-      const row = db.prepare('SELECT * FROM cycling_config WHERE series_id = ?').get(seriesId) as any
+      const row = db.prepare('SELECT * FROM cycling_config WHERE series_id = ?').get(seriesId) as CyclingConfigRow | undefined
       if (!row) return null
       return {
         seriesId: row.series_id,
-        mode: row.mode,
+        ...(row.mode != null ? { mode: row.mode } : {}),
         currentIndex: row.current_index,
         gapLeap: row.gap_leap === 1,
       }
     },
 
     async updateCyclingIndex(seriesId: string, index: number) {
-      const existing = db.prepare('SELECT * FROM cycling_config WHERE series_id = ?').get(seriesId) as any
+      const existing = db.prepare('SELECT * FROM cycling_config WHERE series_id = ?').get(seriesId) as CyclingConfigRow | undefined
       if (!existing) throw new NotFoundError(`Cycling config for '${seriesId}' not found`)
       db.prepare('UPDATE cycling_config SET current_index = ? WHERE series_id = ?').run(index, seriesId)
     },
@@ -627,8 +764,8 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getCyclingItems(seriesId: string) {
-      const rows = db.prepare('SELECT * FROM cycling_item WHERE series_id = ? ORDER BY position').all(seriesId) as any[]
-      return rows.map((r: any) => ({
+      const rows = db.prepare('SELECT * FROM cycling_item WHERE series_id = ? ORDER BY position').all(seriesId) as CyclingItemRow[]
+      return rows.map((r: CyclingItemRow) => ({
         seriesId: r.series_id,
         position: r.position,
         title: r.title,
@@ -656,24 +793,24 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     async getInstanceException(seriesId: string, originalDate: LocalDate) {
       const row = db.prepare(
         'SELECT * FROM instance_exception WHERE series_id = ? AND original_date = ?',
-      ).get(seriesId, originalDate) as any
+      ).get(seriesId, originalDate) as ExceptionRow | undefined
       return row ? toException(row) : null
     },
 
     async getExceptionsBySeries(seriesId: string) {
-      const rows = db.prepare('SELECT * FROM instance_exception WHERE series_id = ?').all(seriesId) as any[]
+      const rows = db.prepare('SELECT * FROM instance_exception WHERE series_id = ?').all(seriesId) as ExceptionRow[]
       return rows.map(toException)
     },
 
     async getExceptionsInRange(seriesId: string, start: LocalDate, end: LocalDate) {
       const rows = db.prepare(
         'SELECT * FROM instance_exception WHERE series_id = ? AND original_date >= ? AND original_date <= ?',
-      ).all(seriesId, start, end) as any[]
+      ).all(seriesId, start, end) as ExceptionRow[]
       return rows.map(toException)
     },
 
     async getAllExceptions() {
-      const rows = db.prepare('SELECT * FROM instance_exception').all() as any[]
+      const rows = db.prepare('SELECT * FROM instance_exception').all() as ExceptionRow[]
       return rows.map(toException)
     },
 
@@ -690,25 +827,25 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
           'INSERT INTO completion (id, series_id, instance_date, date, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)',
         ).run(
           completion.id, completion.seriesId, completion.instanceDate,
-          completion.date, completion.startTime, completion.endTime,
+          completion.date, completion.startTime ?? null, completion.endTime ?? null,
         ),
       )
     },
 
     async getCompletion(id: string) {
-      const row = db.prepare('SELECT * FROM completion WHERE id = ?').get(id) as any
+      const row = db.prepare('SELECT * FROM completion WHERE id = ?').get(id) as CompletionRow | undefined
       return row ? toCompletion(row) : null
     },
 
     async getCompletionsBySeries(seriesId: string) {
-      const rows = db.prepare('SELECT * FROM completion WHERE series_id = ?').all(seriesId) as any[]
+      const rows = db.prepare('SELECT * FROM completion WHERE series_id = ?').all(seriesId) as CompletionRow[]
       return rows.map(toCompletion)
     },
 
     async getCompletionByInstance(seriesId: string, instanceDate: LocalDate) {
       const row = db.prepare(
         'SELECT * FROM completion WHERE series_id = ? AND instance_date = ?',
-      ).get(seriesId, instanceDate) as any
+      ).get(seriesId, instanceDate) as CompletionRow | undefined
       return row ? toCompletion(row) : null
     },
 
@@ -717,14 +854,14 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getAllCompletions() {
-      const rows = db.prepare('SELECT * FROM completion').all() as any[]
+      const rows = db.prepare('SELECT * FROM completion').all() as CompletionRow[]
       return rows.map(toCompletion)
     },
 
     async countCompletionsInWindow(seriesId: string, start: LocalDate, end: LocalDate) {
       const row = db.prepare(
         'SELECT COUNT(*) as cnt FROM completion WHERE series_id = ? AND instance_date >= ? AND instance_date <= ?',
-      ).get(seriesId, start, end) as { cnt: number }
+      ).get(seriesId, start, end) as CountRow
       return row.cnt
     },
 
@@ -742,27 +879,27 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
       seriesId: string,
       options: { lastN: number } | { windowDays: number; asOf: LocalDate },
     ) {
-      let rows: any[]
+      let rows: CompletionRow[]
       if ('lastN' in options) {
         rows = db.prepare(
           'SELECT start_time, end_time FROM completion WHERE series_id = ? ORDER BY date DESC LIMIT ?',
-        ).all(seriesId, options.lastN) as any[]
+        ).all(seriesId, options.lastN) as CompletionRow[]
       } else {
         const asOfMs = new Date(options.asOf as string).getTime()
         const windowStartMs = asOfMs - (options.windowDays - 1) * 86400000
         const windowStart = new Date(windowStartMs).toISOString().slice(0, 10)
         rows = db.prepare(
           'SELECT start_time, end_time FROM completion WHERE series_id = ? AND date >= ? AND date <= ? ORDER BY date DESC',
-        ).all(seriesId, windowStart, options.asOf) as any[]
+        ).all(seriesId, windowStart, options.asOf) as CompletionRow[]
       }
-      return rows.map((r: any) => durationMinutes(r.start_time, r.end_time))
+      return rows.map((r: CompletionRow) => durationMinutes(r.start_time!, r.end_time!))
     },
 
     // ================================================================
     // Tag
     // ================================================================
     async createTag(name: string) {
-      const existing = db.prepare('SELECT id FROM tag WHERE name = ?').get(name) as any
+      const existing = db.prepare('SELECT id FROM tag WHERE name = ?').get(name) as TagRow | undefined
       if (existing) return existing.id
       const id = crypto.randomUUID()
       safe(() => db.prepare('INSERT INTO tag (id, name) VALUES (?, ?)').run(id, name))
@@ -770,13 +907,13 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getTagByName(name: string) {
-      const row = db.prepare('SELECT * FROM tag WHERE name = ?').get(name) as any
+      const row = db.prepare('SELECT * FROM tag WHERE name = ?').get(name) as TagRow | undefined
       return row ? { id: row.id, name: row.name } : null
     },
 
     async addTagToSeries(seriesId: string, tagName: string) {
       let tagId: string
-      const existing = db.prepare('SELECT id FROM tag WHERE name = ?').get(tagName) as any
+      const existing = db.prepare('SELECT id FROM tag WHERE name = ?').get(tagName) as TagRow | undefined
       if (existing) {
         tagId = existing.id
       } else {
@@ -787,7 +924,7 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async removeTagFromSeries(seriesId: string, tagName: string) {
-      const tag = db.prepare('SELECT id FROM tag WHERE name = ?').get(tagName) as any
+      const tag = db.prepare('SELECT id FROM tag WHERE name = ?').get(tagName) as TagRow | undefined
       if (!tag) return
       db.prepare('DELETE FROM series_tag WHERE series_id = ? AND tag_id = ?').run(seriesId, tag.id)
     },
@@ -797,13 +934,13 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
         SELECT t.* FROM tag t
         JOIN series_tag st ON st.tag_id = t.id
         WHERE st.series_id = ?
-      `).all(seriesId) as any[]
-      return rows.map((r: any) => ({ id: r.id, name: r.name }))
+      `).all(seriesId) as TagRow[]
+      return rows.map((r: TagRow) => ({ id: r.id, name: r.name }))
     },
 
     async getAllSeriesTags() {
-      const rows = db.prepare('SELECT series_id, tag_id FROM series_tag').all() as any[]
-      return rows.map((r: any) => ({ seriesId: r.series_id, tagId: r.tag_id }))
+      const rows = db.prepare('SELECT series_id, tag_id FROM series_tag').all() as SeriesTagRow[]
+      return rows.map((r: SeriesTagRow) => ({ seriesId: r.series_id, tagId: r.tag_id }))
     },
 
     async deleteTag(id: string) {
@@ -822,22 +959,22 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getReminder(id: string) {
-      const row = db.prepare('SELECT * FROM reminder WHERE id = ?').get(id) as any
+      const row = db.prepare('SELECT * FROM reminder WHERE id = ?').get(id) as ReminderRow | undefined
       return row ? toReminder(row) : null
     },
 
     async getRemindersBySeries(seriesId: string) {
-      const rows = db.prepare('SELECT * FROM reminder WHERE series_id = ?').all(seriesId) as any[]
+      const rows = db.prepare('SELECT * FROM reminder WHERE series_id = ?').all(seriesId) as ReminderRow[]
       return rows.map(toReminder)
     },
 
     async getAllReminders() {
-      const rows = db.prepare('SELECT * FROM reminder').all() as any[]
+      const rows = db.prepare('SELECT * FROM reminder').all() as ReminderRow[]
       return rows.map(toReminder)
     },
 
     async updateReminder(id: string, changes: Partial<Reminder>) {
-      const existing = db.prepare('SELECT * FROM reminder WHERE id = ?').get(id) as any
+      const existing = db.prepare('SELECT * FROM reminder WHERE id = ?').get(id) as ReminderRow | undefined
       if (!existing) throw new NotFoundError(`Reminder '${id}' not found`)
       const merged = { ...toReminder(existing), ...changes }
       db.prepare('UPDATE reminder SET label = ?, minutes_before = ? WHERE id = ?').run(
@@ -863,18 +1000,18 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     async isReminderAcknowledged(reminderId: string, instanceDate: LocalDate) {
       const row = db.prepare(
         'SELECT 1 FROM reminder_ack WHERE reminder_id = ? AND instance_date = ?',
-      ).get(reminderId, instanceDate) as any
+      ).get(reminderId, instanceDate) as Record<string, number> | undefined
       return !!row
     },
 
     async getReminderAcksInRange(start: LocalDate, end: LocalDate) {
       const rows = db.prepare(
         'SELECT * FROM reminder_ack WHERE instance_date >= ? AND instance_date <= ?',
-      ).all(start, end) as any[]
-      return rows.map((r: any) => ({
+      ).all(start, end) as ReminderAckRow[]
+      return rows.map((r: ReminderAckRow) => ({
         reminderId: r.reminder_id,
-        instanceDate: r.instance_date,
-        acknowledgedAt: r.acknowledged_at,
+        instanceDate: r.instance_date as LocalDate,
+        acknowledgedAt: r.acknowledged_at as LocalDateTime,
       }))
     },
 
@@ -896,18 +1033,18 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
           constraint.type,
           src.type, src.value,
           dst.type, dst.value,
-          (constraint as any).withinMinutes ?? null,
+          constraint.withinMinutes ?? null,
         ),
       )
     },
 
     async getRelationalConstraint(id: string) {
-      const row = db.prepare('SELECT * FROM relational_constraint WHERE id = ?').get(id) as any
+      const row = db.prepare('SELECT * FROM relational_constraint WHERE id = ?').get(id) as ConstraintRow | undefined
       return row ? toConstraint(row) : null
     },
 
     async getAllRelationalConstraints() {
-      const rows = db.prepare('SELECT * FROM relational_constraint').all() as any[]
+      const rows = db.prepare('SELECT * FROM relational_constraint').all() as ConstraintRow[]
       return rows.map(toConstraint)
     },
 
@@ -937,27 +1074,27 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getLink(id: string) {
-      const row = db.prepare('SELECT * FROM link WHERE id = ?').get(id) as any
+      const row = db.prepare('SELECT * FROM link WHERE id = ?').get(id) as LinkRow | undefined
       return row ? toLink(row) : null
     },
 
     async getLinkByChild(childSeriesId: string) {
-      const row = db.prepare('SELECT * FROM link WHERE child_series_id = ?').get(childSeriesId) as any
+      const row = db.prepare('SELECT * FROM link WHERE child_series_id = ?').get(childSeriesId) as LinkRow | undefined
       return row ? toLink(row) : null
     },
 
     async getLinksByParent(parentSeriesId: string) {
-      const rows = db.prepare('SELECT * FROM link WHERE parent_series_id = ?').all(parentSeriesId) as any[]
+      const rows = db.prepare('SELECT * FROM link WHERE parent_series_id = ?').all(parentSeriesId) as LinkRow[]
       return rows.map(toLink)
     },
 
     async getAllLinks() {
-      const rows = db.prepare('SELECT * FROM link').all() as any[]
+      const rows = db.prepare('SELECT * FROM link').all() as LinkRow[]
       return rows.map(toLink)
     },
 
     async updateLink(id: string, changes: Partial<Link>) {
-      const existing = db.prepare('SELECT * FROM link WHERE id = ?').get(id) as any
+      const existing = db.prepare('SELECT * FROM link WHERE id = ?').get(id) as LinkRow | undefined
       if (!existing) throw new NotFoundError(`Link '${id}' not found`)
       const merged = { ...toLink(existing), ...changes }
       db.prepare(
@@ -997,7 +1134,7 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async pragma(name: string) {
-      const row = db.prepare(`PRAGMA ${name}`).get() as Record<string, any> | null
+      const row = db.prepare(`PRAGMA ${name}`).get() as Record<string, unknown> | undefined
       return row ? Object.values(row)[0] : null
     },
 
@@ -1023,12 +1160,12 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     },
 
     async getSchemaVersion() {
-      const row = db.prepare('SELECT MAX(version) as v FROM schema_version').get() as { v: number }
-      return row.v
+      const row = db.prepare('SELECT MAX(version) as v FROM schema_version').get() as SchemaVersionRow
+      return row.v!
     },
 
     async getMigrationHistory() {
-      const rows = db.prepare('SELECT version, applied_at FROM schema_version ORDER BY version ASC').all() as any[]
+      const rows = db.prepare('SELECT version, applied_at FROM schema_version ORDER BY version ASC').all() as { version: number; applied_at: string }[]
       return rows.map((r) => ({ version: r.version, appliedAt: r.applied_at }))
     },
 
