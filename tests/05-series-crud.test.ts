@@ -964,7 +964,7 @@ describe('Update Series', () => {
         duration: 30,
       })
       await expect(updateSeries(adapter, id, { title: '' })).rejects.toThrow(
-        ValidationError
+        /Title must not be empty/
       )
     })
   })
@@ -1001,7 +1001,7 @@ describe('Delete Series', () => {
 
   it('delete non-existent series throws NotFoundError', async () => {
     await expect(deleteSeries(adapter, 'nonexistent')).rejects.toThrow(
-      NotFoundError
+      /not found/
     )
   })
 
@@ -1047,7 +1047,7 @@ describe('Delete Series', () => {
       lateWobble: 10,
     })
     await expect(deleteSeries(adapter, parentId)).rejects.toThrow(
-      LinkedChildrenExistError
+      /has linked children/
     )
   })
 
@@ -1164,13 +1164,13 @@ describe('Lock/Unlock', () => {
 
   it('lock non-existent throws NotFoundError', async () => {
     await expect(lockSeries(adapter, 'nonexistent')).rejects.toThrow(
-      NotFoundError
+      /not found/
     )
   })
 
   it('unlock non-existent throws NotFoundError', async () => {
     await expect(unlockSeries(adapter, 'nonexistent')).rejects.toThrow(
-      NotFoundError
+      /not found/
     )
   })
 
@@ -1562,7 +1562,7 @@ describe('Tag Management', () => {
 
   it('tag on non-existent series throws NotFoundError', async () => {
     await expect(addTagToSeries(adapter, 'nonexistent', 'work')).rejects.toThrow(
-      NotFoundError
+      /not found/
     )
   })
 })

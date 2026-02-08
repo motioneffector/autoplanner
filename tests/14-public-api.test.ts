@@ -119,7 +119,7 @@ describe('Segment 14: Public API', () => {
         // Empty adapter fails when used
         await expect(
           planner.createSeries({ title: 'Test', patterns: [{ type: 'daily', time: time('09:00') }] })
-        ).rejects.toThrow();
+        ).rejects.toThrow(/is not a function/);
       });
 
       it('timezone must be valid IANA - Invalid/Zone throws error', () => {

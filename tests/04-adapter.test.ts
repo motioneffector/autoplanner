@@ -150,7 +150,7 @@ describe('Transaction Semantics', () => {
           })
           throw new Error('Rollback')
         })
-      ).rejects.toThrow('Rollback')
+      ).rejects.toThrow(/Rollback/)
 
       const allSeries = await adapter.getAllSeries()
       expect(allSeries.map(s => s.id)).not.toContain('rollback-test')
@@ -168,7 +168,7 @@ describe('Transaction Semantics', () => {
           await adapter.updateSeries('series-1', { title: 'Updated' })
           throw new Error('Rollback')
         })
-      ).rejects.toThrow('Rollback')
+      ).rejects.toThrow(/Rollback/)
 
       const series = await adapter.getSeries('series-1')
       expect(series?.title).toBe('Original')
@@ -186,7 +186,7 @@ describe('Transaction Semantics', () => {
           await adapter.deleteSeries('series-1')
           throw new Error('Rollback')
         })
-      ).rejects.toThrow('Rollback')
+      ).rejects.toThrow(/Rollback/)
 
       const series = await adapter.getSeries('series-1')
       expect(series).toEqual(expect.objectContaining({

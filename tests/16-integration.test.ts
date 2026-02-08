@@ -2294,24 +2294,36 @@ describe('Segment 16: Integration Tests', () => {
         ],
       });
 
-      // 0 completions → pattern inactive (needs ≥2 completions to activate)
+      // Control series (no condition) — proves schedule engine works
+      const controlId = await planner.createSeries({
+        title: 'Control',
+        startDate: date('2026-09-01'),
+        patterns: [{ type: 'daily', time: time('10:00'), duration: minutes(15) }],
+      });
+
+      // 0 completions → only control produces instances (condition gates the other)
       let sched = await planner.getSchedule(date('2026-09-15'), date('2026-09-16'));
-      expect(sched.instances.filter(i => i.seriesId === id)).toHaveLength(0);
+      expect(sched.instances).toHaveLength(1);
+      expect(sched.instances[0].seriesId).toBe(controlId);
+      expect(sched.instances[0].title).toBe('Control');
 
       // 2 completions → pattern active (2 ≥ 2 and ¬(2 ≥ 5))
       await planner.logCompletion(id, date('2026-09-10'));
       await planner.logCompletion(id, date('2026-09-12'));
       sched = await planner.getSchedule(date('2026-09-15'), date('2026-09-16'));
+      expect(sched.instances).toHaveLength(2);
       const activeInstances = sched.instances.filter(i => i.seriesId === id);
       expect(activeInstances).toHaveLength(1);
       expect(activeInstances[0].title).toBe('Condition Tree');
 
-      // 5 completions → NOT clause triggers, pattern inactive again
+      // 5 completions → NOT clause triggers, only control remains again
       await planner.logCompletion(id, date('2026-09-13'));
       await planner.logCompletion(id, date('2026-09-14'));
       await planner.logCompletion(id, date('2026-09-15'));
       sched = await planner.getSchedule(date('2026-09-16'), date('2026-09-17'));
-      expect(sched.instances.filter(i => i.seriesId === id)).toHaveLength(0);
+      expect(sched.instances).toHaveLength(1);
+      expect(sched.instances[0].seriesId).toBe(controlId);
+      expect(sched.instances[0].title).toBe('Control');
     });
 
     it('series endDate truncates schedule instances', async () => {
@@ -2427,60 +2439,59 @@ describe('Segment 16: Integration Tests', () => {
       const fs = await import('node:fs');
       const tmpPath = path.join(os.tmpdir(), `autoplanner-canary-${crypto.randomUUID()}.db`);
 
-      try {
-        const adapter = await createSqliteAdapter(tmpPath);
-        const planner = createAutoplanner({ adapter, timezone: 'UTC' });
+      const adapter = await createSqliteAdapter(tmpPath);
+      const planner = createAutoplanner({ adapter, timezone: 'UTC' });
 
-        const id = await planner.createSeries({
-          title: 'SQLite Canary',
-          startDate: date('2026-03-02'),
-          patterns: [
-            { type: 'everyNDays', n: 3, time: time('08:30'), duration: minutes(45), fixed: true },
-            { type: 'weekdays', days: [2, 4], time: time('16:00'), duration: minutes(90) },
-          ],
-          tags: ['sqlite', 'canary'],
-          cycling: { mode: 'sequential', items: ['Step 1', 'Step 2'], gapLeap: true },
-        });
+      const id = await planner.createSeries({
+        title: 'SQLite Canary',
+        startDate: date('2026-03-02'),
+        patterns: [
+          { type: 'everyNDays', n: 3, time: time('08:30'), duration: minutes(45), fixed: true },
+          { type: 'weekdays', days: [2, 4], time: time('16:00'), duration: minutes(90) },
+        ],
+        tags: ['sqlite', 'canary'],
+        cycling: { mode: 'sequential', items: ['Step 1', 'Step 2'], gapLeap: true },
+      });
 
-        // Log a completion to advance cycling
-        await planner.logCompletion(id, date('2026-03-02'));
+      // Log a completion to advance cycling
+      await planner.logCompletion(id, date('2026-03-02'));
 
-        // Get schedule from original planner
-        const sched1 = await planner.getSchedule(date('2026-03-02'), date('2026-03-09'));
-        const count1 = sched1.instances.filter(i => i.seriesId === id).length;
-        expect(count1).toBeGreaterThan(0);
+      // Get schedule from original planner
+      const sched1 = await planner.getSchedule(date('2026-03-02'), date('2026-03-09'));
+      const count1 = sched1.instances.filter(i => i.seriesId === id).length;
+      expect(count1).toBeGreaterThan(0);
 
-        await adapter.close();
+      await adapter.close();
 
-        // Reopen from disk — full hydrate path
-        const adapter2 = await createSqliteAdapter(tmpPath);
-        const planner2 = createAutoplanner({ adapter: adapter2, timezone: 'UTC' });
+      // Reopen from disk — full hydrate path
+      const adapter2 = await createSqliteAdapter(tmpPath);
+      const planner2 = createAutoplanner({ adapter: adapter2, timezone: 'UTC' });
 
-        // Verify fat series reconstructed correctly
-        const restored = await planner2.getSeries(id);
-        expect(restored.title).toBe('SQLite Canary');
-        expect(restored.patterns).toHaveLength(2);
-        const everyNPat = restored.patterns.find((p: any) => p.type === 'everyNDays');
-        const weekdaysPat = restored.patterns.find((p: any) => p.type === 'weekdays');
-        expect(everyNPat).not.toBeUndefined();
-        expect(weekdaysPat).not.toBeUndefined();
-        expect(restored.tags).toContain('sqlite');
-        expect(restored.tags).toContain('canary');
-        expect(restored.cycling).toMatchObject({ mode: 'sequential', gapLeap: true });
-        expect(restored.cycling.items).toEqual(['Step 1', 'Step 2']);
-        expect(everyNPat).toMatchObject({ n: 3, time: '08:30', duration: 45, fixed: true });
-        expect(weekdaysPat).toMatchObject({ time: '16:00', duration: 90 });
-        expect(weekdaysPat.days).toEqual([2, 4]);
+      // Verify fat series reconstructed correctly
+      const restored = await planner2.getSeries(id);
+      expect(restored.title).toBe('SQLite Canary');
+      expect(restored.patterns).toHaveLength(2);
+      expect(restored.patterns[0]).toMatchObject({ type: expect.stringMatching(/everyNDays|weekdays/) });
+      expect(restored.patterns[1]).toMatchObject({ type: expect.stringMatching(/everyNDays|weekdays/) });
+      const everyNPat = restored.patterns[0].type === 'everyNDays'
+        ? restored.patterns[0] : restored.patterns[1];
+      const weekdaysPat = restored.patterns[0].type === 'weekdays'
+        ? restored.patterns[0] : restored.patterns[1];
+      expect(restored.tags).toContain('sqlite');
+      expect(restored.tags).toContain('canary');
+      expect(restored.cycling).toMatchObject({ mode: 'sequential', gapLeap: true });
+      expect(restored.cycling.items).toEqual(['Step 1', 'Step 2']);
+      expect(everyNPat).toMatchObject({ n: 3, time: '08:30', duration: 45, fixed: true });
+      expect(weekdaysPat).toMatchObject({ time: '16:00', duration: 90 });
+      expect(weekdaysPat.days).toEqual([2, 4]);
 
-        // Verify schedule produces same instance count after hydrate
-        const sched2 = await planner2.getSchedule(date('2026-03-02'), date('2026-03-09'));
-        const count2 = sched2.instances.filter(i => i.seriesId === id).length;
-        expect(count2).toBe(count1);
+      // Verify schedule produces same instance count after hydrate
+      const sched2 = await planner2.getSchedule(date('2026-03-02'), date('2026-03-09'));
+      const count2 = sched2.instances.filter(i => i.seriesId === id).length;
+      expect(count2).toBe(count1);
 
-        await adapter2.close();
-      } finally {
-        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
-      }
+      await adapter2.close();
+      fs.unlinkSync(tmpPath);
     });
   });
 });
