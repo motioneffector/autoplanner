@@ -17,6 +17,8 @@ import {
   monthOf,
   makeDate,
 } from './time-date'
+/** Minimal shape accepted by toExpandablePattern — matches both adapter Pattern and EnrichedPattern. */
+type PatternLike = { type: string; [key: string]: unknown }
 
 export type { LocalDate } from './time-date'
 
@@ -468,4 +470,84 @@ function expandExcept(base: Pattern, exceptions: Pattern[], range: DateRange, se
     }
   }
   return result
+}
+
+// ============================================================================
+// Adapter → Expansion Pattern Converter
+// ============================================================================
+
+const WEEKDAY_NAMES: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+
+function numToWeekday(n: number): Weekday {
+  return WEEKDAY_NAMES[((n % 7) + 7) % 7]!
+}
+
+const DAY_NAME_MAP: Record<string, Weekday> = {
+  monday: 'mon', tuesday: 'tue', wednesday: 'wed',
+  thursday: 'thu', friday: 'fri', saturday: 'sat', sunday: 'sun',
+  mon: 'mon', tue: 'tue', wed: 'wed', thu: 'thu',
+  fri: 'fri', sat: 'sat', sun: 'sun',
+}
+
+function dayNameToWeekday(name: string): Weekday {
+  return DAY_NAME_MAP[name.toLowerCase()] ?? (name as Weekday)
+}
+
+/**
+ * Convert an adapter Pattern (flat, string-typed) to an expansion Pattern
+ * (strict discriminated union). Bridges the two Pattern types without
+ * requiring `as unknown as Pattern` casts at call sites.
+ */
+export function toExpandablePattern(p: PatternLike, seriesStart: LocalDate): Pattern {
+  switch (p.type) {
+    case 'daily':
+      return { type: 'daily' }
+    case 'everyNDays':
+      return { type: 'everyNDays', n: (p.n as number) || 2 }
+    case 'weekly':
+      if (p['daysOfWeek'] && Array.isArray(p['daysOfWeek'])) {
+        const days = (p['daysOfWeek'] as (number | string)[]).map(
+          (d: number | string) => typeof d === 'number' ? numToWeekday(d) : dayNameToWeekday(d)
+        )
+        return { type: 'weekdays', days }
+      }
+      if (p['dayOfWeek'] !== undefined) {
+        const dw = p['dayOfWeek']
+        return { type: 'weekdays', days: [typeof dw === 'number' ? numToWeekday(dw) : dayNameToWeekday(dw as string)] }
+      }
+      return { type: 'weekly' }
+    case 'everyNWeeks': {
+      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday as Weekday | undefined
+      if (weekday !== undefined) {
+        return { type: 'everyNWeeks', n: (p.n as number) || 2, weekday }
+      }
+      return { type: 'everyNWeeks', n: (p.n as number) || 2 }
+    }
+    case 'weekdays': {
+      const days = ((p['days'] as (number | string)[] | undefined) || []).map(
+        (d: number | string) => typeof d === 'number' ? numToWeekday(d) : d as Weekday
+      )
+      return { type: 'weekdays', days }
+    }
+    case 'nthWeekdayOfMonth': {
+      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday as Weekday
+      return { type: 'nthWeekdayOfMonth', n: p.n as number, weekday }
+    }
+    case 'lastWeekdayOfMonth': {
+      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday as Weekday
+      return { type: 'lastWeekdayOfMonth', weekday }
+    }
+    case 'nthToLastWeekdayOfMonth': {
+      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday as Weekday
+      return { type: 'nthToLastWeekdayOfMonth', n: p.n as number, weekday }
+    }
+    case 'lastDayOfMonth':
+      return { type: 'lastDayOfMonth' }
+    case 'monthly':
+      return { type: 'monthly', day: (p.day as number) || (p['dayOfMonth'] as number) || dayOf(seriesStart) }
+    case 'yearly':
+      return { type: 'yearly', month: (p.month as number) || monthOf(seriesStart), day: (p.day as number) || (p['dayOfMonth'] as number) || dayOf(seriesStart) }
+    default:
+      return p as unknown as Pattern
+  }
 }

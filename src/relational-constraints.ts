@@ -11,7 +11,7 @@
 import type { Adapter, RelationalConstraint as AdapterConstraint } from './adapter'
 import type { LocalDate, LocalDateTime, LocalTime } from './time-date'
 import { makeDateTime, makeTime, addMinutes, addDays, minutesBetween } from './time-date'
-import { expandPattern, type Pattern } from './pattern-expansion'
+import { expandPattern, toExpandablePattern } from './pattern-expansion'
 
 // ============================================================================
 // Types
@@ -104,10 +104,11 @@ async function getInstanceInfo(
   const patterns = await adapter.getPatternsBySeries(seriesId)
   let found = false
   for (const p of patterns) {
+    const seriesStart = (series.startDate ?? date) as LocalDate
     const expanded = expandPattern(
-      p as unknown as Pattern,
+      toExpandablePattern(p, seriesStart),
       { start: date, end: date },
-      (series.startDate ?? date) as LocalDate
+      seriesStart
     )
     if (expanded.has(date)) { found = true; break }
   }

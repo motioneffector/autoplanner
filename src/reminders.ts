@@ -8,7 +8,7 @@
 import type { Adapter, Reminder as AdapterReminder, InstanceException } from './adapter'
 import type { LocalDate, LocalDateTime, LocalTime } from './time-date'
 import { addMinutes, makeDateTime, makeTime, dateOf } from './time-date'
-import { expandPattern, type Pattern } from './pattern-expansion'
+import { expandPattern, toExpandablePattern } from './pattern-expansion'
 
 // ============================================================================
 // Types
@@ -170,7 +170,7 @@ export async function getPendingReminders(
     const seriesStart: LocalDate = series.startDate ?? opts.range.start
     for (const p of patterns) {
       const expanded = expandPattern(
-        p as unknown as Pattern,
+        toExpandablePattern(p, seriesStart),
         { start: effectiveStart, end: effectiveEnd },
         seriesStart
       )

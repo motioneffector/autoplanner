@@ -8,7 +8,7 @@
 import type { Adapter, InstanceException } from './adapter'
 import type { LocalDate, LocalDateTime, LocalTime } from './time-date'
 import { makeDateTime, makeTime, dateOf } from './time-date'
-import { expandPattern, type Pattern, type DateRange } from './pattern-expansion'
+import { expandPattern, toExpandablePattern, type DateRange } from './pattern-expansion'
 
 // ============================================================================
 // Types
@@ -51,10 +51,11 @@ export async function getSchedule(
   const allDates = new Set<LocalDate>()
 
   for (const p of patterns) {
+    const seriesStart = (series.startDate ?? input.range.start) as LocalDate
     const expanded = expandPattern(
-      p as unknown as Pattern,
+      toExpandablePattern(p, seriesStart),
       { start: effectiveStart, end: effectiveEnd },
-      (series.startDate ?? input.range.start) as LocalDate
+      seriesStart
     )
     for (const d of expanded) {
       allDates.add(d)

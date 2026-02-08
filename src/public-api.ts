@@ -12,7 +12,7 @@ import {
   yearOf, monthOf, dayOf, hourOf, minuteOf, secondOf,
   dateOf, timeOf, daysBetween, weekdayToIndex, daysInMonth,
 } from './time-date'
-import { expandPattern, type Pattern } from './pattern-expansion'
+import { expandPattern, toExpandablePattern, type Pattern } from './pattern-expansion'
 import type { Adapter, Completion, Condition } from './adapter'
 
 // ============================================================================
@@ -394,57 +394,6 @@ function resolveTimeForDate(dateStr: LocalDate, timeStr: LocalTime, tz: string):
   }
 
   return makeTime(h + 1, 0, 0)
-}
-
-function toExpandablePattern(p: any, seriesStart: LocalDate): Pattern {
-  switch (p.type) {
-    case 'daily':
-      return { type: 'daily' }
-    case 'everyNDays':
-      return { type: 'everyNDays', n: p.n || 2 }
-    case 'weekly':
-      if (p.daysOfWeek && Array.isArray(p.daysOfWeek)) {
-        const days = p.daysOfWeek.map((d: number) => numToWeekday(d))
-        return { type: 'weekdays', days }
-      }
-      if (p.dayOfWeek !== undefined) {
-        return { type: 'weekdays', days: [numToWeekday(p.dayOfWeek)] }
-      }
-      return { type: 'weekly' }
-    case 'everyNWeeks': {
-      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
-      if (weekday !== undefined) {
-        return { type: 'everyNWeeks', n: p.n || 2, weekday }
-      }
-      return { type: 'everyNWeeks', n: p.n || 2 }
-    }
-    case 'weekdays': {
-      // Accept both string weekdays ('mon') and numeric (1 = Mon)
-      const days = (p.days || []).map((d: number | string) => typeof d === 'number' ? numToWeekday(d) : d)
-      return { type: 'weekdays', days }
-    }
-    case 'nthWeekdayOfMonth': {
-      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
-      return { type: 'nthWeekdayOfMonth', n: p.n, weekday }
-    }
-    case 'lastWeekdayOfMonth': {
-      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
-      return { type: 'lastWeekdayOfMonth', weekday }
-    }
-    case 'nthToLastWeekdayOfMonth': {
-      const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
-      return { type: 'nthToLastWeekdayOfMonth', n: p.n, weekday }
-    }
-    case 'lastDayOfMonth':
-      return { type: 'lastDayOfMonth' }
-    case 'monthly':
-      return { type: 'monthly', day: p.day || p.dayOfMonth || dayOf(seriesStart) }
-    case 'yearly':
-      return { type: 'yearly', month: p.month || monthOf(seriesStart), day: p.day || p.dayOfMonth || dayOf(seriesStart) }
-    default:
-      // Pass through as-is for union/except or unknown types
-      return p as Pattern
-  }
 }
 
 function getPatternDates(pattern: EnrichedPattern, start: LocalDate, end: LocalDate, seriesStart: LocalDate): Set<LocalDate> {
