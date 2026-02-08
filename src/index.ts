@@ -93,17 +93,13 @@ export {
   resolveTarget, checkConstraint, getConstraintViolations,
 } from './relational-constraints'
 
-// Reflow (CSP solver)
+// Reflow (CSP solver — public interface only; internals accessed via src/reflow directly)
 export type {
   Instance, ReflowInput, Domain, Assignment,
   ConflictType, ReflowOutput,
 } from './reflow'
 export type { Conflict as ReflowConflict } from './reflow'
-export {
-  reflow, generateInstances, computeDomains, propagateConstraints,
-  backtrackSearch, handleNoSolution, checkNoOverlap, checkChainConstraint,
-  calculateWorkloadScore,
-} from './reflow'
+export { reflow, generateInstances } from './reflow'
 
 // High-level API (wraps all modules into a stateful planner object)
 export type {
