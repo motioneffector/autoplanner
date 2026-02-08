@@ -455,15 +455,6 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   if (!config.adapter || typeof config.adapter !== 'object') {
     throw new ValidationError('Adapter is required')
   }
-  if (typeof config.adapter.getSeries !== 'function') {
-    throw new ValidationError('Adapter must implement getSeries')
-  }
-  if (typeof config.adapter.saveSeries !== 'function') {
-    throw new ValidationError('Adapter must implement saveSeries')
-  }
-  if (typeof config.adapter.getAllSeries !== 'function') {
-    throw new ValidationError('Adapter must implement getAllSeries')
-  }
   if (!isValidTimezone(config.timezone)) {
     throw new ValidationError(`Invalid timezone: ${config.timezone}`)
   }
@@ -483,6 +474,221 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   const reminders = new Map<string, any>()
   const remindersBySeriesMap = new Map<string, string[]>()
   const reminderAcks = new Map<string, Set<string>>()
+
+  // ========== Adapter Helpers ==========
+  // Load a complete "fat" series object from the adapter's normalized data.
+  // Assembles patterns, conditions, tags, cycling, and adaptive duration
+  // into a single object matching the internal representation.
+
+  function reconstructConditionTree(
+    rootId: string,
+    conditionsById: Map<string, any>,
+    childrenByParent: Map<string, any[]>,
+  ): any {
+    const cond = conditionsById.get(rootId)
+    if (!cond) return null
+    const result: any = { ...cond }
+    delete result.id
+    delete result.seriesId
+    delete result.parentId
+    if (cond.type === 'and' || cond.type === 'or') {
+      const children = childrenByParent.get(rootId) || []
+      result.conditions = children
+        .map((c: any) => reconstructConditionTree(c.id, conditionsById, childrenByParent))
+        .filter(Boolean)
+    } else if (cond.type === 'not') {
+      const children = childrenByParent.get(rootId) || []
+      if (children.length > 0) {
+        result.condition = reconstructConditionTree(children[0].id, conditionsById, childrenByParent)
+      }
+    }
+    return result
+  }
+
+  async function loadFullSeries(id: string): Promise<any | null> {
+    const s = await getFullSeries(id)
+    if (!s) return null
+    const result: any = { ...s }
+
+    // Patterns + weekdays
+    const patterns = await adapter.getPatternsBySeries(id)
+    const enrichedPatterns: any[] = []
+    for (const p of patterns) {
+      const pat: any = { ...p }
+      const weekdays = await adapter.getPatternWeekdays(p.id)
+      if (weekdays.length > 0) pat.days = weekdays
+      // Remove adapter-level fields not expected by internal code
+      delete pat.seriesId
+      enrichedPatterns.push(pat)
+    }
+    result.patterns = enrichedPatterns
+
+    // Conditions (for pattern condition trees)
+    const conditions = await adapter.getConditionsBySeries(id)
+    if (conditions.length > 0) {
+      const conditionsById = new Map<string, any>()
+      const childrenByParent = new Map<string, any[]>()
+      for (const c of conditions) {
+        conditionsById.set(c.id, c)
+        if (c.parentId) {
+          if (!childrenByParent.has(c.parentId)) childrenByParent.set(c.parentId, [])
+          childrenByParent.get(c.parentId)!.push(c)
+        }
+      }
+      // Attach condition trees to patterns
+      for (const pat of result.patterns) {
+        if (pat.conditionId && conditionsById.has(pat.conditionId)) {
+          pat.condition = reconstructConditionTree(pat.conditionId, conditionsById, childrenByParent)
+        }
+      }
+    }
+
+    // Tags
+    const tags = await adapter.getTagsForSeries(id)
+    if (tags.length > 0) result.tags = tags.map((t: any) => t.name)
+
+    // Cycling
+    const cycling = await adapter.getCyclingConfig(id)
+    if (cycling) {
+      const items = await adapter.getCyclingItems(id)
+      result.cycling = {
+        mode: cycling.mode,
+        currentIndex: cycling.currentIndex,
+        ...(cycling.gapLeap != null ? { gapLeap: cycling.gapLeap } : {}),
+        items: items.map((i: any) => i.title),
+      }
+    }
+
+    // Adaptive duration
+    const adaptive = await adapter.getAdaptiveDuration(id)
+    if (adaptive) result.adaptiveDuration = adaptive
+
+    return result
+  }
+
+  async function loadAllFullSeries(): Promise<any[]> {
+    const allSeries = await loadAllFullSeries()
+    const results: any[] = []
+    for (const s of allSeries) {
+      if (s && s.id) {
+        const full = await loadFullSeries(s.id)
+        if (full) results.push(full)
+      }
+    }
+    return results
+  }
+
+  // Cache-aware series loading: prefers seriesCache, falls back to adapter
+  async function getFullSeries(id: string): Promise<any | null> {
+    if (seriesCache.has(id)) return { ...seriesCache.get(id)! }
+    return loadFullSeries(id)
+  }
+
+  // Persist a new fat series object into the adapter's normalized tables
+  async function persistNewSeries(data: any): Promise<void> {
+    await adapter.createSeries({
+      id: data.id,
+      title: data.title,
+      createdAt: data.createdAt,
+      locked: data.locked,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      updatedAt: data.updatedAt,
+    } as any)
+
+    if (data.patterns && Array.isArray(data.patterns)) {
+      for (const p of data.patterns) {
+        let condId: string | null = null
+        if (p.condition) {
+          condId = await persistConditionTree(data.id, p.condition, null)
+        }
+        const patternId = uuid()
+        await adapter.createPattern({
+          id: patternId,
+          seriesId: data.id,
+          type: p.type,
+          conditionId: condId,
+          ...(p.time != null ? { time: p.time } : {}),
+          ...(p.n != null ? { n: p.n } : {}),
+          ...(p.day != null ? { day: p.day } : {}),
+          ...(p.month != null ? { month: p.month } : {}),
+          ...(p.weekday != null ? { weekday: p.weekday } : {}),
+          ...(p.allDay != null ? { allDay: p.allDay } : {}),
+          ...(p.duration != null ? { duration: p.duration } : {}),
+          ...(p.fixed != null ? { fixed: p.fixed } : {}),
+        } as any)
+        if (p.days && Array.isArray(p.days)) {
+          await adapter.setPatternWeekdays(patternId, p.days)
+        }
+        if (p.daysOfWeek && Array.isArray(p.daysOfWeek)) {
+          await adapter.setPatternWeekdays(patternId, p.daysOfWeek)
+        }
+      }
+    }
+
+    if (data.tags && Array.isArray(data.tags)) {
+      for (const tag of data.tags) {
+        await adapter.addTagToSeries(data.id, tag)
+      }
+    }
+
+    if (data.cycling) {
+      await adapter.setCyclingConfig(data.id, {
+        seriesId: data.id,
+        currentIndex: data.cycling.currentIndex ?? 0,
+        gapLeap: data.cycling.gapLeap ?? false,
+        mode: data.cycling.mode,
+      })
+      if (data.cycling.items && Array.isArray(data.cycling.items)) {
+        await adapter.setCyclingItems(data.id,
+          data.cycling.items.map((title: string, i: number) => ({
+            seriesId: data.id,
+            position: i,
+            title,
+            duration: 0,
+          }))
+        )
+      }
+    }
+
+    if (data.adaptiveDuration) {
+      await adapter.setAdaptiveDuration(data.id, {
+        seriesId: data.id,
+        ...data.adaptiveDuration,
+      })
+    }
+  }
+
+  // Persist a condition tree recursively, return root condition ID
+  async function persistConditionTree(seriesId: string, condition: any, parentId: string | null): Promise<string> {
+    const id = uuid()
+    await adapter.createCondition({
+      id,
+      seriesId,
+      parentId,
+      type: condition.type,
+      ...(condition.operator != null ? { operator: condition.operator } : {}),
+      ...(condition.comparison != null ? { comparison: condition.comparison } : {}),
+      ...(condition.value != null ? { value: condition.value } : {}),
+      ...(condition.windowDays != null ? { windowDays: condition.windowDays } : {}),
+      ...(condition.seriesRef != null ? { seriesRef: condition.seriesRef } : {}),
+      ...(condition.days != null ? { days: condition.days } : {}),
+    } as any)
+
+    if ((condition.type === 'and' || condition.type === 'or') && condition.conditions) {
+      for (const child of condition.conditions) {
+        await persistConditionTree(seriesId, child, id)
+      }
+    } else if (condition.type === 'not' && condition.condition) {
+      await persistConditionTree(seriesId, condition.condition, id)
+    }
+    return id
+  }
+
+  // Update only the core series fields in the adapter (not patterns/tags/etc)
+  async function updatePersistedSeries(id: string, changes: Record<string, any>): Promise<void> {
+    await adapter.updateSeries(id, changes)
+  }
 
   // Event handlers
   const eventHandlers = new Map<string, ((...args: any[]) => void)[]>()
@@ -708,7 +914,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   async function buildSchedule(start: LocalDate, end: LocalDate): Promise<Schedule> {
     // Use local cache if available (has full data including patterns),
     // fall back to adapter for series created outside the planner
-    const adapterSeries = await adapter.getAllSeries()
+    const adapterSeries = await loadAllFullSeries()
     const allSeries: any[] = []
     const seen = new Set<string>()
     // Prefer cached versions (they include patterns, startDate, etc.)
@@ -1102,7 +1308,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       updatedAt: now,
     }
 
-    await adapter.saveSeries(seriesData)
+    await persistNewSeries(seriesData)
 
     // Cache full series object (including patterns) for buildSchedule
     seriesCache.set(id, { ...seriesData })
@@ -1120,7 +1326,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function getSeries(id: string): Promise<any> {
-    const s = await adapter.getSeries(id)
+    const s = await getFullSeries(id)
     if (!s) return null
 
     const result: any = { ...s }
@@ -1146,7 +1352,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function getAllSeries(): Promise<any[]> {
-    const all = await adapter.getAllSeries()
+    const all = await loadAllFullSeries()
     return all.filter(s => s && s.id).map(s => {
       const link = links.get(s.id)
       const result: any = { ...s }
@@ -1161,7 +1367,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function updateSeries(id: string, changes: any): Promise<void> {
-    const s = await adapter.getSeries(id)
+    const s = await getFullSeries(id)
     if (!s) throw new NotFoundError(`Series ${id} not found`)
     if (s.locked) throw new LockedSeriesError(`Series ${id} is locked`)
 
@@ -1171,24 +1377,22 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       makeTime(new Date().getHours(), new Date().getMinutes(), new Date().getSeconds())
     )
 
-    await adapter.saveSeries(updated)
+    await updatePersistedSeries(id, { ...changes, updatedAt: updated.updatedAt })
     seriesCache.set(id, { ...updated })
     await triggerReflow()
   }
 
   async function lock(id: string): Promise<void> {
-    const s = await adapter.getSeries(id)
+    const s = await getFullSeries(id)
     if (!s) throw new NotFoundError(`Series ${id} not found`)
-    const locked = { ...s, locked: true }
-    await adapter.saveSeries(locked)
+    await updatePersistedSeries(id, { locked: true })
     if (seriesCache.has(id)) seriesCache.set(id, { ...seriesCache.get(id)!, locked: true })
   }
 
   async function unlock(id: string): Promise<void> {
-    const s = await adapter.getSeries(id)
+    const s = await getFullSeries(id)
     if (!s) throw new NotFoundError(`Series ${id} not found`)
-    const unlocked = { ...s, locked: false }
-    await adapter.saveSeries(unlocked)
+    await updatePersistedSeries(id, { locked: false })
     if (seriesCache.has(id)) seriesCache.set(id, { ...seriesCache.get(id)!, locked: false })
   }
 
@@ -1207,12 +1411,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function splitSeries(id: string, splitDate: LocalDate): Promise<string> {
-    const s = await adapter.getSeries(id)
+    const s = await getFullSeries(id)
     if (!s) throw new NotFoundError(`Series ${id} not found`)
 
     const originalEnd = addDays(splitDate, -1)
     const updatedOriginal = { ...(seriesCache.get(id) || s), endDate: originalEnd }
-    await adapter.saveSeries(updatedOriginal)
+    await updatePersistedSeries(id, { endDate: originalEnd })
     seriesCache.set(id, { ...updatedOriginal })
 
     const newId = uuid()
@@ -1229,7 +1433,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         makeTime(new Date().getHours(), new Date().getMinutes(), new Date().getSeconds())
       ),
     }
-    await adapter.saveSeries(newSeries)
+    await persistNewSeries(newSeries)
     seriesCache.set(newId, { ...newSeries })
     await triggerReflow()
     return newId as any
@@ -1238,9 +1442,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   // ========== Links ==========
 
   async function linkSeries(parentId: string, childId: string, options: any): Promise<void> {
-    const parent = await adapter.getSeries(parentId)
+    const parent = await getFullSeries(parentId)
     if (!parent) throw new NotFoundError(`Parent series ${parentId} not found`)
-    const child = await adapter.getSeries(childId)
+    const child = await getFullSeries(childId)
     if (!child) throw new NotFoundError(`Child series ${childId} not found`)
 
     if (parentId === childId) throw new CycleDetectedError('Cannot link series to itself')
@@ -1276,7 +1480,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if (!linksByParent.has(parentId)) linksByParent.set(parentId, [])
     linksByParent.get(parentId)!.push(childId)
 
-    if (adapter.saveLink) await adapter.saveLink(linkData)
+    await adapter.createLink({
+      id: uuid(),
+      parentSeriesId: parentId,
+      childSeriesId: childId,
+      targetDistance: options.distance || 0,
+      earlyWobble: options.earlyWobble ?? 0,
+      lateWobble: options.lateWobble ?? 0,
+    })
     await triggerReflow()
   }
 
@@ -1300,7 +1511,8 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         if (idx >= 0) parentChildren.splice(idx, 1)
       }
       links.delete(childId)
-      if (adapter.deleteLink) await adapter.deleteLink(childId)
+      const adapterLink = await adapter.getLinkByChild(childId)
+      if (adapterLink) await adapter.deleteLink(adapterLink.id)
     }
     await triggerReflow()
   }
@@ -1311,14 +1523,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const id = uuid()
     const data = { id, ...constraint }
     constraints.set(id, data)
-    if (adapter.saveConstraint) await adapter.saveConstraint(data)
+    await adapter.createRelationalConstraint(data as any)
     await triggerReflow()
     return id
   }
 
   async function removeConstraint(id: string): Promise<void> {
     constraints.delete(id)
-    if (adapter.deleteConstraint) await adapter.deleteConstraint(id)
+    await adapter.deleteRelationalConstraint(id)
     await triggerReflow()
   }
 
@@ -1329,7 +1541,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   // ========== Instance Operations ==========
 
   async function getInstance(seriesId: string, date: LocalDate): Promise<any> {
-    const s = await adapter.getSeries(seriesId)
+    const s = await getFullSeries(seriesId)
     if (!s) return null
 
     const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
@@ -1368,7 +1580,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function cancelInstance(seriesId: string, date: LocalDate): Promise<void> {
-    const s = await adapter.getSeries(seriesId)
+    const s = await getFullSeries(seriesId)
     if (!s) throw new NotFoundError(`Series ${seriesId} not found`)
 
     const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
@@ -1388,12 +1600,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
 
     exceptions.set(exKey, { seriesId, date, type: 'cancelled' })
-    if (adapter.saveException) await adapter.saveException({ seriesId, date, type: 'cancelled' })
+    await adapter.createInstanceException({
+      id: uuid(), seriesId, originalDate: date, type: 'cancelled',
+    } as any)
     await triggerReflow()
   }
 
   async function rescheduleInstance(seriesId: string, date: LocalDate, newTime: LocalDateTime): Promise<void> {
-    const s = await adapter.getSeries(seriesId)
+    const s = await getFullSeries(seriesId)
     if (!s) throw new NotFoundError(`Series ${seriesId} not found`)
 
     const exKey = `${seriesId}:${date}`
@@ -1405,7 +1619,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     // Chain bounds validation
     const link = links.get(seriesId)
     if (link) {
-      const parentSeries = await adapter.getSeries(link.parentId)
+      const parentSeries = await getFullSeries(link.parentId)
       if (parentSeries) {
         const parentEnd = getParentEndTime(parentSeries, link.parentId, date)
         if (parentEnd) {
@@ -1421,14 +1635,16 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
 
     exceptions.set(exKey, { seriesId, date, type: 'rescheduled', newTime })
-    if (adapter.saveException) await adapter.saveException({ seriesId, date, type: 'rescheduled', newTime })
+    await adapter.createInstanceException({
+      id: uuid(), seriesId, originalDate: date, type: 'rescheduled', newDate: newTime,
+    } as any)
     await triggerReflow()
   }
 
   // ========== Completions ==========
 
   async function logCompletion(seriesId: string, date: LocalDate, options?: any): Promise<string> {
-    const s = await adapter.getSeries(seriesId)
+    const s = await getFullSeries(seriesId)
     if (!s) throw new NotFoundError(`Series ${seriesId} not found`)
 
     const key = `${seriesId}:${date}`
@@ -1450,17 +1666,22 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if (!completionsBySeries.has(seriesId)) completionsBySeries.set(seriesId, [])
     completionsBySeries.get(seriesId)!.push(id)
 
-    if (adapter.saveCompletion) await adapter.saveCompletion(completion)
+    await adapter.createCompletion({
+      id,
+      seriesId,
+      instanceDate: date,
+      date,
+      startTime: options?.startTime,
+      endTime: options?.endTime,
+    } as any)
     await triggerReflow()
     return id
   }
 
   async function getCompletions(seriesId: string): Promise<any[]> {
     // Try adapter first for persistence support
-    if (adapter.getCompletionsBySeries) {
-      const fromAdapter = await adapter.getCompletionsBySeries(seriesId)
-      if (fromAdapter && fromAdapter.length > 0) return fromAdapter
-    }
+    const fromAdapter = await adapter.getCompletionsBySeries(seriesId)
+    if (fromAdapter && fromAdapter.length > 0) return fromAdapter
     // Fallback to local state
     const ids = completionsBySeries.get(seriesId) || []
     return ids.map(id => completions.get(id)).filter(Boolean)
@@ -1477,7 +1698,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         if (idx >= 0) seriesIds.splice(idx, 1)
       }
       completions.delete(id)
-      if (adapter.deleteCompletion) await adapter.deleteCompletion(id)
+      await adapter.deleteCompletion(id)
     }
     await triggerReflow()
   }
@@ -1513,7 +1734,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if (!remindersBySeriesMap.has(seriesId)) remindersBySeriesMap.set(seriesId, [])
     remindersBySeriesMap.get(seriesId)!.push(id)
 
-    if (adapter.saveReminder) await adapter.saveReminder(reminder)
+    await adapter.createReminder({
+      id,
+      seriesId,
+      minutesBefore: typeof options.offset === 'number' ? options.offset : 0,
+      label: options.type || '',
+    })
     return id
   }
 
@@ -1522,7 +1748,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const asOfDate = dateOf(asOf)
 
     for (const [id, reminder] of reminders) {
-      const s = await adapter.getSeries(reminder.seriesId)
+      const s = await getFullSeries(reminder.seriesId)
       if (!s) continue
 
       const acks = reminderAcks.get(id) || new Set()
@@ -1588,7 +1814,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
     const reminder = reminders.get(id)
     if (reminder) {
-      const s = await adapter.getSeries(reminder.seriesId)
+      const s = await getFullSeries(reminder.seriesId)
       if (s) {
         const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
         for (const pattern of s.patterns) {
@@ -1610,7 +1836,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function getActiveConditions(seriesId: string, date: LocalDate): Promise<any[]> {
-    const s = await adapter.getSeries(seriesId)
+    const s = await getFullSeries(seriesId)
     if (!s) return []
 
     const active: any[] = []
@@ -1639,43 +1865,39 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
   async function hydrate(): Promise<void> {
     // Hydrate links
-    if (typeof adapter.getAllLinks === 'function') {
-      const allLinks = await adapter.getAllLinks()
-      for (const l of allLinks) {
-        if (!links.has(l.childId)) {
-          links.set(l.childId, l)
-          if (!linksByParent.has(l.parentId)) linksByParent.set(l.parentId, [])
-          if (!linksByParent.get(l.parentId)!.includes(l.childId)) {
-            linksByParent.get(l.parentId)!.push(l.childId)
-          }
+    const allLinks = await adapter.getAllLinks()
+    for (const l of allLinks) {
+      const childId = (l as any).childId ?? l.childSeriesId
+      const parentId = (l as any).parentId ?? l.parentSeriesId
+      if (!links.has(childId)) {
+        links.set(childId, { parentId, childId, distance: (l as any).distance ?? l.targetDistance, earlyWobble: l.earlyWobble, lateWobble: l.lateWobble })
+        if (!linksByParent.has(parentId)) linksByParent.set(parentId, [])
+        if (!linksByParent.get(parentId)!.includes(childId)) {
+          linksByParent.get(parentId)!.push(childId)
         }
       }
     }
 
     // Hydrate completions
-    if (typeof adapter.getAllCompletions === 'function') {
-      const allComps = await adapter.getAllCompletions()
-      for (const c of allComps) {
-        if (!completions.has(c.id)) {
-          completions.set(c.id, c)
-          const dateKey = `${c.seriesId}:${c.date ?? c.instanceDate}`
-          completionsByKey.set(dateKey, c.id)
-          if (!completionsBySeries.has(c.seriesId)) completionsBySeries.set(c.seriesId, [])
-          if (!completionsBySeries.get(c.seriesId)!.includes(c.id)) {
-            completionsBySeries.get(c.seriesId)!.push(c.id)
-          }
+    const allComps = await adapter.getAllCompletions()
+    for (const c of allComps) {
+      if (!completions.has(c.id)) {
+        completions.set(c.id, c)
+        const dateKey = `${c.seriesId}:${c.date ?? c.instanceDate}`
+        completionsByKey.set(dateKey, c.id)
+        if (!completionsBySeries.has(c.seriesId)) completionsBySeries.set(c.seriesId, [])
+        if (!completionsBySeries.get(c.seriesId)!.includes(c.id)) {
+          completionsBySeries.get(c.seriesId)!.push(c.id)
         }
       }
     }
 
     // Hydrate exceptions
-    if (typeof adapter.getAllExceptions === 'function') {
-      const allExceptions = await adapter.getAllExceptions()
-      for (const e of allExceptions) {
-        const key = `${e.seriesId}:${e.instanceDate}`
-        if (!exceptions.has(key)) {
-          exceptions.set(key, e)
-        }
+    const allExceptions = await adapter.getAllExceptions()
+    for (const e of allExceptions) {
+      const key = `${e.seriesId}:${(e as any).instanceDate ?? e.originalDate}`
+      if (!exceptions.has(key)) {
+        exceptions.set(key, e)
       }
     }
   }
