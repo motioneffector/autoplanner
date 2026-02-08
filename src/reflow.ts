@@ -180,7 +180,7 @@ export function generateInstances(input: ReflowInput): Instance[] {
         duration: s.duration,
         daysBefore: s.daysBefore ?? 0,
         daysAfter: s.daysAfter ?? 0,
-        timeWindow: s.timeWindow,
+        ...(s.timeWindow ? { timeWindow: s.timeWindow } : {}),
         allDay: s.allDay ?? false,
       }
 
@@ -531,7 +531,7 @@ function backtrack(
     return new Map(assignment)
   }
 
-  const inst = instances[index]
+  const inst = instances[index]!
   const domain = domains.get(inst) || []
   const sortedValues = sortByValueOrdering(domain, inst, workload)
 
@@ -649,7 +649,7 @@ export function handleNoSolution(
             Math.abs(minutesBetween(inst.idealTime, a)) - Math.abs(minutesBetween(inst.idealTime, b))
           )
         : domain
-      assignments.set(inst, sorted[0])
+      assignments.set(inst, sorted[0]!)
     } else if (inst.idealTime) {
       assignments.set(inst, inst.idealTime)
     }
@@ -659,8 +659,8 @@ export function handleNoSolution(
   const placed = [...assignments.entries()]
   for (let i = 0; i < placed.length; i++) {
     for (let j = i + 1; j < placed.length; j++) {
-      const [instA, timeA] = placed[i]
-      const [instB, timeB] = placed[j]
+      const [instA, timeA] = placed[i]!
+      const [instB, timeB] = placed[j]!
       if (!checkNoOverlap(timeA, getDur(instA) as Duration, timeB, getDur(instB) as Duration)) {
         conflicts.push({
           type: 'overlap',
@@ -740,7 +740,7 @@ export function reflow(input: ReflowInput): ReflowOutput {
   // Auto-generate noOverlap between all timed pairs
   for (let i = 0; i < timedInstances.length; i++) {
     for (let j = i + 1; j < timedInstances.length; j++) {
-      constraints.push({ type: 'noOverlap', instances: [timedInstances[i], timedInstances[j]] })
+      constraints.push({ type: 'noOverlap', instances: [timedInstances[i]!, timedInstances[j]!] })
     }
   }
 

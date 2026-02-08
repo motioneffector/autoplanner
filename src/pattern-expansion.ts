@@ -85,7 +85,10 @@ export function weekly(): Pattern {
 
 export function everyNWeeks(n: number, weekday?: Weekday): Pattern {
   if (n < 1) throw new InvalidPatternError(`everyNWeeks requires n >= 1, got ${n}`)
-  return { type: 'everyNWeeks', n, weekday }
+  if (weekday !== undefined) {
+    return { type: 'everyNWeeks', n, weekday }
+  }
+  return { type: 'everyNWeeks', n }
 }
 
 export function monthly(day: number): Pattern {

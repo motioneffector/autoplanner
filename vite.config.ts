@@ -5,13 +5,16 @@ import { resolve } from 'path'
 
 export default defineConfig({
   plugins: [
-    dts({ include: ['src'] })
+    dts({ include: ['src'], rollupTypes: true })
   ],
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       formats: ['es'],
       fileName: 'index'
+    },
+    rollupOptions: {
+      external: ['better-sqlite3']
     }
   },
   test: {

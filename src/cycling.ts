@@ -53,15 +53,15 @@ export function getCyclingItem(
   if (mode === 'sequential') {
     if (gapLeap) {
       const index = config.currentIndex ?? 0
-      return items[index % items.length]
+      return items[index % items.length]!
     } else {
-      return items[opts.instanceNumber % items.length]
+      return items[opts.instanceNumber % items.length]!
     }
   } else {
     // random mode
     const seed = gapLeap ? (config.currentIndex ?? 0) : opts.instanceNumber
     const index = seededIndex(seed, items.length)
-    return items[index]
+    return items[index]!
   }
 }
 

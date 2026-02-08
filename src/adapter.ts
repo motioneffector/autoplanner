@@ -310,10 +310,10 @@ export function createMockAdapter(): Adapter {
   }
 
   function durationMinutes(start: string, end: string): number {
-    const [sd, st] = start.split('T')
-    const [ed, et] = end.split('T')
-    const [sh, sm] = st.split(':').map(Number)
-    const [eh, em] = et.split(':').map(Number)
+    const [sd, st] = start.split('T') as [string, string]
+    const [ed, et] = end.split('T') as [string, string]
+    const [sh, sm] = st.split(':').map(Number) as [number, number]
+    const [eh, em] = et.split(':').map(Number) as [number, number]
     const days = daysBetween(sd as LocalDate, ed as LocalDate)
     return days * 1440 + (eh - sh) * 60 + (em - sm)
   }
@@ -385,7 +385,7 @@ export function createMockAdapter(): Adapter {
   }
 
   // ---- Adapter implementation ----
-  const adapter: Adapter = {
+  const adapter = {
     // ================================================================
     // Transaction
     // ================================================================

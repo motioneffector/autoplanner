@@ -346,12 +346,11 @@ export async function createSeries(
   if (input.patterns) {
     for (const p of input.patterns) {
       await adapter.createPattern({
+        ...p,
         id: crypto.randomUUID(),
         seriesId: id,
-        type: p.type,
         conditionId: null,
-        ...p,
-      })
+      } as any)
     }
   }
 

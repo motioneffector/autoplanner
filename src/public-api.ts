@@ -240,7 +240,7 @@ export { createSqliteAdapter } from './sqlite-adapter'
 const WEEKDAY_NAMES: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 
 function numToWeekday(n: number): Weekday {
-  return WEEKDAY_NAMES[((n % 7) + 7) % 7]
+  return WEEKDAY_NAMES[((n % 7) + 7) % 7]!
 }
 
 function dayOfWeekNum(date: LocalDate): number {
@@ -289,7 +289,7 @@ function resolveTimeForDate(dateStr: LocalDate, timeStr: LocalTime, tz: string):
   const y = yearOf(dateStr)
   const mo = monthOf(dateStr)
   const d = dayOf(dateStr)
-  const [hS, mS, sS] = (normalized as string).split(':')
+  const [hS, mS, sS] = (normalized as string).split(':') as [string, string, string]
   const h = parseInt(hS), m = parseInt(mS), s = parseInt(sS || '0')
 
   // Get offset at noon (safe from DST edges)
@@ -343,7 +343,10 @@ function toExpandablePattern(p: any, seriesStart: LocalDate): Pattern {
       return { type: 'weekly' }
     case 'everyNWeeks': {
       const weekday = typeof p.weekday === 'number' ? numToWeekday(p.weekday) : p.weekday
-      return { type: 'everyNWeeks', n: p.n || 2, weekday }
+      if (weekday !== undefined) {
+        return { type: 'everyNWeeks', n: p.n || 2, weekday }
+      }
+      return { type: 'everyNWeeks', n: p.n || 2 }
     }
     case 'weekdays': {
       // Accept both string weekdays ('mon') and numeric (1 = Mon)
@@ -975,8 +978,8 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const fixedInstances = instances.filter(i => i.fixed && !i.allDay)
     for (let i = 0; i < fixedInstances.length; i++) {
       for (let j = i + 1; j < fixedInstances.length; j++) {
-        const a = fixedInstances[i]
-        const b = fixedInstances[j]
+        const a = fixedInstances[i]!
+        const b = fixedInstances[j]!
         if (a.date !== b.date) continue
         if (a.seriesId === b.seriesId) continue
 
@@ -1045,8 +1048,8 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           }
           const sortedDates = [...dateSeriesMap.keys()].sort()
           for (let i = 0; i < sortedDates.length - 1; i++) {
-            const d1 = sortedDates[i]
-            const d2 = sortedDates[i + 1]
+            const d1 = sortedDates[i]!
+            const d2 = sortedDates[i + 1]!
             const daysDiff = daysBetween(d1 as LocalDate, d2 as LocalDate)
             if (daysDiff === 1) {
               const series1 = dateSeriesMap.get(d1)!

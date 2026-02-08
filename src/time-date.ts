@@ -49,7 +49,7 @@ export function isLeapYear(year: number): boolean {
 export function daysInMonth(year: number, month: number): number {
   const days = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
   if (month === 2 && isLeapYear(year)) return 29
-  return days[month]
+  return days[month]!
 }
 
 export function daysInYear(year: number): number {
@@ -107,9 +107,9 @@ export function parseDate(str: string): Result<LocalDate, ParseError> {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str)
   if (!match) return Err(new ParseError(`Invalid date format: '${str}'`))
 
-  const year = parseInt(match[1], 10)
-  const month = parseInt(match[2], 10)
-  const day = parseInt(match[3], 10)
+  const year = parseInt(match[1]!, 10)
+  const month = parseInt(match[2]!, 10)
+  const day = parseInt(match[3]!, 10)
 
   if (month < 1 || month > 12)
     return Err(new ParseError(`Invalid month in date: '${str}'`))
@@ -123,8 +123,8 @@ export function parseTime(str: string): Result<LocalTime, ParseError> {
   const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(str)
   if (!match) return Err(new ParseError(`Invalid time format: '${str}'`))
 
-  const hour = parseInt(match[1], 10)
-  const minute = parseInt(match[2], 10)
+  const hour = parseInt(match[1]!, 10)
+  const minute = parseInt(match[2]!, 10)
   const second = match[3] ? parseInt(match[3], 10) : 0
 
   if (hour > 23)
@@ -288,7 +288,7 @@ export function dayOfWeek(date: LocalDate): Weekday {
   // JDN 0 = Monday (Julian day 0 is Mon Jan 1, 4713 BC)
   // 1970-01-01 JDN = 2440588 → 2440588 mod 7 = 3 → thu (index 3)
   const idx = ((jdn % 7) + 7) % 7
-  return WEEKDAYS[idx]
+  return WEEKDAYS[idx]!
 }
 
 export function weekdayToIndex(w: Weekday): number {
@@ -296,7 +296,7 @@ export function weekdayToIndex(w: Weekday): number {
 }
 
 export function indexToWeekday(i: number): Weekday {
-  return WEEKDAYS[i]
+  return WEEKDAYS[i]!
 }
 
 // ============================================================================

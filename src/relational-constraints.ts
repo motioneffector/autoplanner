@@ -313,8 +313,8 @@ async function areAdjacentOnDate(
 
   // Check if any source and dest are adjacent in sorted order
   for (let i = 0; i < allInstances.length - 1; i++) {
-    const curr = allInstances[i]
-    const next = allInstances[i + 1]
+    const curr = allInstances[i]!
+    const next = allInstances[i + 1]!
 
     if (
       (sourceIds.has(curr.seriesId) && destIds.has(next.seriesId)) ||
