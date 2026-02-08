@@ -100,8 +100,8 @@ const SCHEMA_SQL = `
     series_id TEXT NOT NULL REFERENCES series(id) ON DELETE RESTRICT,
     instance_date TEXT NOT NULL,
     date TEXT NOT NULL,
-    start_time TEXT NOT NULL,
-    end_time TEXT NOT NULL,
+    start_time TEXT,
+    end_time TEXT,
     UNIQUE(series_id, instance_date)
   );
   CREATE INDEX IF NOT EXISTS idx_completion_series ON completion(series_id);

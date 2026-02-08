@@ -2031,4 +2031,452 @@ describe('Segment 16: Integration Tests', () => {
       if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
     });
   });
+
+  // ==========================================================================
+  // 10. Fat-Series Assembly Regression Tests
+  //
+  // Canary tests for the loadFullSeries → buildSchedule pipeline.
+  // Each test exercises a specific feature that flows through the fat-series
+  // object and verifies it appears correctly in getSchedule output.
+  // If any field is dropped or misassembled during adapter unification,
+  // these tests will fail loudly.
+  // ==========================================================================
+
+  describe('Fat-Series Assembly Regression', () => {
+
+    it('kitchen sink: all features produce correct schedule instances', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      // Series with EVERY feature exercised:
+      // - Multiple pattern types (everyNDays + weekdays)
+      // - Fixed time flag
+      // - Weekdays array on pattern
+      // - Tags
+      // - Cycling (sequential, gapLeap)
+      // - Condition tree (completionCount gate on second pattern)
+      const mainId = await planner.createSeries({
+        title: 'Kitchen Sink',
+        startDate: date('2026-03-02'), // Monday
+        patterns: [
+          // Pattern A: everyNDays, fixed time, no condition
+          { type: 'everyNDays', n: 2, time: time('08:00'), duration: minutes(30), fixed: true },
+          // Pattern B: weekdays with condition (needs >= 1 completion in last 14 days)
+          {
+            type: 'weekdays',
+            days: [1, 3, 5], // Mon, Wed, Fri
+            time: time('17:00'),
+            duration: minutes(60),
+            condition: {
+              type: 'completionCount',
+              seriesRef: 'self',
+              windowDays: 14,
+              comparison: 'greaterOrEqual',
+              value: 1,
+            },
+          },
+        ],
+        tags: ['canary', 'test'],
+        cycling: {
+          mode: 'sequential',
+          items: ['Alpha', 'Beta', 'Gamma'],
+          gapLeap: true,
+        },
+      });
+
+      // --- Without completions: condition blocks Pattern B ---
+      const schedA = await planner.getSchedule(date('2026-03-02'), date('2026-03-09'));
+      // Pattern A (everyNDays, n=2, start Mar 2): Mar 2, 4, 6, 8
+      // Pattern B blocked (no completions → condition fails)
+      const mainInstances = schedA.instances.filter(i => i.seriesId === mainId);
+      expect(mainInstances.length).toBe(4);
+      // All from Pattern A: fixed time at 08:00
+      expect(mainInstances.every(i => (i.time as string).includes('08:00'))).toBe(true);
+      expect(mainInstances.every(i => i.fixed === true)).toBe(true);
+      // Cycling: gapLeap + no completions → all show first item
+      expect(mainInstances.every(i => i.title.includes('Alpha'))).toBe(true);
+
+      // --- Log a completion to activate Pattern B and advance cycling ---
+      await planner.logCompletion(mainId, date('2026-03-02'));
+
+      const schedB = await planner.getSchedule(date('2026-03-02'), date('2026-03-09'));
+      const mainInstancesB = schedB.instances.filter(i => i.seriesId === mainId);
+      // Pattern A still: Mar 2, 4, 6, 8 = 4 instances
+      // Pattern B now active: Mon=2, Wed=4, Fri=6 = 3 instances in Mar 2-8
+      // Total: 7 (some dates have both patterns)
+      expect(mainInstancesB.length).toBe(7);
+
+      // Check Pattern B instances exist at 17:00
+      const eveningInstances = mainInstancesB.filter(
+        i => (i.time as string).includes('17:00')
+      );
+      expect(eveningInstances.length).toBe(3); // Mon, Wed, Fri
+
+      // Pattern B instances should NOT have fixed flag (it wasn't set)
+      expect(eveningInstances.every(i => !i.fixed)).toBe(true);
+
+      // After 1 completion with gapLeap, cycling advances to Beta
+      expect(mainInstancesB.every(i => i.title.includes('Beta'))).toBe(true);
+
+      // Verify tags stored correctly
+      const retrieved = await planner.getSeries(mainId);
+      expect(retrieved.tags).toContain('canary');
+      expect(retrieved.tags).toContain('test');
+      expect(retrieved.tags).toHaveLength(2);
+
+      // Verify cycling config stored correctly
+      expect(retrieved.cycling).toMatchObject({ mode: 'sequential', gapLeap: true });
+    });
+
+    it('all-day pattern produces allDay instances without time-of-day', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      const id = await planner.createSeries({
+        title: 'All Day Event',
+        startDate: date('2026-04-01'),
+        patterns: [
+          { type: 'daily', allDay: true, duration: minutes(0) },
+        ],
+      });
+
+      const sched = await planner.getSchedule(date('2026-04-01'), date('2026-04-04'));
+      const instances = sched.instances.filter(i => i.seriesId === id);
+      expect(instances).toHaveLength(3);
+      expect(instances.every(i => i.allDay === true)).toBe(true);
+      // All-day instances have time set to midnight
+      expect(instances.every(i => (i.time as string).includes('00:00'))).toBe(true);
+    });
+
+    it('adaptive duration overrides pattern duration from completion history', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      const id = await planner.createSeries({
+        title: 'Adaptive Task',
+        startDate: date('2026-05-01'),
+        patterns: [{ type: 'daily', time: time('10:00'), duration: minutes(30) }],
+        adaptiveDuration: {
+          fallback: minutes(30),
+          mode: 'lastN',
+          lastN: 3,
+          multiplier: 1.0,
+        },
+      });
+
+      // Before completions: should use fallback (30)
+      const sched1 = await planner.getSchedule(date('2026-05-01'), date('2026-05-02'));
+      expect(sched1.instances[0].duration).toBe(30);
+
+      // Log completions with known durations: 40, 50, 60 minutes
+      await planner.logCompletion(id, date('2026-05-01'), {
+        startTime: datetime('2026-05-01T10:00:00'),
+        endTime: datetime('2026-05-01T10:40:00'),
+      });
+      await planner.logCompletion(id, date('2026-05-02'), {
+        startTime: datetime('2026-05-02T10:00:00'),
+        endTime: datetime('2026-05-02T10:50:00'),
+      });
+      await planner.logCompletion(id, date('2026-05-03'), {
+        startTime: datetime('2026-05-03T10:00:00'),
+        endTime: datetime('2026-05-03T11:00:00'),
+      });
+
+      // After completions: average of last 3 = (40+50+60)/3 = 50, multiplier 1.0 = 50
+      const sched2 = await planner.getSchedule(date('2026-05-04'), date('2026-05-05'));
+      expect(sched2.instances[0].duration).toBe(50);
+    });
+
+    it('chain link shifts child start time by distance', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        startDate: date('2026-06-01'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(60), fixed: true }],
+      });
+
+      const childId = await planner.createSeries({
+        title: 'Child',
+        startDate: date('2026-06-01'),
+        patterns: [{ type: 'daily', time: time('11:00'), duration: minutes(30) }],
+      });
+
+      await planner.linkSeries(parentId, childId, { distance: 15 });
+
+      // Log parent completion so chain adjustment has data
+      await planner.logCompletion(parentId, date('2026-06-01'), {
+        startTime: datetime('2026-06-01T09:00:00'),
+        endTime: datetime('2026-06-01T10:00:00'),
+      });
+
+      const sched = await planner.getSchedule(date('2026-06-01'), date('2026-06-02'));
+      const childInst = sched.instances.find(i => i.seriesId === childId);
+      expect(childInst).toBeDefined();
+      // Parent ends at 10:00 + 15 min distance = 10:15
+      expect((childInst!.time as string)).toContain('10:15');
+    });
+
+    it('cancelled exception removes instance, schedule reflects it', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      const id = await planner.createSeries({
+        title: 'Cancellable',
+        startDate: date('2026-07-01'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+      });
+
+      // Cancel July 2
+      await planner.cancelInstance(id, date('2026-07-02'));
+
+      const sched = await planner.getSchedule(date('2026-07-01'), date('2026-07-04'));
+      const instances = sched.instances.filter(i => i.seriesId === id);
+      // Should have July 1 and July 3 (July 2 cancelled)
+      expect(instances).toHaveLength(2);
+      const dates = instances.map(i => i.date as string);
+      expect(dates).toContain('2026-07-01');
+      expect(dates).toContain('2026-07-03');
+      expect(dates).not.toContain('2026-07-02');
+    });
+
+    it('mustBeBefore constraint produces conflict when violated', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      const earlyId = await planner.createSeries({
+        title: 'Should Be First',
+        startDate: date('2026-08-01'),
+        patterns: [{ type: 'daily', time: time('15:00'), duration: minutes(30), fixed: true }],
+      });
+
+      const lateId = await planner.createSeries({
+        title: 'Should Be Second',
+        startDate: date('2026-08-01'),
+        patterns: [{ type: 'daily', time: time('10:00'), duration: minutes(30), fixed: true }],
+      });
+
+      // earlyId must be before lateId, but lateId is at 10:00 and earlyId at 15:00 → violation
+      await planner.addConstraint({
+        type: 'mustBeBefore',
+        firstSeries: earlyId,
+        secondSeries: lateId,
+      });
+
+      const sched = await planner.getSchedule(date('2026-08-01'), date('2026-08-02'));
+      // Should detect constraint violation as a conflict
+      expect(sched.conflicts.length).toBeGreaterThan(0);
+      const violation = sched.conflicts.find(c =>
+        c.type === 'constraintViolation' || c.type === 'mustBeBefore'
+      );
+      expect(violation).toBeDefined();
+    });
+
+    it('nested condition tree (and/or/not) gates pattern correctly', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      // Series with a compound condition:
+      // (completionCount >= 2 in 14 days) AND (NOT (completionCount >= 5 in 14 days))
+      // = "active when 2-4 completions in the last 14 days"
+      const id = await planner.createSeries({
+        title: 'Condition Tree',
+        startDate: date('2026-09-01'),
+        patterns: [
+          {
+            type: 'daily',
+            time: time('09:00'),
+            duration: minutes(30),
+            condition: {
+              type: 'and',
+              conditions: [
+                { type: 'completionCount', seriesRef: 'self', windowDays: 14, comparison: 'greaterOrEqual', value: 2 },
+                { type: 'not', condition: { type: 'completionCount', seriesRef: 'self', windowDays: 14, comparison: 'greaterOrEqual', value: 5 } },
+              ],
+            },
+          },
+        ],
+      });
+
+      // 0 completions → pattern inactive
+      let sched = await planner.getSchedule(date('2026-09-15'), date('2026-09-16'));
+      expect(sched.instances.filter(i => i.seriesId === id)).toHaveLength(0);
+
+      // 2 completions → pattern active
+      await planner.logCompletion(id, date('2026-09-10'));
+      await planner.logCompletion(id, date('2026-09-12'));
+      sched = await planner.getSchedule(date('2026-09-15'), date('2026-09-16'));
+      expect(sched.instances.filter(i => i.seriesId === id)).toHaveLength(1);
+
+      // 5 completions → NOT clause triggers, pattern inactive again
+      await planner.logCompletion(id, date('2026-09-13'));
+      await planner.logCompletion(id, date('2026-09-14'));
+      await planner.logCompletion(id, date('2026-09-15'));
+      sched = await planner.getSchedule(date('2026-09-16'), date('2026-09-17'));
+      expect(sched.instances.filter(i => i.seriesId === id)).toHaveLength(0);
+    });
+
+    it('series endDate truncates schedule instances', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      const id = await planner.createSeries({
+        title: 'Ends Early',
+        startDate: date('2026-10-01'),
+        endDate: date('2026-10-03'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+      });
+
+      // Request wider range than series allows
+      const sched = await planner.getSchedule(date('2026-10-01'), date('2026-10-06'));
+      const instances = sched.instances.filter(i => i.seriesId === id);
+      // Should only have Oct 1, 2, 3
+      expect(instances).toHaveLength(3);
+      expect(instances.every(i => (i.date as string) <= '2026-10-03')).toBe(true);
+    });
+
+    it('multiple pattern types on same series produce combined instances', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      const id = await planner.createSeries({
+        title: 'Multi-Pattern',
+        startDate: date('2026-11-02'), // Monday
+        patterns: [
+          // Morning daily
+          { type: 'daily', time: time('07:00'), duration: minutes(15) },
+          // Evening MWF
+          { type: 'weekdays', days: [1, 3, 5], time: time('18:00'), duration: minutes(45) },
+        ],
+      });
+
+      // Mon Nov 2 - Fri Nov 6 (5 days)
+      const sched = await planner.getSchedule(date('2026-11-02'), date('2026-11-07'));
+      const instances = sched.instances.filter(i => i.seriesId === id);
+      // Daily = 5 (Mon-Fri), MWF = 3 (Mon, Wed, Fri) → total 8
+      expect(instances).toHaveLength(8);
+
+      const morningCount = instances.filter(i => (i.time as string).includes('07:00')).length;
+      const eveningCount = instances.filter(i => (i.time as string).includes('18:00')).length;
+      expect(morningCount).toBe(5);
+      expect(eveningCount).toBe(3);
+    });
+
+    it('cycling gapLeap only advances on completion, not on instance', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      const id = await planner.createSeries({
+        title: 'GapLeap Cycling',
+        startDate: date('2026-12-01'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+        cycling: { mode: 'sequential', items: ['X', 'Y', 'Z'], gapLeap: true },
+      });
+
+      // Before any completion: all instances show first item
+      let sched = await planner.getSchedule(date('2026-12-01'), date('2026-12-04'));
+      let titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
+      expect(titles.every(t => t.includes('X'))).toBe(true);
+
+      // Complete once → advances to Y
+      await planner.logCompletion(id, date('2026-12-01'));
+      sched = await planner.getSchedule(date('2026-12-02'), date('2026-12-05'));
+      titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
+      expect(titles.every(t => t.includes('Y'))).toBe(true);
+
+      // Complete again → advances to Z
+      await planner.logCompletion(id, date('2026-12-02'));
+      sched = await planner.getSchedule(date('2026-12-03'), date('2026-12-06'));
+      titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
+      expect(titles.every(t => t.includes('Z'))).toBe(true);
+
+      // Complete again → wraps back to X
+      await planner.logCompletion(id, date('2026-12-03'));
+      sched = await planner.getSchedule(date('2026-12-04'), date('2026-12-07'));
+      titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
+      expect(titles.every(t => t.includes('X'))).toBe(true);
+    });
+
+    it('schedule instances are sorted by time', async () => {
+      const planner = await createTestPlanner('UTC');
+
+      await planner.createSeries({
+        title: 'Evening',
+        startDate: date('2027-01-01'),
+        patterns: [{ type: 'daily', time: time('20:00'), duration: minutes(30) }],
+      });
+
+      await planner.createSeries({
+        title: 'Morning',
+        startDate: date('2027-01-01'),
+        patterns: [{ type: 'daily', time: time('06:00'), duration: minutes(30) }],
+      });
+
+      await planner.createSeries({
+        title: 'Afternoon',
+        startDate: date('2027-01-01'),
+        patterns: [{ type: 'daily', time: time('14:00'), duration: minutes(30) }],
+      });
+
+      const sched = await planner.getSchedule(date('2027-01-01'), date('2027-01-02'));
+      const times = sched.instances.map(i => i.time as string);
+      const sorted = [...times].sort();
+      expect(times).toEqual(sorted);
+      // First should be morning
+      expect(sched.instances[0].title).toBe('Morning');
+    });
+
+    it('sqlite adapter round-trip: full-featured series survives persist → hydrate → buildSchedule', async () => {
+      const os = await import('node:os');
+      const path = await import('node:path');
+      const fs = await import('node:fs');
+      const tmpPath = path.join(os.tmpdir(), `autoplanner-canary-${crypto.randomUUID()}.db`);
+
+      try {
+        const adapter = await createSqliteAdapter(tmpPath);
+        const planner = createAutoplanner({ adapter, timezone: 'UTC' });
+
+        const id = await planner.createSeries({
+          title: 'SQLite Canary',
+          startDate: date('2026-03-02'),
+          patterns: [
+            { type: 'everyNDays', n: 3, time: time('08:30'), duration: minutes(45), fixed: true },
+            { type: 'weekdays', days: [2, 4], time: time('16:00'), duration: minutes(90) },
+          ],
+          tags: ['sqlite', 'canary'],
+          cycling: { mode: 'sequential', items: ['Step 1', 'Step 2'], gapLeap: true },
+        });
+
+        // Log a completion to advance cycling
+        await planner.logCompletion(id, date('2026-03-02'));
+
+        // Get schedule from original planner
+        const sched1 = await planner.getSchedule(date('2026-03-02'), date('2026-03-09'));
+        const count1 = sched1.instances.filter(i => i.seriesId === id).length;
+        expect(count1).toBeGreaterThan(0);
+
+        await adapter.close();
+
+        // Reopen from disk — full hydrate path
+        const adapter2 = await createSqliteAdapter(tmpPath);
+        const planner2 = createAutoplanner({ adapter: adapter2, timezone: 'UTC' });
+
+        // Verify fat series reconstructed correctly
+        const restored = await planner2.getSeries(id);
+        expect(restored.title).toBe('SQLite Canary');
+        expect(restored.patterns).toHaveLength(2);
+        expect(restored.tags).toContain('sqlite');
+        expect(restored.tags).toContain('canary');
+        expect(restored.cycling).toMatchObject({ mode: 'sequential', gapLeap: true });
+        expect(restored.cycling.items).toEqual(['Step 1', 'Step 2']);
+
+        // Verify pattern details survived
+        const everyNPat = restored.patterns.find((p: any) => p.type === 'everyNDays');
+        const weekdaysPat = restored.patterns.find((p: any) => p.type === 'weekdays');
+        expect(everyNPat).toMatchObject({ n: 3, time: '08:30', duration: 45, fixed: true });
+        expect(weekdaysPat).toMatchObject({ time: '16:00', duration: 90 });
+        expect(weekdaysPat.days).toEqual([2, 4]);
+
+        // Verify schedule produces same instance count after hydrate
+        const sched2 = await planner2.getSchedule(date('2026-03-02'), date('2026-03-09'));
+        const count2 = sched2.instances.filter(i => i.seriesId === id).length;
+        expect(count2).toBe(count1);
+
+        await adapter2.close();
+      } finally {
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+      }
+    });
+  });
 });
