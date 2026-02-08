@@ -93,5 +93,5 @@ export type {
   Autoplanner, AutoplannerConfig, Schedule,
   ScheduleInstance, PendingReminder,
 } from './public-api'
-export type { Conflict, Adapter as PublicAdapter } from './public-api'
+export type { Conflict } from './public-api'
 export { createAutoplanner } from './public-api'
