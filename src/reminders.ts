@@ -16,19 +16,8 @@ import { expandPattern, toExpandablePattern } from './pattern-expansion'
 
 type ReminderResult<T> = { ok: true; value: T } | { ok: false; error: { type: string; message: string } }
 
-export type DomainReminder = {
-  id: string
-  seriesId: string
-  minutesBefore: number
-  tag: string
-}
-
-export type PendingReminder = {
-  reminderId: string
-  seriesId: string
-  instanceDate: LocalDate
-  tag: string
-}
+export type { DomainReminder, PendingReminder } from './domain-types'
+import type { DomainReminder, PendingReminder } from './domain-types'
 
 type CreateReminderInput = {
   seriesId: string

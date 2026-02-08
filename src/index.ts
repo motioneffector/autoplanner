@@ -34,6 +34,13 @@ export {
   toLocal, toUTC, isDSTAt,
 } from './time-date'
 
+// Domain types (canonical entity definitions)
+export type {
+  Target, ConditionTree,
+  DomainCompletion, DomainLink, DomainReminder, PendingReminder,
+  DomainException, Constraint, ConstraintViolation,
+} from './domain-types'
+
 // Branded ID types
 export type { Duration } from './core'
 export type {
@@ -87,7 +94,7 @@ export {
 } from './cycling'
 
 // Relational constraints
-export type { ConstraintTarget, Constraint, ConstraintViolation } from './relational-constraints'
+export type { ConstraintTarget } from './relational-constraints'
 export {
   addConstraint, getConstraint, getAllConstraints, deleteConstraint,
   resolveTarget, checkConstraint, getConstraintViolations,
@@ -104,7 +111,7 @@ export { reflow, generateInstances } from './reflow'
 // High-level API (wraps all modules into a stateful planner object)
 export type {
   Autoplanner, AutoplannerConfig, Schedule,
-  ScheduleInstance, PendingReminder,
+  ScheduleInstance,
 } from './public-api'
 export type { Conflict } from './public-api'
 export { createAutoplanner } from './public-api'

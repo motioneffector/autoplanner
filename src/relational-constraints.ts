@@ -19,24 +19,8 @@ import { expandPattern, toExpandablePattern } from './pattern-expansion'
 
 type ConstraintResult<T> = { ok: true; value: T } | { ok: false; error: { type: string; message: string } }
 
-export type ConstraintTarget =
-  | { type: 'seriesId'; seriesId: string }
-  | { type: 'tag'; tag: string }
-
-export type Constraint = {
-  id: string
-  type: string
-  source: ConstraintTarget
-  dest: ConstraintTarget
-  withinMinutes?: number
-}
-
-export type ConstraintViolation = {
-  sourceInstance: string
-  destInstance: string
-  description: string
-  date: LocalDate
-}
+export type { Target as ConstraintTarget, Constraint, ConstraintViolation } from './domain-types'
+import type { Target as ConstraintTarget, Constraint, ConstraintViolation } from './domain-types'
 
 type ConstraintInput = {
   type: string

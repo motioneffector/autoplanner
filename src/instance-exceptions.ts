@@ -16,13 +16,8 @@ import { expandPattern, toExpandablePattern } from './pattern-expansion'
 
 type ExceptionResult<T> = { ok: true; value: T } | { ok: false; error: { type: string; message: string } }
 
-export type DomainException = {
-  id: string
-  seriesId: string
-  instanceDate: LocalDate
-  type: 'cancelled' | 'rescheduled'
-  newTime?: LocalDateTime
-}
+export type { DomainException } from './domain-types'
+import type { DomainException } from './domain-types'
 
 // ============================================================================
 // Helpers

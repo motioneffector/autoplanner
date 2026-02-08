@@ -16,18 +16,8 @@ import { minutesBetween, daysBetween, addDays, parseDate, parseDateTime, ParseEr
 
 type CompletionResult<T> = { ok: true; value: T } | { ok: false; error: { type: string; message: string } }
 
-export type Target = { type: 'seriesId'; seriesId: string } | { type: 'tag'; tag: string }
-
-export type DomainCompletion = {
-  id: string
-  seriesId: string
-  date: LocalDate
-  instanceDate: LocalDate
-  startTime?: LocalDateTime
-  endTime?: LocalDateTime
-  durationMinutes?: number
-  createdAt: string
-}
+export type { Target, DomainCompletion } from './domain-types'
+import type { Target, DomainCompletion } from './domain-types'
 
 type LogInput = {
   seriesId: string

@@ -16,14 +16,8 @@ import { addMinutes, makeDateTime, makeTime } from './time-date'
 
 type LinkResult<T> = { ok: true; value: T } | { ok: false; error: { type: string; message: string } }
 
-export type DomainLink = {
-  id: string
-  parentSeriesId: string
-  childSeriesId: string
-  targetDistance: number
-  earlyWobble: number
-  lateWobble: number
-}
+export type { DomainLink } from './domain-types'
+import type { DomainLink } from './domain-types'
 
 type LinkInput = {
   parentSeriesId: string

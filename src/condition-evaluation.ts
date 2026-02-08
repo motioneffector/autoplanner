@@ -8,12 +8,12 @@
 import { type LocalDate, addDays, daysBetween } from './time-date'
 
 export type { LocalDate } from './time-date'
+export type { Target } from './domain-types'
+import type { Target } from './domain-types'
 
 // ============================================================================
 // Types
 // ============================================================================
-
-export type Target = { type: 'tag'; tag: string } | { type: 'seriesId'; seriesId: string }
 
 export type Completion = {
   seriesId: string
