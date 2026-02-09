@@ -393,10 +393,7 @@ function isArcConsistent(
   otherVal: LocalDateTime
 ): boolean {
   if (constraint.type === 'noOverlap') {
-    // One-directional: varVal_start NOT in [otherVal_start, otherVal_start + otherDur)
-    const otherDur = getDur(otherInst)
-    const otherEnd = addMinutes(otherVal, otherDur) as string
-    return !((varVal as string) >= (otherVal as string) && (varVal as string) < otherEnd)
+    return checkNoOverlap(varVal, getDur(varInst) as Duration, otherVal, getDur(otherInst) as Duration)
   }
 
   if (constraint.type === 'mustBeBefore') {
@@ -456,7 +453,8 @@ export function backtrackSearch(
   const sorted = sortByVariableOrdering(withDomains, domains)
 
   const assignment = new Map<Instance, LocalDateTime>()
-  const result = backtrack(sorted, 0, assignment, domains, constraints, options?.workload)
+  const iterations = { count: 0 }
+  const result = backtrack(sorted, 0, assignment, domains, constraints, options?.workload, iterations)
   return result
 }
 
@@ -519,14 +517,22 @@ function sortByValueOrdering(
   })
 }
 
+const MAX_BACKTRACK_ITERATIONS = 100_000
+
 function backtrack(
   instances: Instance[],
   index: number,
   assignment: Map<Instance, LocalDateTime>,
   domains: Map<Instance, LocalDateTime[]>,
   constraints: InternalConstraint[],
-  workload?: Map<string, number>
+  workload?: Map<string, number>,
+  iterations?: { count: number }
 ): Map<Instance, LocalDateTime> | null {
+  if (iterations) {
+    iterations.count++
+    if (iterations.count > MAX_BACKTRACK_ITERATIONS) return null
+  }
+
   if (index >= instances.length) {
     return new Map(assignment)
   }
@@ -538,7 +544,7 @@ function backtrack(
   for (const value of sortedValues) {
     if (isConsistentWithAssignment(inst, value, assignment, constraints)) {
       assignment.set(inst, value)
-      const result = backtrack(instances, index + 1, assignment, domains, constraints, workload)
+      const result = backtrack(instances, index + 1, assignment, domains, constraints, workload, iterations)
       if (result) return result
       assignment.delete(inst)
     }
@@ -637,19 +643,60 @@ export function handleNoSolution(
     }
   }
 
-  // Best-effort placement for flexible items
+  // Best-effort greedy placement for flexible items (overlap-aware)
   for (const inst of instances) {
     if (inst.fixed) continue
 
-    const domain = domains.get(inst)
-    if (domain && domain.length > 0) {
-      // Pick the first available slot (ideally closest to ideal)
+    // Use propagated domain if available, otherwise regenerate from timeWindow
+    let candidates = domains.get(inst)
+    if (!candidates || candidates.length === 0) {
+      // Domain was emptied by AC-3 cascade — regenerate from timeWindow
+      if (inst.timeWindow) {
+        const idealDate = (inst.idealTime as string).substring(0, 10)
+        const startH = parseInt((inst.timeWindow.start as string).substring(0, 2))
+        const startM = parseInt((inst.timeWindow.start as string).substring(3, 5))
+        const endH = parseInt((inst.timeWindow.end as string).substring(0, 2))
+        const endM = parseInt((inst.timeWindow.end as string).substring(3, 5))
+        candidates = []
+        let h = startH, m = startM
+        while (h < endH || (h === endH && m <= endM)) {
+          candidates.push(makeDateTime(idealDate as any, `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00` as any))
+          m += 5
+          if (m >= 60) { m -= 60; h++ }
+        }
+      } else if (inst.idealTime) {
+        candidates = [inst.idealTime]
+      }
+    }
+
+    if (candidates && candidates.length > 0) {
+      // Sort by proximity to ideal time
       const sorted = inst.idealTime
-        ? [...domain].sort((a, b) =>
+        ? [...candidates].sort((a, b) =>
             Math.abs(minutesBetween(inst.idealTime, a)) - Math.abs(minutesBetween(inst.idealTime, b))
           )
-        : domain
-      assignments.set(inst, sorted[0]!)
+        : candidates
+
+      // Pick first slot that doesn't overlap with already-placed items
+      let placed = false
+      for (const slot of sorted) {
+        let overlaps = false
+        for (const [placedInst, placedTime] of assignments) {
+          if (!checkNoOverlap(slot, getDur(inst) as Duration, placedTime, getDur(placedInst) as Duration)) {
+            overlaps = true
+            break
+          }
+        }
+        if (!overlaps) {
+          assignments.set(inst, slot)
+          placed = true
+          break
+        }
+      }
+      // If every slot overlaps, fall back to closest-to-ideal
+      if (!placed) {
+        assignments.set(inst, sorted[0]!)
+      }
     } else if (inst.idealTime) {
       assignments.set(inst, inst.idealTime)
     }

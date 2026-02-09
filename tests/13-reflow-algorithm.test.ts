@@ -1886,11 +1886,12 @@ describe('Segment 13: Reflow Algorithm', () => {
       expect(domainAfter).toBeDefined();
 
       // After propagation, domain should be reduced (fewer valid slots)
-      // Exactly 3 slots should remain (08:00, 08:30, 10:00)
-      expect(domainAfter).toHaveLength(3);
+      // Bidirectional overlap: B at 08:30 (60min, ends 09:30) overlaps A at 09:00
+      // Only 08:00 and 10:00 survive
+      expect(domainAfter).toHaveLength(2);
       expect(domainAfter).toContainEqual(datetime('2025-01-15T08:00:00'));
-      expect(domainAfter).toContainEqual(datetime('2025-01-15T08:30:00'));
       expect(domainAfter).toContainEqual(datetime('2025-01-15T10:00:00'));
+      expect(domainAfter).not.toContainEqual(datetime('2025-01-15T08:30:00'));
       expect(domainAfter).not.toContainEqual(datetime('2025-01-15T09:00:00'));
       expect(domainAfter).not.toContainEqual(datetime('2025-01-15T09:30:00'));
     });
