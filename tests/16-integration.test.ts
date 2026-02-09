@@ -2332,16 +2332,16 @@ describe('Segment 16: Integration Tests', () => {
       const id = await planner.createSeries({
         title: 'Ends Early',
         startDate: date('2026-10-01'),
-        endDate: date('2026-10-03'),
+        endDate: date('2026-10-04'), // exclusive: last valid day is Oct 3
         patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
       });
 
       // Request wider range than series allows
       const sched = await planner.getSchedule(date('2026-10-01'), date('2026-10-06'));
       const instances = sched.instances.filter(i => i.seriesId === id);
-      // Should only have Oct 1, 2, 3
+      // Should only have Oct 1, 2, 3 (endDate Oct 4 is exclusive)
       expect(instances).toHaveLength(3);
-      expect(instances.every(i => (i.date as string) <= '2026-10-03')).toBe(true);
+      expect(instances.every(i => (i.date as string) < '2026-10-04')).toBe(true);
     });
 
     it('multiple pattern types on same series produce combined instances', async () => {

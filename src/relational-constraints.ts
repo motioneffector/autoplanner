@@ -82,7 +82,7 @@ async function getInstanceInfo(
 
   // Check date bounds
   if (series.startDate && (date as string) < (series.startDate as string)) return null
-  if (series.endDate && (date as string) > (series.endDate as string)) return null
+  if (series.endDate && (date as string) >= (series.endDate as string)) return null
 
   // Expand patterns for this date
   const patterns = await adapter.getPatternsBySeries(seriesId)

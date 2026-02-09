@@ -291,7 +291,19 @@ describe('Precondition Validation (Create)', () => {
       await expect(createSeries(adapter, input)).rejects.toThrow(/Invalid startDate/)
     })
 
-    it('endDate equals startDate accepted', async () => {
+    it('endDate one day after startDate accepted (single-day exclusive)', async () => {
+      const input: SeriesInput = {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        endDate: '2024-01-16' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+      }
+      const id = await createSeries(adapter, input)
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+    })
+
+    it('endDate equals startDate rejected (zero-day range)', async () => {
       const input: SeriesInput = {
         title: 'Test',
         startDate: '2024-01-15' as LocalDate,
@@ -299,8 +311,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      const id = await createSeries(adapter, input)
-      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/endDate must be > startDate/)
     })
 
     it('endDate before startDate rejected', async () => {
@@ -311,7 +322,7 @@ describe('Precondition Validation (Create)', () => {
         timeOfDay: '09:00' as LocalTime,
         duration: 30,
       }
-      await expect(createSeries(adapter, input)).rejects.toThrow(/endDate must be >= startDate/)
+      await expect(createSeries(adapter, input)).rejects.toThrow(/endDate must be > startDate/)
     })
 
     it('endDate after startDate accepted', async () => {
@@ -1243,7 +1254,7 @@ describe('Series Splitting', () => {
       expect(newId).not.toBe(id)
     })
 
-    it('original endDate set to day before split', async () => {
+    it('original endDate set to split date (exclusive)', async () => {
       const id = await createSeries(adapter, {
         title: 'Test',
         startDate: '2024-01-01' as LocalDate,
@@ -1253,7 +1264,7 @@ describe('Series Splitting', () => {
       })
       await splitSeries(adapter, id, '2024-01-15' as LocalDate, {})
       const original = await getSeries(adapter, id)
-      expect(original?.endDate).toBe('2024-01-14')
+      expect(original?.endDate).toBe('2024-01-15')
     })
 
     it('new startDate set to split date', async () => {
@@ -1313,7 +1324,7 @@ describe('Series Splitting', () => {
       expect(original).toEqual(expect.objectContaining({
         id,
         title: 'Test',
-        endDate: '2024-01-14',
+        endDate: '2024-01-15',
       }))
       expect(newSeries).toEqual(expect.objectContaining({
         id: newId,
@@ -1366,7 +1377,7 @@ describe('Series Splitting', () => {
       })
       await expect(
         splitSeries(adapter, id, '2024-01-20' as LocalDate, {})
-      ).rejects.toThrow(/splitDate must be <= endDate/)
+      ).rejects.toThrow(/splitDate must be < endDate/)
     })
 
     it('split locked series throws LockedSeriesError', async () => {

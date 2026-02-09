@@ -53,7 +53,7 @@ async function isValidInstance(
   if (!series) return false
 
   if (series.startDate && date < series.startDate) return false
-  if (series.endDate && date > series.endDate) return false
+  if (series.endDate && date >= series.endDate) return false
 
   const patterns = await adapter.getPatternsBySeries(seriesId)
   if (patterns.length === 0) {

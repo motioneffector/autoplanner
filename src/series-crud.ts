@@ -178,8 +178,8 @@ function validateSeriesInput(input: SeriesInput): void {
   // End date
   if (input.endDate !== undefined) {
     validateDate(input.endDate as string, 'endDate')
-    if ((input.endDate as string) < (input.startDate as string)) {
-      throw new ValidationError('endDate must be >= startDate')
+    if ((input.endDate as string) <= (input.startDate as string)) {
+      throw new ValidationError('endDate must be > startDate (exclusive)')
     }
   }
 
@@ -486,15 +486,15 @@ export async function splitSeries(
   if ((splitDate as string) <= (existing.startDate as string)) {
     throw new ValidationError('splitDate must be after startDate')
   }
-  if (existing.endDate && (splitDate as string) > (existing.endDate as string)) {
-    throw new ValidationError('splitDate must be <= endDate')
+  if (existing.endDate && (splitDate as string) >= (existing.endDate as string)) {
+    throw new ValidationError('splitDate must be < endDate (exclusive)')
   }
 
   const newId = crypto.randomUUID()
   const now = nowISO()
 
-  // Set original endDate to splitDate - 1
-  const newOriginalEndDate = addDays(splitDate, -1)
+  // Set original endDate to splitDate (exclusive: last valid day is splitDate - 1)
+  const newOriginalEndDate = splitDate
   await adapter.updateSeries(id, { endDate: newOriginalEndDate, updatedAt: now })
 
   // Create new series inheriting from original

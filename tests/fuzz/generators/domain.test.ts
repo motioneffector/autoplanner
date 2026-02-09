@@ -219,8 +219,8 @@ describe('series component generators', () => {
           if (bounds.endDate) {
             const end = parseLocalDate(bounds.endDate)
             expect(isValidDate(end.year, end.month, end.day)).toBe(true)
-            // End should be >= start
-            expect(bounds.endDate >= bounds.startDate).toBe(true)
+            // End should be > start (exclusive)
+            expect(bounds.endDate > bounds.startDate).toBe(true)
           }
         })
       )

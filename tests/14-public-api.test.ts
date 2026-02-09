@@ -1927,4 +1927,99 @@ describe('Segment 14: Public API', () => {
       expect(titles).toEqual(['Living Room', 'Office', 'Bedroom']);
     });
   });
+
+  // ============================================================================
+  // endDate Exclusivity
+  // ============================================================================
+
+  describe('endDate Exclusivity', () => {
+    it('endDate itself is NOT a valid instance date', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const id = await planner.createSeries({
+        title: 'Bounded',
+        startDate: date('2026-04-01'),
+        endDate: date('2026-04-06'), // exclusive: Apr 1-5 valid
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+      });
+
+      const sched = await getScheduleChecked(planner, date('2026-04-01'), date('2026-04-10'));
+      const dates = sched.instances.filter(i => i.seriesId === id).map(i => i.date);
+      expect(dates).toEqual([
+        date('2026-04-01'),
+        date('2026-04-02'),
+        date('2026-04-03'),
+        date('2026-04-04'),
+        date('2026-04-05'),
+      ]);
+    });
+
+    it('single-day series: endDate = startDate + 1 produces exactly one instance', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const id = await planner.createSeries({
+        title: 'One Day',
+        startDate: date('2026-05-15'),
+        endDate: date('2026-05-16'), // exclusive: only May 15
+        patterns: [{ type: 'daily', time: time('10:00'), duration: minutes(60) }],
+      });
+
+      const sched = await getScheduleChecked(planner, date('2026-05-01'), date('2026-05-31'));
+      const instances = sched.instances.filter(i => i.seriesId === id);
+      expect(instances).toEqual([
+        expect.objectContaining({ date: date('2026-05-15'), title: 'One Day' }),
+      ]);
+    });
+
+    it('endDate = startDate rejected (zero-day range)', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      await expect(planner.createSeries({
+        title: 'Invalid',
+        startDate: date('2026-06-01'),
+        endDate: date('2026-06-01'),
+        patterns: [{ type: 'daily' }],
+      })).rejects.toThrow(/endDate must be > startDate/);
+    });
+
+    it('split series: original endDate equals splitDate (exclusive)', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const id = await planner.createSeries({
+        title: 'Splittable',
+        startDate: date('2026-07-01'),
+        endDate: date('2026-07-31'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+      });
+
+      const newId = await planner.splitSeries(id, date('2026-07-15'));
+
+      // Original: instances up to Jul 14 (endDate Jul 15 is exclusive)
+      const origSched = await getScheduleChecked(planner, date('2026-07-01'), date('2026-07-31'));
+      const origDates = origSched.instances.filter(i => i.seriesId === id).map(i => i.date);
+      expect(origDates).toContain(date('2026-07-14'));
+      expect(origDates).not.toContain(date('2026-07-15'));
+
+      // New series: starts at Jul 15
+      const newDates = origSched.instances.filter(i => i.seriesId === newId).map(i => i.date);
+      expect(newDates).toContain(date('2026-07-15'));
+      expect(newDates).not.toContain(date('2026-07-14'));
+    });
+
+    it('endDate boundary: day before endDate is the last instance', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const id = await planner.createSeries({
+        title: 'Boundary',
+        startDate: date('2026-08-01'),
+        endDate: date('2026-08-04'), // exclusive: Aug 1, 2, 3
+        patterns: [{ type: 'daily', time: time('12:00'), duration: minutes(15) }],
+      });
+
+      const sched = await getScheduleChecked(planner, date('2026-08-01'), date('2026-08-10'));
+      const dates = sched.instances.filter(i => i.seriesId === id).map(i => i.date);
+      const lastDate = dates[dates.length - 1];
+      expect(lastDate).toBe(date('2026-08-03'));
+    });
+  });
 });

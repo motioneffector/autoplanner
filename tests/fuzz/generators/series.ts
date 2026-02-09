@@ -73,8 +73,9 @@ export function seriesBoundsGen(options?: {
 
   // Random: sometimes have end date
   return fc.tuple(startDateGen, fc.option(endDateGen, { nil: undefined })).map(([startDate, endDate]) => {
-    if (endDate && startDate > endDate) {
-      return { startDate: endDate, endDate: startDate }
+    if (endDate && startDate >= endDate) {
+      // Exclusive endDate must be strictly after startDate; drop invalid ones
+      return { startDate, endDate: undefined }
     }
     return { startDate, endDate }
   })

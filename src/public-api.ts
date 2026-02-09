@@ -951,7 +951,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       for (const pattern of s.patterns) {
         const patternDates = getPatternDates(pattern, start, end, seriesStart)
         for (const date of patternDates) {
-          if (s.endDate && (date as string) > (s.endDate as string)) continue
+          if (s.endDate && (date as string) >= (s.endDate as string)) continue
           dates.add(date as string)
         }
       }
@@ -1013,7 +1013,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         const dates = getPatternDates(pattern, start, end, seriesStart)
 
         for (const date of dates) {
-          if (s.endDate && (date as string) > (s.endDate as string)) continue
+          if (s.endDate && (date as string) >= (s.endDate as string)) continue
 
           // mustBeOnSameDay filter
           if (allowedDates && !allowedDates.has(date as string)) continue
@@ -1303,6 +1303,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if (!input.title || input.title.trim() === '') {
       throw new ValidationError('Series title is required')
     }
+    if (input.endDate != null && input.startDate != null &&
+        (input.endDate as string) <= (input.startDate as string)) {
+      throw new ValidationError('endDate must be > startDate (exclusive)')
+    }
 
     const id = uuid()
     const now = makeDateTime(
@@ -1430,7 +1434,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const s = await getFullSeries(id)
     if (!s) throw new NotFoundError(`Series ${id} not found`)
 
-    const originalEnd = addDays(splitDate, -1)
+    const originalEnd = splitDate
     const updatedOriginal = { ...(seriesCache.get(id) || s), endDate: originalEnd }
     await updatePersistedSeries(id, { endDate: originalEnd })
     seriesCache.set(id, { ...updatedOriginal })

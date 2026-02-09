@@ -676,11 +676,11 @@ describe('Segment 09: Instance Exceptions', () => {
     });
 
     it('B2: cancel last instance', async () => {
-      // Create a series with end date
+      // Create a series with end date (exclusive: last valid day is Jan 10)
       const boundedId = await createSeries(adapter, {
         title: 'Bounded Series',
         startDate: date('2024-01-01'),
-        endDate: date('2024-01-10'),
+        endDate: date('2024-01-11'),
         pattern: { type: 'daily' },
       }) as SeriesId;
 
@@ -688,7 +688,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
       const schedule = await getSchedule(adapter, {
         seriesId: boundedId,
-        range: { start: date('2024-01-01'), end: date('2024-01-10') },
+        range: { start: date('2024-01-01'), end: date('2024-01-11') },
       });
 
       expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(false);
