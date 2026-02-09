@@ -443,8 +443,8 @@ describe('Segment 13: Reflow Algorithm', () => {
         ]);
       });
 
-      it('empty domain no solution - propagation returns false', () => {
-        // All slots for B conflict with A
+      it('empty domain no solution - at least one domain empties when only conflicting slots exist', () => {
+        // A and B only have overlapping slots — at least one must lose its slot
         const domains = new Map<Instance, LocalDateTime[]>();
         const instanceA = { seriesId: seriesId('A'), fixed: true } as Instance;
         const instanceB = { seriesId: seriesId('B'), fixed: false } as Instance;
@@ -454,14 +454,12 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         const constraints = [{ type: 'noOverlap', instances: [instanceA, instanceB] }];
 
-        // Verify B's domain has data before propagation
-        expect(domains.get(instanceB)).toEqual([datetime('2025-01-15T09:00:00')]);
-
         const result = propagateConstraints(domains, constraints);
 
-        // After propagation, B's domain should be empty since its only slot conflicts with A
-        // (B had [09:00] before propagation, verified above)
-        expect(result.get(instanceB) ?? []).toStrictEqual([]);
+        // A gets emptied first (A's 09:00 has no non-overlapping support from B)
+        expect(result.get(instanceA)).toStrictEqual([]);
+        // B retains its slot: with A unplaceable, noOverlap is trivially satisfied
+        expect(result.get(instanceB)).toStrictEqual([datetime('2025-01-15T09:00:00')]);
       });
 
       it('propagation is sound - no valid solutions removed', () => {
@@ -596,6 +594,131 @@ describe('Segment 13: Reflow Algorithm', () => {
         expect(result.get(child)).toContain(datetime('2025-01-15T10:00:00'));
         expect(result.get(child)).toContain(datetime('2025-01-15T10:30:00'));
         expect(result.get(child)).not.toContain(datetime('2025-01-15T11:00:00'));
+      });
+    });
+
+    describe('Selective Cascade Behavior', () => {
+      it('noOverlap with empty partner does not cascade - sibling retains slots', () => {
+        // A and B share only one overlapping slot → A empties first
+        // C has noOverlap with A and its own non-conflicting slot
+        // After A empties, C should NOT cascade because noOverlap is trivially satisfied
+        const instanceA = { seriesId: seriesId('A'), fixed: false, duration: minutes(60) } as Instance;
+        const instanceB = { seriesId: seriesId('B'), fixed: false, duration: minutes(60) } as Instance;
+        const instanceC = { seriesId: seriesId('C'), fixed: false, duration: minutes(60) } as Instance;
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(instanceA, [datetime('2025-01-15T09:00:00')]);
+        domains.set(instanceB, [datetime('2025-01-15T09:00:00')]); // Only overlapping slot with A
+        domains.set(instanceC, [datetime('2025-01-15T11:00:00')]); // Non-conflicting with A
+
+        const constraints = [
+          { type: 'noOverlap', instances: [instanceA, instanceB] },
+          { type: 'noOverlap', instances: [instanceA, instanceC] },
+        ];
+
+        const result = propagateConstraints(domains, constraints);
+
+        // A empties because its only slot conflicts with B's only slot
+        expect(result.get(instanceA)).toStrictEqual([]);
+        // B retains: noOverlap with empty A is trivially satisfied
+        expect(result.get(instanceB)).toStrictEqual([datetime('2025-01-15T09:00:00')]);
+        // C retains: noOverlap with empty A is trivially satisfied
+        expect(result.get(instanceC)).toStrictEqual([datetime('2025-01-15T11:00:00')]);
+      });
+
+      it('chain cascade goes parent→child: empty parent empties child', () => {
+        // Parent has empty domain → child must also empty (can't place child without parent)
+        const parent = { seriesId: seriesId('P'), fixed: false, duration: minutes(60) } as Instance;
+        const child = {
+          seriesId: seriesId('C'),
+          fixed: false,
+          parentId: seriesId('P'),
+          chainDistance: 0,
+          earlyWobble: minutes(0),
+          lateWobble: minutes(30),
+        } as Instance;
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(parent, []); // Empty — parent can't be placed
+        domains.set(child, [datetime('2025-01-15T10:00:00')]);
+
+        const constraints = [{ type: 'chain', parent, child }];
+        const result = propagateConstraints(domains, constraints);
+
+        // Child cascaded to empty because parent is gone
+        expect(result.get(child)).toStrictEqual([]);
+      });
+
+      it('chain cascade does NOT go child→parent: empty child preserves parent', () => {
+        // Child has empty domain → parent should NOT cascade (parent is independent)
+        const parent = { seriesId: seriesId('P'), fixed: false, duration: minutes(60) } as Instance;
+        const child = {
+          seriesId: seriesId('C'),
+          fixed: false,
+          parentId: seriesId('P'),
+          chainDistance: 0,
+          earlyWobble: minutes(0),
+          lateWobble: minutes(30),
+        } as Instance;
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(parent, [datetime('2025-01-15T09:00:00')]);
+        domains.set(child, []); // Empty — child can't be placed
+
+        const constraints = [{ type: 'chain', parent, child }];
+        const result = propagateConstraints(domains, constraints);
+
+        // Parent retains its slot: child being absent doesn't affect parent
+        expect(result.get(parent)).toStrictEqual([datetime('2025-01-15T09:00:00')]);
+        // Child stays empty
+        expect(result.get(child)).toStrictEqual([]);
+      });
+
+      it('mustBeBefore with empty partner does not cascade', () => {
+        // A must be before B. If B's domain empties, A should still keep its slots.
+        const instanceA = { seriesId: seriesId('A'), fixed: false } as Instance;
+        const instanceB = { seriesId: seriesId('B'), fixed: false } as Instance;
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(instanceA, [datetime('2025-01-15T08:00:00')]);
+        domains.set(instanceB, []); // Empty — B can't be placed
+
+        const constraints = [{ type: 'mustBeBefore', first: instanceA, second: instanceB }];
+        const result = propagateConstraints(domains, constraints);
+
+        // A retains: mustBeBefore is trivially satisfied when B absent
+        expect(result.get(instanceA)).toStrictEqual([datetime('2025-01-15T08:00:00')]);
+      });
+
+      it('chain child empty does not cascade to overlapping sibling via noOverlap', () => {
+        // Parent empty → child cascaded to empty. Sibling has noOverlap with child.
+        // Sibling should NOT be emptied just because child is empty.
+        const parent = { seriesId: seriesId('P'), fixed: false, duration: minutes(60) } as Instance;
+        const child = {
+          seriesId: seriesId('C'),
+          fixed: false,
+          parentId: seriesId('P'),
+          chainDistance: 0,
+          earlyWobble: minutes(0),
+          lateWobble: minutes(30),
+        } as Instance;
+        const sibling = { seriesId: seriesId('S'), fixed: false, duration: minutes(60) } as Instance;
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(parent, []); // Empty parent
+        domains.set(child, [datetime('2025-01-15T10:00:00')]);
+        domains.set(sibling, [datetime('2025-01-15T10:00:00')]); // Same slot as child
+
+        const constraints = [
+          { type: 'chain', parent, child },
+          { type: 'noOverlap', instances: [child, sibling] },
+        ];
+        const result = propagateConstraints(domains, constraints);
+
+        // Child cascaded to empty by chain (empty parent)
+        expect(result.get(child)).toStrictEqual([]);
+        // Sibling retains: noOverlap with empty child is trivially satisfied
+        expect(result.get(sibling)).toStrictEqual([datetime('2025-01-15T10:00:00')]);
       });
     });
   });

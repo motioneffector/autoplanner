@@ -317,7 +317,18 @@ export function propagateConstraints(
     if (!otherDomain) continue  // Other not in constraint graph
 
     if (otherDomain.length === 0) {
-      // Other has empty domain → no support exists for any value
+      // Other has empty domain. Cascade selectively:
+      // - noOverlap: trivially satisfied when one party absent → skip
+      // - mustBeBefore: trivially satisfied when one party absent → skip
+      // - chain (child revising against empty parent): child can't be placed → cascade
+      // - chain (parent revising against empty child): parent is independent → skip
+      if (constraint.type === 'noOverlap' || constraint.type === 'mustBeBefore') {
+        continue
+      }
+      if (constraint.type === 'chain' && other !== (constraint as any).parent) {
+        continue  // parent revising against empty child — parent is independent
+      }
+      // Chain child with empty parent → cascade to empty child's domain
       const varDomain = domains.get(variable)
       if (varDomain && varDomain.length > 0) {
         domains.set(variable, [])
