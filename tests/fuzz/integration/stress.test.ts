@@ -4847,3 +4847,211 @@ describe('SQLite Error Mapping Tests', () => {
     expect(validation.valid).toBe(false)
   })
 })
+
+// ============================================================================
+// Reflow Stress Tests (through real createAutoplanner API)
+// ============================================================================
+
+import { createAutoplanner, type Autoplanner } from '../../../src/public-api'
+import { createMockAdapter } from '../../../src/adapter'
+import type { LocalDate as RealLocalDate, LocalTime as RealLocalTime, Duration as RealDuration } from '../../../src/core'
+
+function realDate(iso: string): RealLocalDate { return iso as RealLocalDate }
+function realTime(hhmm: string): RealLocalTime { return hhmm as RealLocalTime }
+function realMinutes(n: number): RealDuration { return n as RealDuration }
+function makeRealPlanner(): Autoplanner {
+  return createAutoplanner({ adapter: createMockAdapter(), timezone: 'UTC' })
+}
+function extractTime(dt: string): string { return dt.slice(11) }
+function toMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h! * 60 + m!
+}
+function overlaps(s1: string, d1: number, s2: string, d2: number): boolean {
+  const a = toMinutes(s1), b = a + d1
+  const c = toMinutes(s2), d = c + d2
+  return a < d && c < b
+}
+
+const testDate = '2026-07-01'
+
+describe('Reflow Stress Tests', () => {
+  it('12 overlapping no-time flexibles all resolve without overlaps', async () => {
+    const planner = makeRealPlanner()
+    const dur = 30
+
+    for (let i = 0; i < 12; i++) {
+      await planner.createSeries({
+        title: `Flex-${i}`,
+        patterns: [{ type: 'daily', duration: realMinutes(dur) }],
+        startDate: realDate(testDate),
+      })
+    }
+
+    const schedule = await planner.getSchedule(realDate(testDate), realDate('2026-07-02'))
+    const items = schedule.instances.filter(i => i.title.startsWith('Flex-'))
+    expect(items).toHaveLength(12)
+
+    // All within waking hours
+    for (const item of items) {
+      const mins = toMinutes(extractTime(item.time as string))
+      expect(mins).toBeGreaterThanOrEqual(7 * 60)
+      expect(mins + dur).toBeLessThanOrEqual(23 * 60)
+    }
+
+    // No pair overlaps
+    for (let i = 0; i < items.length; i++) {
+      for (let j = i + 1; j < items.length; j++) {
+        const ti = extractTime(items[i]!.time as string)
+        const tj = extractTime(items[j]!.time as string)
+        expect(overlaps(ti, dur, tj, dur)).toBe(false)
+      }
+    }
+  }, 15000)
+
+  it('20 fixed + 10 flexible mixed — fixed unchanged, flexibles distributed', async () => {
+    const planner = makeRealPlanner()
+    const dur = 20
+    const fixedIds: string[] = []
+
+    // 20 fixed items scattered across waking hours
+    for (let i = 0; i < 20; i++) {
+      const hour = 7 + Math.floor(i * 0.8)
+      const minute = (i * 17) % 60
+      const hh = hour.toString().padStart(2, '0')
+      const mm = minute.toString().padStart(2, '0')
+      const id = await planner.createSeries({
+        title: `Fixed-${i}`,
+        patterns: [{ type: 'daily', time: realTime(`${hh}:${mm}`), duration: realMinutes(dur), fixed: true }],
+        startDate: realDate(testDate),
+      })
+      fixedIds.push(id)
+    }
+
+    // 10 flexible no-time items
+    for (let i = 0; i < 10; i++) {
+      await planner.createSeries({
+        title: `FlexMix-${i}`,
+        patterns: [{ type: 'daily', duration: realMinutes(dur) }],
+        startDate: realDate(testDate),
+      })
+    }
+
+    const schedule = await planner.getSchedule(realDate(testDate), realDate('2026-07-02'))
+
+    // All 30 items present
+    expect(schedule.instances.filter(i => i.title.startsWith('Fixed-') || i.title.startsWith('FlexMix-'))).toHaveLength(30)
+
+    // Fixed items at their exact declared times
+    for (let i = 0; i < 20; i++) {
+      const hour = 7 + Math.floor(i * 0.8)
+      const minute = (i * 17) % 60
+      const hh = hour.toString().padStart(2, '0')
+      const mm = minute.toString().padStart(2, '0')
+      const inst = schedule.instances.find(inst => inst.seriesId === fixedIds[i])
+      expect(inst).toBeDefined()
+      expect(extractTime(inst!.time as string)).toBe(`${hh}:${mm}:00`)
+    }
+
+    // Flexible items in waking hours
+    const flexItems = schedule.instances.filter(i => i.title.startsWith('FlexMix-'))
+    expect(flexItems).toHaveLength(10)
+    for (const item of flexItems) {
+      const mins = toMinutes(extractTime(item.time as string))
+      expect(mins).toBeGreaterThanOrEqual(7 * 60)
+      expect(mins + dur).toBeLessThanOrEqual(23 * 60)
+    }
+  }, 15000)
+
+  it('deep chain (10 levels) through reflow — all items present and root anchored', async () => {
+    const planner = makeRealPlanner()
+    const dur = 15
+    const distance = 15
+    const ids: string[] = []
+
+    // Create root (fixed at 08:00)
+    const rootId = await planner.createSeries({
+      title: 'Chain-0',
+      patterns: [{ type: 'daily', time: realTime('08:00'), duration: realMinutes(dur), fixed: true }],
+      startDate: realDate(testDate),
+    })
+    ids.push(rootId)
+
+    // Create 9 children linked in chain, each with wobble to allow solver flexibility
+    for (let i = 1; i < 10; i++) {
+      const childId = await planner.createSeries({
+        title: `Chain-${i}`,
+        patterns: [{ type: 'daily', duration: realMinutes(dur) }],
+        startDate: realDate(testDate),
+      })
+      await planner.linkSeries(ids[i - 1]!, childId, {
+        distance,
+        earlyWobble: 0,
+        lateWobble: 60,
+      })
+      ids.push(childId)
+    }
+
+    const schedule = await planner.getSchedule(realDate(testDate), realDate('2026-07-02'))
+
+    // All 10 items present — solver doesn't drop items
+    const chainItems = schedule.instances.filter(i => i.title.startsWith('Chain-'))
+    expect(chainItems).toHaveLength(10)
+
+    // Root stays at fixed position
+    const root = schedule.instances.find(i => i.seriesId === rootId)!
+    expect(extractTime(root.time as string)).toBe('08:00:00')
+
+    // All items within waking hours
+    for (const item of chainItems) {
+      const t = toMinutes(extractTime(item.time as string))
+      expect(t).toBeGreaterThanOrEqual(7 * 60)
+      expect(t + dur).toBeLessThanOrEqual(23 * 60)
+    }
+
+    // First child respects chain constraint from fixed root
+    const firstChild = schedule.instances.find(inst => inst.seriesId === ids[1])!
+    const rootEnd = toMinutes(extractTime(root.time as string)) + dur
+    const firstChildStart = toMinutes(extractTime(firstChild.time as string))
+    expect(firstChildStart).toBeGreaterThanOrEqual(rootEnd + distance)
+  }, 15000)
+
+  it('performance: 50 series single-day schedule completes in under 10 seconds', async () => {
+    const planner = makeRealPlanner()
+
+    // 45 fixed items with explicit times (no solver work needed)
+    for (let i = 0; i < 45; i++) {
+      const hour = 7 + Math.floor(i / 4)
+      const minute = (i % 4) * 15
+      const hh = hour.toString().padStart(2, '0')
+      const mm = minute.toString().padStart(2, '0')
+      await planner.createSeries({
+        title: `Perf-Fixed-${i}`,
+        patterns: [{ type: 'daily', time: realTime(`${hh}:${mm}`), duration: realMinutes(10) }],
+        startDate: realDate(testDate),
+      })
+    }
+
+    // 5 flexible no-time items (solver must place these)
+    for (let i = 0; i < 5; i++) {
+      await planner.createSeries({
+        title: `Perf-Flex-${i}`,
+        patterns: [{ type: 'daily', duration: realMinutes(10) }],
+        startDate: realDate(testDate),
+      })
+    }
+
+    const start = Date.now()
+    const schedule = await planner.getSchedule(realDate(testDate), realDate('2026-07-02'))
+    const elapsed = Date.now() - start
+
+    // Must complete in < 10 seconds
+    expect(elapsed).toBeLessThan(10000)
+
+    // All 50 items present
+    const allItems = schedule.instances.filter(i =>
+      i.title.startsWith('Perf-Fixed-') || i.title.startsWith('Perf-Flex-')
+    )
+    expect(allItems).toHaveLength(50)
+  }, 15000)
+})
