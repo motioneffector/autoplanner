@@ -1850,4 +1850,81 @@ describe('Segment 14: Public API', () => {
       expect(mins + 45).toBeLessThanOrEqual(23 * 60);
     });
   });
+
+  describe('Cycling Projection in Schedule', () => {
+    it('2-item sequential cycling projects A/B alternation across weekdays', async () => {
+      const planner = createAutoplanner(createValidConfig({ timezone: 'UTC' }));
+
+      const id = await planner.createSeries({
+        title: 'Workout',
+        startDate: date('2026-03-02'), // Monday
+        patterns: [{ type: 'weekdays', days: [1, 3, 5], time: time('10:00:00'), duration: minutes(60) }],
+        cycling: { mode: 'sequential', items: ['Workout A', 'Workout B'], gapLeap: true },
+      });
+
+      // 2 weeks: Mon 2, Wed 4, Fri 6, Mon 9, Wed 11, Fri 13 = 6 instances
+      const sched = await getScheduleChecked(planner, date('2026-03-02'), date('2026-03-14'));
+      const titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
+      expect(titles).toEqual(['Workout A', 'Workout B', 'Workout A', 'Workout B', 'Workout A', 'Workout B']);
+    });
+
+    it('2-item cycling shifts after completion', async () => {
+      const planner = createAutoplanner(createValidConfig({ timezone: 'UTC' }));
+
+      const id = await planner.createSeries({
+        title: 'Workout',
+        startDate: date('2026-03-02'),
+        patterns: [{ type: 'weekdays', days: [1, 3, 5], time: time('10:00:00'), duration: minutes(60) }],
+        cycling: { mode: 'sequential', items: ['Workout A', 'Workout B'], gapLeap: true },
+      });
+
+      // Complete first instance → base shifts to B
+      await planner.logCompletion(id, date('2026-03-02'));
+
+      const sched = await getScheduleChecked(planner, date('2026-03-04'), date('2026-03-14'));
+      const titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
+      // After 1 completion: B, A, B, A, B
+      expect(titles).toHaveLength(5);
+      expect(titles[0]).toBe('Workout B');
+      expect(titles[1]).toBe('Workout A');
+      expect(titles[2]).toBe('Workout B');
+      expect(titles[3]).toBe('Workout A');
+      expect(titles[4]).toBe('Workout B');
+    });
+
+    it('3-item cycling projects through full rotation (Turbovac-like)', async () => {
+      const planner = createAutoplanner(createValidConfig({ timezone: 'UTC' }));
+
+      const id = await planner.createSeries({
+        title: 'Turbovac',
+        startDate: date('2026-03-03'), // Tuesday
+        patterns: [{ type: 'weekdays', days: [2], time: time('09:00:00'), duration: minutes(15) }],
+        cycling: { mode: 'sequential', items: ['Bedroom', 'Living Room', 'Office'], gapLeap: true },
+      });
+
+      // 4 Tuesdays: Mar 3, 10, 17, 24
+      const sched = await getScheduleChecked(planner, date('2026-03-03'), date('2026-03-25'));
+      const titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
+      expect(titles).toEqual(['Bedroom', 'Living Room', 'Office', 'Bedroom']);
+    });
+
+    it('3-item cycling advances correctly after completions', async () => {
+      const planner = createAutoplanner(createValidConfig({ timezone: 'UTC' }));
+
+      const id = await planner.createSeries({
+        title: 'Turbovac',
+        startDate: date('2026-03-03'),
+        patterns: [{ type: 'weekdays', days: [2], time: time('09:00:00'), duration: minutes(15) }],
+        cycling: { mode: 'sequential', items: ['Bedroom', 'Living Room', 'Office'], gapLeap: true },
+      });
+
+      // Complete Bedroom
+      await planner.logCompletion(id, date('2026-03-03'));
+
+      // Now starts at Living Room
+      const sched = await getScheduleChecked(planner, date('2026-03-10'), date('2026-03-31'));
+      const titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
+      expect(titles).toEqual(['Living Room', 'Office', 'Bedroom']);
+    });
+  });
 });
