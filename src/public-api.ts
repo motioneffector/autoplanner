@@ -764,8 +764,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   // Get parent's effective end time for a given date
-  function getParentEndTime(parentSeries: FullSeries, parentId: string, instanceDate: LocalDate): LocalDateTime | null {
-    // Check if parent has a completion on this date with endTime
+  // Priority: completion > rescheduled exception > chain-computed > pattern time
+  function getParentEndTime(
+    parentSeries: FullSeries,
+    parentId: string,
+    instanceDate: LocalDate,
+    chainEndTimes?: Map<string, Map<string, LocalDateTime>>
+  ): LocalDateTime | null {
+    // 1. Check if parent has a completion on this date with endTime (actual data)
     const parentCompIds = completionsBySeries.get(parentId) || []
     for (const cId of parentCompIds) {
       const c = completions.get(cId)
@@ -774,7 +780,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       }
     }
 
-    // Check if parent is rescheduled
+    // 2. Check if parent is rescheduled
     const exKey = `${parentId}:${instanceDate}`
     const exception = exceptions.get(exKey)
     if (exception?.type === 'rescheduled' && exception.newTime) {
@@ -782,7 +788,11 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       return addMinutesToTime(exception.newTime, parentDur)
     }
 
-    // Use scheduled time + duration
+    // 3. Check chain-computed end times (from topo-sorted parent instances)
+    const chainEnd = chainEndTimes?.get(parentId)?.get(instanceDate as string)
+    if (chainEnd) return chainEnd
+
+    // 4. Fallback to pattern time + duration
     if (parentSeries.patterns && parentSeries.patterns.length > 0) {
       const pattern = parentSeries.patterns[0]
       const patternTime = normalizeTime((pattern?.time || '09:00:00') as LocalTime)
@@ -987,10 +997,43 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     // Per-series counter for cycling projection (instance 0 = current, 1 = next, etc.)
     const cyclingCounters = new Map<string, number>()
 
+    // Topological sort: process parents before children so chain offsets
+    // can use already-computed parent end times instead of pattern time
+    const sortedSeries: FullSeries[] = []
+    const remaining = new Set(allSeries.filter(s => s && s.id).map(s => s.id))
+    const seriesMap = new Map(allSeries.filter(s => s && s.id).map(s => [s.id, s]))
+    // Add root series (no parent link) first
+    for (const s of allSeries) {
+      if (s && s.id && !links.has(s.id)) {
+        sortedSeries.push(s)
+        remaining.delete(s.id)
+      }
+    }
+    // Iteratively add children whose parents are already processed
+    let sortProgress = true
+    while (remaining.size > 0 && sortProgress) {
+      sortProgress = false
+      for (const id of remaining) {
+        const link = links.get(id)
+        if (link && !remaining.has(link.parentId)) {
+          sortedSeries.push(seriesMap.get(id)!)
+          remaining.delete(id)
+          sortProgress = true
+        }
+      }
+    }
+    // Add any remaining (orphans or cycles) at the end
+    for (const id of remaining) {
+      sortedSeries.push(seriesMap.get(id)!)
+    }
+
+    // Track end times of already-built instances for chain offset computation
+    const builtEndTimes = new Map<string, Map<string, LocalDateTime>>()
+
     // Second pass: generate instances with condition evaluation
     // Conditions are evaluated at the SCHEDULE START for consistency
     // (the schedule is a snapshot — pattern activation is stable across the range)
-    for (const s of allSeries) {
+    for (const s of sortedSeries) {
       if (!s || !s.id || !s.patterns) continue
       const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
       const allowedDates = sameDayRestrictions.get(s.id)
@@ -1057,10 +1100,18 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           if (link && !isAllDay) {
             const parentSeries = seriesById.get(link.parentId)
             if (parentSeries) {
-              const parentEnd = getParentEndTime(parentSeries, link.parentId, date)
+              const parentEnd = getParentEndTime(parentSeries, link.parentId, date, builtEndTimes)
               if (parentEnd) {
                 const target = addMinutesToTime(parentEnd, link.distance || 0)
                 instanceTime = target
+                hasExplicitTime = true  // chain-placed: don't let reflow move it
+                if (!pattern.time) {
+                  // No explicit pattern time — update so conflict detector
+                  // uses chain-computed time (not the 09:00 default)
+                  patternTimeOriginal = target
+                }
+                // If pattern HAS explicit time, keep patternTimeOriginal as-is
+                // so chainCannotFit detects the configuration mismatch
               }
             }
           }
@@ -1092,6 +1143,11 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           inst._patternTime = patternTimeOriginal
           inst._hasExplicitTime = hasExplicitTime
           instances.push(inst)
+
+          // Record end time for downstream chain children
+          const endTime = addMinutesToTime(instanceTime, (duration || 60) as number)
+          if (!builtEndTimes.has(s.id)) builtEndTimes.set(s.id, new Map())
+          builtEndTimes.get(s.id)!.set(instanceDate as string, endTime)
         }
       }
     }

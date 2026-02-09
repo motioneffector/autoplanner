@@ -2022,4 +2022,95 @@ describe('Segment 14: Public API', () => {
       expect(lastDate).toBe(date('2026-08-03'));
     });
   });
+
+  // ============================================================================
+  // Chain Propagation (getParentEndTime)
+  // ============================================================================
+
+  describe('Chain Propagation', () => {
+    it('3-deep chain: grandchild offset uses parent chain-adjusted time, not pattern time', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      // Root: Load at 09:00, 15 min
+      const loadId = await planner.createSeries({
+        title: 'Load',
+        startDate: date('2026-09-01'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(15) }],
+      });
+
+      // Child: Transfer, offset 80 min from Load end
+      // Expected: 09:00 + 15min + 80min = 10:35
+      const transferId = await planner.createSeries({
+        title: 'Transfer',
+        startDate: date('2026-09-01'),
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+      });
+      await planner.linkSeries(loadId, transferId, {
+        distance: 80,
+        earlyWobble: 0,
+        lateWobble: 10,
+      });
+
+      // Grandchild: Fold, offset 200 min from Transfer end
+      // Expected: 10:35 + 15min + 200min = 14:10 (NOT 09:00 + 15 + 200 = 12:35)
+      const foldId = await planner.createSeries({
+        title: 'Fold',
+        startDate: date('2026-09-01'),
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+      });
+      await planner.linkSeries(transferId, foldId, {
+        distance: 200,
+        earlyWobble: 5,
+        lateWobble: 120,
+      });
+
+      const sched = await getScheduleChecked(planner, date('2026-09-01'), date('2026-09-02'));
+      const load = sched.instances.find(i => i.seriesId === loadId)!;
+      const transfer = sched.instances.find(i => i.seriesId === transferId)!;
+      const fold = sched.instances.find(i => i.seriesId === foldId)!;
+
+      // Load at 09:00
+      expect(load.time).toContain('09:00');
+      // Transfer at 09:15 + 80min = 10:35
+      expect(transfer.time).toContain('10:35');
+      // Fold at 10:35 + 15min + 200min = 14:10 (chain-propagated, not pattern-based)
+      expect(fold.time).toContain('14:10');
+    });
+
+    it('completion on parent overrides chain-computed time for child', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        startDate: date('2026-09-10'),
+        patterns: [{ type: 'daily', time: time('08:00'), duration: minutes(30) }],
+      });
+
+      const childId = await planner.createSeries({
+        title: 'Child',
+        startDate: date('2026-09-10'),
+        patterns: [{ type: 'daily', duration: minutes(20) }],
+      });
+      await planner.linkSeries(parentId, childId, {
+        distance: 60,
+        earlyWobble: 0,
+        lateWobble: 30,
+      });
+
+      // Before completion: child at 08:00 + 30 + 60 = 09:30
+      const sched1 = await getScheduleChecked(planner, date('2026-09-10'), date('2026-09-11'));
+      const child1 = sched1.instances.find(i => i.seriesId === childId)!;
+      expect(child1.time).toContain('09:30');
+
+      // Log completion with late end time
+      await planner.logCompletion(parentId, date('2026-09-10'), {
+        endTime: datetime('2026-09-10T10:00:00'),
+      });
+
+      // After completion: child at 10:00 + 60 = 11:00 (uses completion endTime)
+      const sched2 = await getScheduleChecked(planner, date('2026-09-10'), date('2026-09-11'));
+      const child2 = sched2.instances.find(i => i.seriesId === childId)!;
+      expect(child2.time).toContain('11:00');
+    });
+  });
 });
