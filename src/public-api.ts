@@ -705,8 +705,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
   }
 
-  // Get cycling title for a series instance
-  function getCyclingTitle(series: FullSeries, seriesId: string): string {
+  // Get cycling title for a series instance.
+  // instanceOffset projects forward: instance 0 uses the current cycling position,
+  // instance 1 assumes instance 0 will be completed, etc.
+  function getCyclingTitle(series: FullSeries, seriesId: string, instanceOffset: number): string {
     const cycling = series.cycling
     if (!cycling || !cycling.items || cycling.items.length === 0) return series.title
 
@@ -714,15 +716,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const mode = cycling.mode || 'sequential'
 
     if (mode === 'random') {
-      // Use a hash of series id + completion count for pseudo-random
       const completionCount = (completionsBySeries.get(seriesId) || []).length
-      const hash = simpleHash(seriesId + ':' + completionCount)
+      const hash = simpleHash(seriesId + ':' + (completionCount + instanceOffset))
       return items[hash % items.length]!
     }
 
-    // Sequential mode: use completion count
+    // Sequential mode: base from completions, project forward by offset
     const completionCount = (completionsBySeries.get(seriesId) || []).length
-    const index = completionCount % items.length
+    const index = (completionCount + instanceOffset) % items.length
     return items[index]!
   }
 
@@ -983,6 +984,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       }
     }
 
+    // Per-series counter for cycling projection (instance 0 = current, 1 = next, etc.)
+    const cyclingCounters = new Map<string, number>()
+
     // Second pass: generate instances with condition evaluation
     // Conditions are evaluated at the SCHEDULE START for consistency
     // (the schedule is a snapshot — pattern activation is stable across the range)
@@ -1068,10 +1072,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
             if (adaptiveDur !== null) duration = adaptiveDur
           }
 
-          // Cycling title
+          // Cycling title — project forward assuming future completions
           let title = s.title
           if (s.cycling && s.cycling.items && s.cycling.items.length > 0) {
-            title = getCyclingTitle(s, s.id)
+            const offset = cyclingCounters.get(s.id) ?? 0
+            title = getCyclingTitle(s, s.id, offset)
+            cyclingCounters.set(s.id, offset + 1)
           }
 
           const inst: InternalInstance = {

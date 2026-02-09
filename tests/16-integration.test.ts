@@ -2090,8 +2090,8 @@ describe('Segment 16: Integration Tests', () => {
       // All from Pattern A: fixed time at 08:00
       expect(mainInstances.every(i => (i.time as string).includes('08:00'))).toBe(true);
       expect(mainInstances.every(i => i.fixed === true)).toBe(true);
-      // Cycling: gapLeap + no completions → all show first item
-      expect(mainInstances.every(i => i.title.includes('Alpha'))).toBe(true);
+      // Cycling: gapLeap + no completions → projects forward from first item
+      expect(mainInstances[0]!.title).toContain('Alpha');
 
       // --- Log a completion to activate Pattern B and advance cycling ---
       await planner.logCompletion(mainId, date('2026-03-02'));
@@ -2112,8 +2112,8 @@ describe('Segment 16: Integration Tests', () => {
       // Pattern B instances should NOT have fixed flag (it wasn't set)
       expect(eveningInstances.every(i => !i.fixed)).toBe(true);
 
-      // After 1 completion with gapLeap, cycling advances to Beta
-      expect(mainInstancesB.every(i => i.title.includes('Beta'))).toBe(true);
+      // After 1 completion with gapLeap, cycling base advances to Beta, then projects forward
+      expect(mainInstancesB[0]!.title).toContain('Beta');
 
       // Verify tags stored correctly
       const retrieved = await planner.getSeries(mainId);
@@ -2380,28 +2380,29 @@ describe('Segment 16: Integration Tests', () => {
         cycling: { mode: 'sequential', items: ['X', 'Y', 'Z'], gapLeap: true },
       });
 
-      // Before any completion: all instances show first item
+      // Before any completion: projects forward from X
+      // end is exclusive → 3 daily instances, 3-item cycling: X, Y, Z
       let sched = await planner.getSchedule(date('2026-12-01'), date('2026-12-04'));
       let titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
-      expect(titles.every(t => t.includes('X'))).toBe(true);
+      expect(titles).toEqual(['X', 'Y', 'Z']);
 
-      // Complete once → advances to Y
+      // Complete once → base advances to Y, projects: Y, Z, X
       await planner.logCompletion(id, date('2026-12-01'));
       sched = await planner.getSchedule(date('2026-12-02'), date('2026-12-05'));
       titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
-      expect(titles.every(t => t.includes('Y'))).toBe(true);
+      expect(titles).toEqual(['Y', 'Z', 'X']);
 
-      // Complete again → advances to Z
+      // Complete again → base advances to Z, projects: Z, X, Y
       await planner.logCompletion(id, date('2026-12-02'));
       sched = await planner.getSchedule(date('2026-12-03'), date('2026-12-06'));
       titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
-      expect(titles.every(t => t.includes('Z'))).toBe(true);
+      expect(titles).toEqual(['Z', 'X', 'Y']);
 
-      // Complete again → wraps back to X
+      // Complete again → wraps to X, projects: X, Y, Z
       await planner.logCompletion(id, date('2026-12-03'));
       sched = await planner.getSchedule(date('2026-12-04'), date('2026-12-07'));
       titles = sched.instances.filter(i => i.seriesId === id).map(i => i.title);
-      expect(titles.every(t => t.includes('X'))).toBe(true);
+      expect(titles).toEqual(['X', 'Y', 'Z']);
     });
 
     it('schedule instances are sorted by time', async () => {
