@@ -21,6 +21,7 @@ import * as fc from 'fast-check'
 import { createAutoplanner, type Autoplanner } from '../../../src/public-api'
 import { createMockAdapter } from '../../../src/adapter'
 import type { LocalDate, LocalTime, Duration } from '../../../src/core'
+import { assertScheduleInvariants } from '../../helpers/schedule-invariants'
 
 // ============================================================================
 // Helpers
@@ -57,6 +58,16 @@ function rangesOverlap(s1: string, d1: number, s2: string, d2: number): boolean 
   return a < d && c < b
 }
 
+async function getScheduleChecked(
+  p: Autoplanner,
+  start: LocalDate,
+  end: LocalDate,
+): ReturnType<Autoplanner['getSchedule']> {
+  const schedule = await p.getSchedule(start, end)
+  assertScheduleInvariants(schedule)
+  return schedule
+}
+
 // Generators
 const hourGen = fc.integer({ min: 7, max: 21 })
 const durationMinGen = fc.integer({ min: 15, max: 90 })
@@ -82,8 +93,8 @@ describe('Spec 12: Reflow - Determinism', () => {
             })
           }
 
-          const s1 = await planner.getSchedule(date(dateStr), date('2026-06-16'))
-          const s2 = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const s1 = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
+          const s2 = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
 
           const times1 = s1.instances.map(i => `${i.title}@${i.time}`).sort()
           const times2 = s2.instances.map(i => `${i.title}@${i.time}`).sort()
@@ -104,7 +115,7 @@ describe('Spec 12: Reflow - Determinism', () => {
     })
 
     // getSchedule should immediately see the new series — no async lag
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     const inst = schedule.instances.find(i => i.seriesId === id)
     expect(inst).toBeDefined()
     expect(inst!.title).toBe('Instant')
@@ -142,7 +153,7 @@ describe('Spec 12: Reflow - Fixed Items', () => {
             })
           }
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
           const fixedInst = schedule.instances.find(i => i.seriesId === fixedId)
           expect(fixedInst).toBeDefined()
           expect(timeOf(fixedInst!.time as string)).toBe(`${hh}:00:00`)
@@ -177,7 +188,7 @@ describe('Spec 12: Reflow - Fixed Items', () => {
             startDate: date(dateStr),
           })
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
 
           // Both stay at their positions
           const inst1 = schedule.instances.find(i => i.seriesId === id1)
@@ -227,7 +238,7 @@ describe('Spec 12: Reflow - Flexible Items', () => {
             startDate: date(dateStr),
           })
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
           const fixed = schedule.instances.find(i => i.title === 'Fixed')!
           const flex = schedule.instances.find(i => i.title === 'Flex')!
 
@@ -276,7 +287,7 @@ describe('Spec 12: Reflow - All-Day Items', () => {
             startDate: date(dateStr),
           })
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
 
           const allDay = schedule.instances.find(i => i.title === 'AllDay')
           const timed = schedule.instances.find(i => i.title === 'Timed')
@@ -308,7 +319,7 @@ describe('Spec 12: Reflow - Triggers', () => {
       startDate: date(dateStr),
     })
 
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     const inst = schedule.instances.find(i => i.seriesId === id)
     expect(inst).toBeDefined()
     expect(inst!.title).toBe('NewSeries')
@@ -325,7 +336,7 @@ describe('Spec 12: Reflow - Triggers', () => {
 
     await planner.updateSeries(id, { title: 'Updated' })
 
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     const inst = schedule.instances.find(i => i.seriesId === id)
     expect(inst!.title).toBe('Updated')
   })
@@ -340,12 +351,12 @@ describe('Spec 12: Reflow - Triggers', () => {
     })
 
     // Verify it exists first
-    let schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    let schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     expect(schedule.instances.find(i => i.seriesId === id)).toBeDefined()
 
     await planner.deleteSeries(id)
 
-    schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     expect(schedule.instances.find(i => i.seriesId === id)).toBeUndefined()
   })
 
@@ -370,7 +381,7 @@ describe('Spec 12: Reflow - Triggers', () => {
       lateWobble: 0,
     })
 
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     const child = schedule.instances.find(i => i.seriesId === childId)!
     // Parent ends 09:30 + 60 min distance = 10:30
     expect(timeToMinutes(timeOf(child.time as string))).toBe(630)
@@ -394,7 +405,7 @@ describe('Spec 12: Reflow - Triggers', () => {
     // id1 at 14:00 must be before id2 at 09:00 — impossible
     await planner.addConstraint({ type: 'mustBeBefore', firstSeries: id1, secondSeries: id2 })
 
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     const violation = schedule.conflicts.find(c => c.type === 'constraintViolation')
     expect(violation).toBeDefined()
     expect(violation!.seriesIds).toContain(id1)
@@ -412,7 +423,7 @@ describe('Spec 12: Reflow - Triggers', () => {
 
     await planner.cancelInstance(id, date(dateStr))
 
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     const inst = schedule.instances.find(i => i.seriesId === id && (i.date as string) === dateStr)
     expect(inst).toBeUndefined()
   })
@@ -429,7 +440,7 @@ describe('Spec 12: Reflow - Triggers', () => {
     await planner.logCompletion(id, date(dateStr))
 
     // Schedule should still work without errors after completion
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     // Instance should still be present (completion doesn't remove it)
     const inst = schedule.instances.find(i => i.seriesId === id)
     expect(inst).toBeDefined()
@@ -470,7 +481,7 @@ describe('Spec 12: Reflow - Conflicts', () => {
             startDate: date(dateStr),
           })
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
 
           // At least 2 overlap conflicts (F1-F2, F2-F3, possibly F1-F3)
           const overlaps = schedule.conflicts.filter(c => c.type === 'overlap')
@@ -517,7 +528,7 @@ describe('Spec 12: Reflow - Schedule Queries', () => {
             startDate: date(dateStr),
           })
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
 
           // Both items present
           const fixed = schedule.instances.find(i => i.title === 'Fixed')
@@ -565,7 +576,7 @@ describe('Spec 12: Reflow - Condition Evaluation', () => {
     })
 
     // No completions → should appear
-    let schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    let schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     let inst = schedule.instances.find(i => i.seriesId === id)
     expect(inst).toBeDefined()
     expect(inst!.title).toBe('Conditional')
@@ -575,7 +586,7 @@ describe('Spec 12: Reflow - Condition Evaluation', () => {
       await planner.logCompletion(id, date(`2026-06-${d}`))
     }
 
-    schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     inst = schedule.instances.find(i => i.seriesId === id && (i.date as string) === dateStr)
     // Should NOT appear (3 completions in 7 days ≥ 3, condition is lessThan 3)
     expect(inst).toBeUndefined()
@@ -590,8 +601,8 @@ describe('Spec 12: Reflow - Condition Evaluation', () => {
       startDate: date(dateStr),
     })
 
-    const s1 = await planner.getSchedule(date(dateStr), date('2026-06-16'))
-    const s2 = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const s1 = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
+    const s2 = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
 
     const inst1 = s1.instances.find(i => i.title === 'Stable')!
     const inst2 = s2.instances.find(i => i.title === 'Stable')!
@@ -622,7 +633,7 @@ describe('Spec 12: Reflow - Domain Properties', () => {
             startDate: date(dateStr),
           })
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
           const inst = schedule.instances.find(i => i.seriesId === id)!
 
           // Fixed item always at its exact time (single-slot domain)
@@ -647,7 +658,7 @@ describe('Spec 12: Reflow - Domain Properties', () => {
             startDate: date(dateStr),
           })
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
           const inst = schedule.instances.find(i => i.title === 'FlexDomain')!
 
           const mins = timeToMinutes(timeOf(inst.time as string))
@@ -678,7 +689,7 @@ describe('Spec 12: Reflow - Day Balancing', () => {
       })
     }
 
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
     const items = schedule.instances.filter(i => i.title.startsWith('Balance-'))
     expect(items).toHaveLength(4)
 
@@ -717,7 +728,7 @@ describe('Spec 12: Reflow - Day Balancing', () => {
       startDate: date(dateStr),
     })
 
-    const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+    const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
 
     // Fixed items stay put
     const fixedA = schedule.instances.find(i => i.title === 'FixedA')!
@@ -755,7 +766,7 @@ describe('Spec 12: Reflow - Completeness', () => {
             ids.push(id)
           }
 
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
 
           // Every created series must appear in the schedule
           for (const id of ids) {
@@ -784,7 +795,7 @@ describe('Spec 12: Reflow - Completeness', () => {
           }
 
           const start = Date.now()
-          const schedule = await planner.getSchedule(date(dateStr), date('2026-06-16'))
+          const schedule = await getScheduleChecked(planner, date(dateStr), date('2026-06-16'))
           const elapsed = Date.now() - start
 
           // Must complete in reasonable time (1 second)

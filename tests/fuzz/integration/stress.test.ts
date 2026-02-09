@@ -4855,12 +4855,22 @@ describe('SQLite Error Mapping Tests', () => {
 import { createAutoplanner, type Autoplanner } from '../../../src/public-api'
 import { createMockAdapter } from '../../../src/adapter'
 import type { LocalDate as RealLocalDate, LocalTime as RealLocalTime, Duration as RealDuration } from '../../../src/core'
+import { assertScheduleInvariants } from '../../helpers/schedule-invariants'
 
 function realDate(iso: string): RealLocalDate { return iso as RealLocalDate }
 function realTime(hhmm: string): RealLocalTime { return hhmm as RealLocalTime }
 function realMinutes(n: number): RealDuration { return n as RealDuration }
 function makeRealPlanner(): Autoplanner {
   return createAutoplanner({ adapter: createMockAdapter(), timezone: 'UTC' })
+}
+async function getScheduleChecked(
+  p: Autoplanner,
+  start: RealLocalDate,
+  end: RealLocalDate,
+): ReturnType<Autoplanner['getSchedule']> {
+  const schedule = await p.getSchedule(start, end)
+  assertScheduleInvariants(schedule)
+  return schedule
 }
 function extractTime(dt: string): string { return dt.slice(11) }
 function toMinutes(t: string): number {
@@ -4888,7 +4898,7 @@ describe('Reflow Stress Tests', () => {
       })
     }
 
-    const schedule = await planner.getSchedule(realDate(testDate), realDate('2026-07-02'))
+    const schedule = await getScheduleChecked(planner, realDate(testDate), realDate('2026-07-02'))
     const items = schedule.instances.filter(i => i.title.startsWith('Flex-'))
     expect(items).toHaveLength(12)
 
@@ -4937,7 +4947,7 @@ describe('Reflow Stress Tests', () => {
       })
     }
 
-    const schedule = await planner.getSchedule(realDate(testDate), realDate('2026-07-02'))
+    const schedule = await getScheduleChecked(planner, realDate(testDate), realDate('2026-07-02'))
 
     // All 30 items present
     expect(schedule.instances.filter(i => i.title.startsWith('Fixed-') || i.title.startsWith('FlexMix-'))).toHaveLength(30)
@@ -4992,7 +5002,7 @@ describe('Reflow Stress Tests', () => {
       ids.push(childId)
     }
 
-    const schedule = await planner.getSchedule(realDate(testDate), realDate('2026-07-02'))
+    const schedule = await getScheduleChecked(planner, realDate(testDate), realDate('2026-07-02'))
 
     // All 10 items present — solver doesn't drop items
     const chainItems = schedule.instances.filter(i => i.title.startsWith('Chain-'))
@@ -5042,7 +5052,7 @@ describe('Reflow Stress Tests', () => {
     }
 
     const start = Date.now()
-    const schedule = await planner.getSchedule(realDate(testDate), realDate('2026-07-02'))
+    const schedule = await getScheduleChecked(planner, realDate(testDate), realDate('2026-07-02'))
     const elapsed = Date.now() - start
 
     // Must complete in < 10 seconds

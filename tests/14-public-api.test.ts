@@ -28,6 +28,7 @@ import {
   type CompletionId,
   type Duration,
 } from '../src/core';
+import { assertScheduleInvariants } from './helpers/schedule-invariants';
 import { Ok, Err } from '../src/result';
 
 // ============================================================================
@@ -60,6 +61,16 @@ function createValidConfig(overrides: Partial<AutoplannerConfig> = {}): Autoplan
     timezone: 'America/New_York',
     ...overrides,
   };
+}
+
+async function getScheduleChecked(
+  p: Autoplanner,
+  start: LocalDate,
+  end: LocalDate,
+): ReturnType<Autoplanner['getSchedule']> {
+  const schedule = await p.getSchedule(start, end);
+  assertScheduleInvariants(schedule);
+  return schedule;
 }
 
 // ============================================================================
@@ -201,7 +212,7 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
-        const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
 
         schedule.instances.forEach((instance) => {
           // All times should be in EST/EDT (local)
@@ -255,7 +266,7 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('02:30') }],
         });
 
-        const schedule = await planner.getSchedule(date('2025-03-09'), date('2025-03-10'));
+        const schedule = await getScheduleChecked(planner, date('2025-03-09'), date('2025-03-10'));
         // 2:30 AM doesn't exist on DST start - should shift to 3:00 AM (first valid time)
         expect(schedule.instances).toSatisfy((instances: typeof schedule.instances) => instances.length === 1 && instances[0].seriesId === id);
         const instance = schedule.instances.find((i) => i.seriesId === id);
@@ -273,7 +284,7 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('01:30') }],
         });
 
-        const schedule = await planner.getSchedule(date('2025-11-02'), date('2025-11-03'));
+        const schedule = await getScheduleChecked(planner, date('2025-11-02'), date('2025-11-03'));
         // 1:30 AM occurs twice on DST end - should use first occurrence (EDT, before fall back)
         expect(schedule.instances).toSatisfy((instances: typeof schedule.instances) => instances.length === 1 && instances[0].seriesId === id);
         const instance = schedule.instances.find((i) => i.seriesId === id);
@@ -465,7 +476,7 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
-        const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
+        const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-21'));
         // 6 days from 2025-01-15 to 2025-01-20 inclusive (daily pattern)
         expect(schedule.instances.every((i) => i.seriesId === id)).toBe(true);
         expect(schedule.instances.every((i) => i.title === 'Test')).toBe(true);
@@ -482,7 +493,7 @@ describe('Segment 14: Public API', () => {
         });
 
         // Immediately after createSeries, getSchedule should see the new series
-        const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
         expect(schedule.instances.some((i) => i.title === 'Test')).toBe(true);
       });
     });
@@ -1190,7 +1201,7 @@ describe('Segment 14: Public API', () => {
         const allSeries = await planner.getAllSeries();
         expect(allSeries.map((s) => s.id)).not.toContain(id);
         // Confirm series no longer appears in schedule
-        const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
         expect(schedule.instances.map((i) => i.seriesId)).not.toContain(id);
       });
 
@@ -1345,7 +1356,7 @@ describe('Segment 14: Public API', () => {
 
         await planner.cancelInstance(id, date('2025-01-15'));
 
-        const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
         expect(schedule.instances.some((i) => i.date === date('2025-01-15'))).toBe(false);
       });
 
@@ -1429,7 +1440,7 @@ describe('Segment 14: Public API', () => {
           patterns: [{ type: 'daily', time: time('09:00') }],
         });
 
-        const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
+        const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-21'));
 
         // Verify instances are returned with correct data
         expect(schedule.instances.every((i) => i.seriesId === id)).toBe(true);
@@ -1545,7 +1556,7 @@ describe('Segment 14: Public API', () => {
 
       // State should be consistent immediately after operation
       const series = await planner.getSeries(id);
-      const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+      const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
 
       expect(series?.id).toBe(id);
       expect(series?.title).toBe('Test');
@@ -1561,7 +1572,7 @@ describe('Segment 14: Public API', () => {
       });
 
       const series = await planner.getSeries(id);
-      const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+      const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
 
       // All times should be in local timezone (America/New_York)
       expect(series?.patterns[0].time).toBe(time('09:00'));
@@ -1584,7 +1595,7 @@ describe('Segment 14: Public API', () => {
         patterns: [{ type: 'daily', time: time('09:00') }],
       });
 
-      const queriedSchedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-22'));
+      const queriedSchedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-22'));
 
       // Event schedule should match queried schedule
       expect(eventSchedule?.instances.length).toBe(queriedSchedule.instances.length);
@@ -1688,14 +1699,14 @@ describe('Segment 14: Public API', () => {
         expect(series?.patterns[0].condition).toEqual({ type: 'weekday', days: [1, 2, 3, 4, 5] });
 
         // Wednesday (weekday) - should appear
-        const weekdaySchedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        const weekdaySchedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
         const weekdayInstances = weekdaySchedule.instances.filter((i) => i.seriesId === id);
         expect(weekdayInstances).toHaveLength(1);
         expect(weekdayInstances[0].date).toEqual(date('2025-01-15'));
 
         // Saturday (weekend) - should not appear (weekday condition excludes day 6)
         // The weekday query above returned 1 instance, proving the series generates results
-        const weekendSchedule = await planner.getSchedule(date('2025-01-18'), date('2025-01-19'));
+        const weekendSchedule = await getScheduleChecked(planner, date('2025-01-18'), date('2025-01-19'));
         const weekendInstances = weekendSchedule.instances.filter((i) => i.seriesId === id);
         expect(weekendInstances).toSatisfy((instances: typeof weekendInstances) =>
           instances.length === 0 && !instances.some(i => i.seriesId === id)
@@ -1717,7 +1728,7 @@ describe('Segment 14: Public API', () => {
         await planner.linkSeries(parentId, childId, { distance: 0, earlyWobble: 0, lateWobble: 30 });
 
         // Before completion, child scheduled relative to parent's scheduled end
-        let schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        let schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
         const childBefore = schedule.instances.find((i) => i.seriesId === childId);
         expect(childBefore?.seriesId).toBe(childId);
         expect(childBefore?.title).toBe('Child');
@@ -1729,7 +1740,7 @@ describe('Segment 14: Public API', () => {
         });
 
         // After completion, child should be rescheduled based on actual end
-        schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-16'));
+        schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
         const childAfter = schedule.instances.find((i) => i.seriesId === childId);
 
         // Child may have adjusted based on parent's early completion
@@ -1774,7 +1785,7 @@ describe('Segment 14: Public API', () => {
         startDate: date('2025-06-01'),
       });
 
-      const schedule = await planner.getSchedule(date('2025-06-01'), date('2025-06-02'));
+      const schedule = await getScheduleChecked(planner, date('2025-06-01'), date('2025-06-02'));
       const a = schedule.instances.find((i) => i.title === 'NoTime-A')!;
       const b = schedule.instances.find((i) => i.title === 'NoTime-B')!;
 
@@ -1804,7 +1815,7 @@ describe('Segment 14: Public API', () => {
         startDate: date('2025-06-01'),
       });
 
-      const schedule = await planner.getSchedule(date('2025-06-01'), date('2025-06-02'));
+      const schedule = await getScheduleChecked(planner, date('2025-06-01'), date('2025-06-02'));
 
       // Both instances present at their declared times
       const inst1 = schedule.instances.find((i) => i.seriesId === id1)!;
@@ -1828,7 +1839,7 @@ describe('Segment 14: Public API', () => {
         startDate: date('2025-06-01'),
       });
 
-      const schedule = await planner.getSchedule(date('2025-06-01'), date('2025-06-02'));
+      const schedule = await getScheduleChecked(planner, date('2025-06-01'), date('2025-06-02'));
       const inst = schedule.instances.find((i) => i.title === 'NoTimeItem')!;
 
       expect(inst.title).toBe('NoTimeItem');

@@ -15,6 +15,7 @@ import {
   type LocalTime,
   type Duration,
 } from '../src/core'
+import { assertScheduleInvariants } from './helpers/schedule-invariants'
 
 // ============================================================================
 // Helpers
@@ -64,6 +65,20 @@ function rangesOverlap(
   return s1 < e2 && s2 < e1
 }
 
+/**
+ * Wrapper around getSchedule that automatically runs structural invariants.
+ * Ensures every schedule in every test passes basic validity checks.
+ */
+async function getScheduleChecked(
+  p: Autoplanner,
+  start: LocalDate,
+  end: LocalDate,
+): ReturnType<Autoplanner['getSchedule']> {
+  const schedule = await p.getSchedule(start, end)
+  assertScheduleInvariants(schedule)
+  return schedule
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -94,7 +109,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const a = schedule.instances.find(i => i.title === 'Task A')!
       const b = schedule.instances.find(i => i.title === 'Task B')!
 
@@ -116,7 +131,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         })
       }
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const instances = schedule.instances.filter(i => !i.allDay)
 
       expect(instances).toHaveLength(5)
@@ -149,7 +164,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const fixed = schedule.instances.find(i => i.title === 'Fixed Meeting')!
       const flexible = schedule.instances.find(i => i.title === 'Flexible Task')!
 
@@ -172,7 +187,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const inst = schedule.instances.find(i => i.title === 'No Time Set')!
 
       const mins = timeToMinutes(timeOf(inst.time as string))
@@ -187,7 +202,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const inst = schedule.instances.find(i => i.title === 'Chosen')!
 
       // Explicit time → treated as fixed by solver, stays put
@@ -203,7 +218,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         })
       }
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const instances = schedule.instances.filter(i => !i.allDay)
 
       expect(instances).toHaveLength(10)
@@ -242,7 +257,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const inst = schedule.instances.find(i => i.title === 'Pinned')!
 
       expect(timeOf(inst.time as string)).toBe('10:00:00')
@@ -260,7 +275,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const a = schedule.instances.find(i => i.title === 'Meeting A')!
       const b = schedule.instances.find(i => i.title === 'Meeting B')!
 
@@ -296,7 +311,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const fixedInst = schedule.instances.find(i => i.title === 'Fixed Center')!
 
       // Fixed stays put at 09:00
@@ -338,7 +353,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         lateWobble: 0,
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const parent = schedule.instances.find(i => i.title === 'Parent')!
       const child = schedule.instances.find(i => i.title === 'Child')!
 
@@ -368,7 +383,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         lateWobble: 30,
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const child = schedule.instances.find(i => i.title === 'Child')!
       const childMins = timeToMinutes(timeOf(child.time as string))
 
@@ -410,7 +425,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         lateWobble: 0,
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const gp = schedule.instances.find(i => i.title === 'Grandparent')!
       const p = schedule.instances.find(i => i.title === 'Parent')!
       const c = schedule.instances.find(i => i.title === 'Child')!
@@ -454,7 +469,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         lateWobble: 120,
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const occupier = schedule.instances.find(i => i.title === 'Occupier')!
       const parent = schedule.instances.find(i => i.title === 'Parent')!
       const child = schedule.instances.find(i => i.title === 'Child')!
@@ -500,7 +515,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
 
       // Three non-overlapping series → no conflicts expected
       expect(schedule.instances).toHaveLength(3)
@@ -520,7 +535,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const overlap = schedule.conflicts.find(c => c.type === 'overlap')
 
       expect(overlap).toBeDefined()
@@ -548,7 +563,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
 
       // The homeless item should still appear (best-effort placement)
       const homeless = schedule.instances.find(i => i.title === 'Homeless')
@@ -582,7 +597,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const timed = schedule.instances.find(i => i.title === 'Timed Task')!
       const allDay = schedule.instances.find(i => i.title === 'All Day Event')!
 
@@ -601,7 +616,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const inst = schedule.instances.find(i => i.title === 'Anniversary')!
 
       expect(inst).toBeDefined()
@@ -622,8 +637,8 @@ describe('Segment 17: Reflow Integration Tests', () => {
         })
       }
 
-      const s1 = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
-      const s2 = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const s1 = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
+      const s2 = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
 
       const times1 = s1.instances.map(i => i.time as string).sort()
       const times2 = s2.instances.map(i => i.time as string).sort()
@@ -640,7 +655,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         })
       }
 
-      const before = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const before = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
 
       // Add a non-conflicting fixed series at a distant time
       await planner.createSeries({
@@ -649,7 +664,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const after = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const after = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
 
       // All original items still present
       for (const inst of before.instances) {
@@ -698,7 +713,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
         startDate: date('2026-03-01'),
       })
 
-      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
       const blocker = schedule.instances.find(i => i.title === 'Blocker')!
       const moved = schedule.instances.find(i => i.title === 'MustMove')!
 
@@ -743,7 +758,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
       const med2Id = await planner.createSeries({ title: 'Meditation 2', patterns: [{ type: 'daily', duration: minutes(15) }], startDate: date('2026-03-02') })
       await planner.linkSeries(medId, med2Id, { distance: 300, earlyWobble: 0, lateWobble: 120 })
 
-      const schedule = await planner.getSchedule(date('2026-03-02'), date('2026-03-03'))
+      const schedule = await getScheduleChecked(planner, date('2026-03-02'), date('2026-03-03'))
 
       // 1. All 13 items present
       expect(schedule.instances).toHaveLength(13)
