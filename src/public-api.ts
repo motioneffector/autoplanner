@@ -842,7 +842,6 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           count: 1,
           cancelled: false,
           conditionSatisfied: true,
-          rescheduledTo: undefined,
           adaptiveDuration: false,
         })
       }
