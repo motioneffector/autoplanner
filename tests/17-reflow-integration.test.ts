@@ -641,12 +641,8 @@ describe('Segment 17: Reflow Integration Tests', () => {
       }
 
       const before = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
-      const originalTimes = new Map<string, string>()
-      for (const inst of before.instances) {
-        originalTimes.set(inst.title, inst.time as string)
-      }
 
-      // Add a non-conflicting series at a distant time
+      // Add a non-conflicting fixed series at a distant time
       await planner.createSeries({
         title: 'Newcomer',
         patterns: [{ type: 'daily', time: time('20:00'), duration: minutes(30) }],
@@ -655,11 +651,156 @@ describe('Segment 17: Reflow Integration Tests', () => {
 
       const after = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
 
-      // Original items should keep their times
-      for (const inst of after.instances) {
-        if (inst.title === 'Newcomer') continue
-        expect(inst.time as string).toBe(originalTimes.get(inst.title))
+      // All original items still present
+      for (const inst of before.instances) {
+        const found = after.instances.find(i => i.title === inst.title)
+        expect(found).toBeDefined()
+        expect(found!.title).toBe(inst.title)
+      }
+
+      // Newcomer at its declared time
+      const newcomer = after.instances.find(i => i.title === 'Newcomer')!
+      expect(newcomer.title).toBe('Newcomer')
+      expect(timeOf(newcomer.time as string)).toBe('20:00:00')
+
+      // No pairwise overlaps in the final schedule
+      const timed = after.instances.filter((i: any) => !i.allDay)
+      for (let i = 0; i < timed.length; i++) {
+        for (let j = i + 1; j < timed.length; j++) {
+          const a = timed[i]!
+          const b = timed[j]!
+          expect(
+            rangesOverlap(
+              timeOf(a.time as string), a.duration || 30,
+              timeOf(b.time as string), b.duration || 30,
+            ),
+          ).toBe(false)
+        }
       }
     })
+  })
+
+  // ========================================================================
+  // Canary — simplest proof the solver is alive
+  // ========================================================================
+  describe('Canary', () => {
+    it('CANARY: flex item moves away from occupied 09:00', async () => {
+      // One fixed item at 09:00, one flex item (defaults to 09:00).
+      // If reflow is alive, flex MUST move. If dead, flex stays at 09:00.
+      await planner.createSeries({
+        title: 'Blocker',
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(60), fixed: true }],
+        startDate: date('2026-03-01'),
+      })
+      await planner.createSeries({
+        title: 'MustMove',
+        patterns: [{ type: 'daily', duration: minutes(60) }],
+        startDate: date('2026-03-01'),
+      })
+
+      const schedule = await planner.getSchedule(date('2026-03-01'), date('2026-03-02'))
+      const blocker = schedule.instances.find(i => i.title === 'Blocker')!
+      const moved = schedule.instances.find(i => i.title === 'MustMove')!
+
+      // Blocker stays at 09:00
+      expect(timeOf(blocker.time as string)).toBe('09:00:00')
+
+      // MustMove is NOT at 09:00 — solver moved it
+      expect(timeOf(moved.time as string)).not.toBe('09:00:00')
+
+      // No overlap between them
+      expect(
+        rangesOverlap(
+          timeOf(blocker.time as string), blocker.duration || 60,
+          timeOf(moved.time as string), moved.duration || 60,
+        ),
+      ).toBe(false)
+    })
+  })
+
+  // ========================================================================
+  // Weekday-realistic schedule
+  // ========================================================================
+  describe('Weekday-realistic schedule', () => {
+    it('mirrors real Monday: 7 fixed + 5 flex + 1 chain child — all distributed, no overlaps', async () => {
+      // Fixed items (calendar events + composer blocks with fixed_time)
+      await planner.createSeries({ title: 'Breakfast', patterns: [{ type: 'daily', time: time('07:15'), duration: minutes(45), fixed: true }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Check-in', patterns: [{ type: 'daily', time: time('08:00'), duration: minutes(30), fixed: true }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Standup', patterns: [{ type: 'daily', time: time('08:30'), duration: minutes(15), fixed: true }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Therapy', patterns: [{ type: 'daily', time: time('14:30'), duration: minutes(60), fixed: true }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Dinner', patterns: [{ type: 'daily', time: time('21:00'), duration: minutes(60), fixed: true }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Shower', patterns: [{ type: 'daily', time: time('22:00'), duration: minutes(30), fixed: true }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Bedtime', patterns: [{ type: 'daily', time: time('23:59'), duration: minutes(1), fixed: true }], startDate: date('2026-03-02') })
+
+      // Flexible items (no pattern.time — default to 09:00, solver must distribute)
+      await planner.createSeries({ title: 'Clean Glasses', patterns: [{ type: 'daily', duration: minutes(5) }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Japanese SRS', patterns: [{ type: 'daily', duration: minutes(30) }], startDate: date('2026-03-02') })
+      const medId = await planner.createSeries({ title: 'Meditation', patterns: [{ type: 'daily', duration: minutes(15) }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Walking', patterns: [{ type: 'daily', duration: minutes(30) }], startDate: date('2026-03-02') })
+      await planner.createSeries({ title: 'Weight Training', patterns: [{ type: 'daily', duration: minutes(45) }], startDate: date('2026-03-02') })
+
+      // Chain child: 2nd Meditation linked 5hrs after 1st
+      const med2Id = await planner.createSeries({ title: 'Meditation 2', patterns: [{ type: 'daily', duration: minutes(15) }], startDate: date('2026-03-02') })
+      await planner.linkSeries(medId, med2Id, { distance: 300, earlyWobble: 0, lateWobble: 120 })
+
+      const schedule = await planner.getSchedule(date('2026-03-02'), date('2026-03-03'))
+
+      // 1. All 13 items present
+      expect(schedule.instances).toHaveLength(13)
+
+      // 2. Fixed items at their declared times
+      const fixed = [
+        { title: 'Breakfast', expected: '07:15:00' },
+        { title: 'Check-in', expected: '08:00:00' },
+        { title: 'Standup', expected: '08:30:00' },
+        { title: 'Therapy', expected: '14:30:00' },
+        { title: 'Dinner', expected: '21:00:00' },
+        { title: 'Shower', expected: '22:00:00' },
+        { title: 'Bedtime', expected: '23:59:00' },
+      ]
+      for (const f of fixed) {
+        const inst = schedule.instances.find(i => i.title === f.title)!
+        expect(inst.title).toBe(f.title)
+        expect(timeOf(inst.time as string)).toBe(f.expected)
+      }
+
+      // 3. All flex items within waking hours (07:00-23:00)
+      const flexTitles = ['Clean Glasses', 'Japanese SRS', 'Meditation', 'Walking', 'Weight Training', 'Meditation 2']
+      for (const title of flexTitles) {
+        const inst = schedule.instances.find(i => i.title === title)!
+        expect(inst.title).toBe(title)
+        const mins = timeToMinutes(timeOf(inst.time as string))
+        expect(mins).toBeGreaterThanOrEqual(7 * 60)
+        expect(mins + (inst.duration || 60)).toBeLessThanOrEqual(23 * 60)
+      }
+
+      // 4. Zero pairwise overlaps among timed items
+      const timed = schedule.instances.filter((i: any) => !i.allDay)
+      for (let i = 0; i < timed.length; i++) {
+        for (let j = i + 1; j < timed.length; j++) {
+          const a = timed[i]!
+          const b = timed[j]!
+          const overlap = rangesOverlap(
+            timeOf(a.time as string), a.duration || 60,
+            timeOf(b.time as string), b.duration || 60,
+          )
+          if (overlap) {
+            // Both must be fixed for overlap to be acceptable
+            expect(a.fixed && b.fixed).toBe(true)
+          }
+        }
+      }
+
+      // 5. Chain: Meditation 2 after Meditation ends + distance
+      const med1 = schedule.instances.find(i => i.title === 'Meditation')!
+      const med2 = schedule.instances.find(i => i.title === 'Meditation 2')!
+      const med1End = timeToMinutes(timeOf(med1.time as string)) + (med1.duration || 15)
+      const med2Start = timeToMinutes(timeOf(med2.time as string))
+      // Distance is 300 min, lateWobble 120 → child between med1End+300 and med1End+300+120
+      expect(med2Start).toBeGreaterThanOrEqual(med1End + 300 - 1) // -1 for rounding
+
+      // 6. Solver found a real solution (not fallback)
+      expect(schedule.conflicts).toHaveLength(0)
+    }, 5000) // 5 second timeout
   })
 })

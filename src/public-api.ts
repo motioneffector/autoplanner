@@ -1226,9 +1226,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         const earliest = addMinutesToTime(target, -(link.earlyWobble || 0))
         const latest = addMinutesToTime(target, link.lateWobble || 0)
 
-        // Use original pattern time (before chain adjustment) for conflict detection
-        const originalTime = (childInst as InternalInstance)._patternTime || childInst.time
-        const childTimeStr = originalTime as string
+        // For items with explicit time, check original pattern time (configuration error detection)
+        // For flexible items (no explicit time), check actual post-reflow position
+        const internal = childInst as InternalInstance
+        const childTimeStr = (internal._hasExplicitTime ? (internal._patternTime || childInst.time) : childInst.time) as string
         const earliestStr = earliest as string
         const latestStr = latest as string
 
