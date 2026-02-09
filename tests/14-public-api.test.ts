@@ -1738,4 +1738,105 @@ describe('Segment 14: Public API', () => {
       });
     });
   });
+
+  // ===========================================================================
+  // Reflow Integration
+  // ===========================================================================
+
+  describe('Reflow integration', () => {
+    function timeOf(dt: string): string {
+      return dt.slice(11);
+    }
+
+    function timeToMinutes(t: string): number {
+      const [h, m] = t.split(':').map(Number);
+      return h! * 60 + m!;
+    }
+
+    function rangesOverlap(s1: string, d1: number, s2: string, d2: number): boolean {
+      const a = timeToMinutes(s1), b = a + d1;
+      const c = timeToMinutes(s2), d = c + d2;
+      return a < d && c < b;
+    }
+
+    it('getSchedule uses reflow for time distribution — two no-time items get separated', async () => {
+      const planner = createAutoplanner({ adapter: createMockAdapter(), timezone: 'UTC' });
+
+      await planner.createSeries({
+        title: 'NoTime-A',
+        patterns: [{ type: 'daily', duration: minutes(60) }],
+        startDate: date('2025-06-01'),
+      });
+
+      await planner.createSeries({
+        title: 'NoTime-B',
+        patterns: [{ type: 'daily', duration: minutes(60) }],
+        startDate: date('2025-06-01'),
+      });
+
+      const schedule = await planner.getSchedule(date('2025-06-01'), date('2025-06-02'));
+      const a = schedule.instances.find((i) => i.title === 'NoTime-A')!;
+      const b = schedule.instances.find((i) => i.title === 'NoTime-B')!;
+
+      expect(a.title).toBe('NoTime-A');
+      expect(a.duration).toBe(60);
+      expect(b.title).toBe('NoTime-B');
+      expect(b.duration).toBe(60);
+
+      // They should NOT overlap — reflow should have separated them
+      expect(
+        rangesOverlap(timeOf(a.time as string), 60, timeOf(b.time as string), 60),
+      ).toBe(false);
+    });
+
+    it('getSchedule returns reflow conflicts for fixed-fixed overlap', async () => {
+      const planner = createAutoplanner({ adapter: createMockAdapter(), timezone: 'UTC' });
+
+      const id1 = await planner.createSeries({
+        title: 'FixedOverlap-1',
+        patterns: [{ type: 'daily', time: time('10:00'), duration: minutes(60), fixed: true }],
+        startDate: date('2025-06-01'),
+      });
+
+      const id2 = await planner.createSeries({
+        title: 'FixedOverlap-2',
+        patterns: [{ type: 'daily', time: time('10:30'), duration: minutes(60), fixed: true }],
+        startDate: date('2025-06-01'),
+      });
+
+      const schedule = await planner.getSchedule(date('2025-06-01'), date('2025-06-02'));
+
+      // Both instances present at their declared times
+      const inst1 = schedule.instances.find((i) => i.seriesId === id1)!;
+      const inst2 = schedule.instances.find((i) => i.seriesId === id2)!;
+      expect(timeOf(inst1.time as string)).toBe('10:00:00');
+      expect(timeOf(inst2.time as string)).toBe('10:30:00');
+
+      // Overlap conflict reported with concrete seriesIds
+      const overlap = schedule.conflicts.find((c) => c.type === 'overlap');
+      expect(overlap).toBeDefined();
+      expect(overlap!.seriesIds).toContain(id1);
+      expect(overlap!.seriesIds).toContain(id2);
+    });
+
+    it('flexible without pattern.time gets placed in waking hours', async () => {
+      const planner = createAutoplanner({ adapter: createMockAdapter(), timezone: 'UTC' });
+
+      await planner.createSeries({
+        title: 'NoTimeItem',
+        patterns: [{ type: 'daily', duration: minutes(45) }],
+        startDate: date('2025-06-01'),
+      });
+
+      const schedule = await planner.getSchedule(date('2025-06-01'), date('2025-06-02'));
+      const inst = schedule.instances.find((i) => i.title === 'NoTimeItem')!;
+
+      expect(inst.title).toBe('NoTimeItem');
+      expect(inst.duration).toBe(45);
+      const mins = timeToMinutes(timeOf(inst.time as string));
+      // Should be within waking hours window (07:00-23:00)
+      expect(mins).toBeGreaterThanOrEqual(7 * 60);
+      expect(mins + 45).toBeLessThanOrEqual(23 * 60);
+    });
+  });
 });
