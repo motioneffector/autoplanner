@@ -324,8 +324,12 @@ function formatInTz(epochMs: number, tz: string) {
 
 function normalizeTime(t: LocalTime): LocalTime {
   const s = t as string
-  if (s.length === 5) return (s + ':00') as LocalTime
-  return t
+  // Handle short formats: '8:30' → '08:30:00', '08:30' → '08:30:00'
+  const parts = s.split(':')
+  const h = (parts[0] || '00').padStart(2, '0')
+  const m = (parts[1] || '00').padStart(2, '0')
+  const sec = (parts[2] || '00').padStart(2, '0')
+  return `${h}:${m}:${sec}` as LocalTime
 }
 
 function resolveTimeForDate(dateStr: LocalDate, timeStr: LocalTime, tz: string): LocalTime {
