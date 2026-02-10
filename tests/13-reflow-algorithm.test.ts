@@ -21,6 +21,9 @@ import {
   checkNoOverlap,
   checkChainConstraint,
   calculateWorkloadScore,
+  buildChainTree,
+  chainShadowClear,
+  pruneByChainShadow,
   type ReflowInput,
   type ReflowOutput,
   type Instance,
@@ -28,6 +31,8 @@ import {
   type Assignment,
   type Conflict,
   type ConflictType,
+  type ChainNode,
+  type ChainTree,
 } from '../src/reflow';
 import {
   type LocalDate,
@@ -385,7 +390,7 @@ describe('Segment 13: Reflow Algorithm', () => {
         expect(domains.has(instances[0])).toBe(false);
       });
 
-      it('chain child domain dynamic - computed from parent', () => {
+      it('chain child excluded from domain map — derived variable', () => {
         const parent = {
           seriesId: seriesId('A'),
           fixed: true,
@@ -403,18 +408,18 @@ describe('Segment 13: Reflow Algorithm', () => {
         const instances = [parent, child];
         const domains = computeDomains(instances);
 
-        // Child domain should be relative to parent
-        expect(domains.has(child)).toBe(true);
-        const childDomain = domains.get(child)!;
-        // Verify domain contains valid datetime strings
-        expect(childDomain).toEqual(
-          expect.arrayContaining([expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)])
-        );
+        // Chain children are derived variables — NOT in the domain map
+        expect(domains.has(child)).toBe(false);
+        // Parent still has its domain
+        expect(domains.has(parent)).toBe(true);
+        expect(domains.get(parent)).toStrictEqual([datetime('2025-01-15T09:00:00')]);
       });
 
-      it('flexible parent produces wide child domain (T1)', () => {
-        // Parent is flexible with a wide time window → child domain should span
-        // the full range derived from parent's domain, not just parent's ideal time
+      it('chain child excluded from domains, parent shadow-pruned (T1)', () => {
+        // Parent is flexible with a wide time window. Child is chain child.
+        // After computeDomains + shadow pruning:
+        // - child has NO domain entry (derived variable)
+        // - parent retains full domain since no fixed items to conflict with
         const parent = {
           seriesId: seriesId('P'),
           fixed: false,
@@ -438,27 +443,19 @@ describe('Segment 13: Reflow Algorithm', () => {
         const instances = [parent, child];
         const domains = computeDomains(instances);
 
-        const parentDomain = domains.get(parent)!;
-        const childDomain = domains.get(child)!;
+        // Child is NOT in domain map — it's a derived variable
+        expect(domains.has(child)).toBe(false);
 
-        // Parent domain should span 08:00–12:00 in 5-min increments = 49 slots
+        // Parent domain still spans 08:00–12:00 in 5-min increments = 49 slots
+        const parentDomain = domains.get(parent)!;
         expect(parentDomain).toContain(datetime('2025-01-15T08:00:00'));
         expect(parentDomain).toContain(datetime('2025-01-15T12:00:00'));
         expect(parentDomain).toHaveLength(49);
-
-        // Child domain should be wide: earliest parent (08:00) + dur(30) + distance(60) - early(0) = 09:30
-        // through latest parent (12:00) + dur(30) + distance(60) + late(10) = 13:40
-        // That's 09:30 to 13:40 in 5-min increments = 51 slots
-        expect(childDomain).toContain(datetime('2025-01-15T09:30:00'));
-        expect(childDomain).toContain(datetime('2025-01-15T13:40:00'));
-        expect(childDomain).toHaveLength(51);
-
-        // Slots before parent's ideal-derived position (11:30) must exist from early parent positions
-        expect(childDomain).toContain(datetime('2025-01-15T10:00:00'));
       });
 
-      it('fixed parent produces narrow child domain (T2)', () => {
-        // Fixed parent → child domain should be computed from parent's single ideal time only
+      it('fixed parent: child excluded, parent domain unchanged (T2)', () => {
+        // Fixed parent → child excluded from domains (derived variable)
+        // Parent domain is just [idealTime] as always for fixed items
         const parent = {
           seriesId: seriesId('P'),
           fixed: true,
@@ -478,18 +475,337 @@ describe('Segment 13: Reflow Algorithm', () => {
         const instances = [parent, child];
         const domains = computeDomains(instances);
 
-        const childDomain = domains.get(child)!;
+        // Child is NOT in domain map
+        expect(domains.has(child)).toBe(false);
 
-        // Parent fixed at 09:00, dur=30, distance=60 → target = 10:30
-        // With wobble 0/10: domain = [10:30, 10:35, 10:40]
-        expect(childDomain).toContain(datetime('2025-01-15T10:30:00'));
-        expect(childDomain).toContain(datetime('2025-01-15T10:35:00'));
-        expect(childDomain).toContain(datetime('2025-01-15T10:40:00'));
-        expect(childDomain).toHaveLength(3);
+        // Parent fixed → single-slot domain at ideal time
+        expect(domains.get(parent)).toStrictEqual([datetime('2025-01-15T09:00:00')]);
+      });
+    });
+  });
 
-        // Must NOT contain slots outside the narrow range
-        expect(childDomain).not.toContain(datetime('2025-01-15T10:25:00'));
-        expect(childDomain).not.toContain(datetime('2025-01-15T10:45:00'));
+  // ============================================================================
+  // 2b. Derived Chain Variables (Shadow Pruning + Chain Trees)
+  // ============================================================================
+
+  describe('Derived Chain Variables', () => {
+    describe('buildChainTree', () => {
+      it('builds single-level chain tree', () => {
+        const parent = { seriesId: seriesId('P'), fixed: false, duration: minutes(30) } as Instance;
+        const child = { seriesId: seriesId('C'), fixed: false, parentId: seriesId('P'), duration: minutes(15) } as Instance;
+        const chains = [{ parentId: seriesId('P'), childId: seriesId('C'), distance: 60, earlyWobble: 0, lateWobble: 10 }];
+
+        const tree = buildChainTree([parent, child], chains);
+
+        expect(tree.size).toBe(1);
+        expect(tree.has(parent)).toBe(true);
+        const nodes = tree.get(parent)!;
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0]!.instance).toBe(child);
+        expect(nodes[0]!.distance).toBe(60);
+        expect(nodes[0]!.lateWobble).toBe(10);
+        expect(nodes[0]!.children).toStrictEqual([]);
+      });
+
+      it('builds multi-level chain tree (3 levels)', () => {
+        const gp = { seriesId: seriesId('GP'), fixed: false, duration: minutes(15) } as Instance;
+        const p = { seriesId: seriesId('P'), fixed: false, parentId: seriesId('GP'), duration: minutes(15) } as Instance;
+        const c = { seriesId: seriesId('C'), fixed: false, parentId: seriesId('P'), duration: minutes(15) } as Instance;
+        const chains = [
+          { parentId: seriesId('GP'), childId: seriesId('P'), distance: 80, earlyWobble: 0, lateWobble: 10 },
+          { parentId: seriesId('P'), childId: seriesId('C'), distance: 200, earlyWobble: 0, lateWobble: 10 },
+        ];
+
+        const tree = buildChainTree([gp, p, c], chains);
+
+        expect(tree.size).toBe(1);
+        expect(tree.has(gp)).toBe(true);
+        const gpNodes = tree.get(gp)!;
+        expect(gpNodes).toHaveLength(1);
+        expect(gpNodes[0]!.instance).toBe(p);
+        expect(gpNodes[0]!.children).toHaveLength(1);
+        expect(gpNodes[0]!.children[0]!.instance).toBe(c);
+      });
+
+      it('returns empty map when no chains', () => {
+        const inst = { seriesId: seriesId('A'), fixed: false } as Instance;
+        const tree = buildChainTree([inst], []);
+        expect(tree.size).toBe(0);
+      });
+    });
+
+    describe('chainShadowClear', () => {
+      it('returns true when child fits without overlap', () => {
+        const child = { seriesId: seriesId('C'), fixed: false, duration: minutes(15) } as Instance;
+        const childNode: ChainNode = {
+          instance: child, distance: 60, earlyWobble: 0, lateWobble: 0, children: [],
+        };
+
+        // Parent at 09:00, dur=30. Child target = 10:30 (dur=15). No occupied ranges.
+        const result = chainShadowClear(
+          datetime('2025-01-15T09:00:00'), 30, [childNode], []
+        );
+        expect(result).toBe(true);
+      });
+
+      it('returns false when child overlaps fixed item', () => {
+        const child = { seriesId: seriesId('C'), fixed: false, duration: minutes(15) } as Instance;
+        const childNode: ChainNode = {
+          instance: child, distance: 60, earlyWobble: 0, lateWobble: 0, children: [],
+        };
+
+        // Parent at 09:00, dur=30. Child target = 10:30 (dur=15).
+        // Fixed occupier at 10:00-11:00 → child [10:30, 10:45] overlaps [10:00, 11:00]
+        const fixedRanges = [{ start: '2025-01-15T10:00:00', end: '2025-01-15T11:00:00' }];
+        const result = chainShadowClear(
+          datetime('2025-01-15T09:00:00'), 30, [childNode], fixedRanges
+        );
+        expect(result).toBe(false);
+      });
+
+      it('returns true when wobble allows child to dodge fixed item', () => {
+        const child = { seriesId: seriesId('C'), fixed: false, duration: minutes(15) } as Instance;
+        const childNode: ChainNode = {
+          instance: child, distance: 60, earlyWobble: 0, lateWobble: 30, children: [],
+        };
+
+        // Parent at 09:00, dur=30. Child target = 10:30, wobble 0/30 → range [10:30, 11:00]
+        // Fixed occupier at 10:00-10:45. Child at 10:45 (dur=15) → [10:45, 11:00] overlaps [10:00, 10:45]? No! 10:45 >= 10:45.
+        // Wait, checkNoOverlap is endA <= startB || endB <= startA. So [10:45, 11:00] vs [10:00, 10:45]: 10:45 <= 10:45 → true. No overlap.
+        const fixedRanges = [{ start: '2025-01-15T10:00:00', end: '2025-01-15T10:45:00' }];
+        const result = chainShadowClear(
+          datetime('2025-01-15T09:00:00'), 30, [childNode], fixedRanges
+        );
+        expect(result).toBe(true);
+      });
+
+      it('multi-level: grandchild blocked returns false', () => {
+        const p = { seriesId: seriesId('P'), fixed: false, duration: minutes(15) } as Instance;
+        const c = { seriesId: seriesId('C'), fixed: false, duration: minutes(15) } as Instance;
+        const childNode: ChainNode = {
+          instance: p, distance: 10, earlyWobble: 0, lateWobble: 0,
+          children: [{
+            instance: c, distance: 10, earlyWobble: 0, lateWobble: 0, children: [],
+          }],
+        };
+
+        // Root at 09:00, dur=30.
+        // P target = 09:40, P range = [09:40, 09:55]
+        // C target = 10:05, C range = [10:05, 10:20]
+        // Fixed at 10:00-10:30 → C overlaps
+        const fixedRanges = [{ start: '2025-01-15T10:00:00', end: '2025-01-15T10:30:00' }];
+        const result = chainShadowClear(
+          datetime('2025-01-15T09:00:00'), 30, [childNode], fixedRanges
+        );
+        expect(result).toBe(false);
+      });
+    });
+
+    describe('pruneByChainShadow', () => {
+      it('removes parent slots whose children overlap fixed items (T3)', () => {
+        const parent = {
+          seriesId: seriesId('P'), fixed: false, duration: minutes(30),
+          idealTime: datetime('2025-01-15T09:00:00'),
+        } as Instance;
+        const child = {
+          seriesId: seriesId('C'), fixed: false, parentId: seriesId('P'),
+          chainDistance: 60, earlyWobble: minutes(0), lateWobble: minutes(0),
+          duration: minutes(15),
+        } as Instance;
+        const occupier = {
+          seriesId: seriesId('OCC'), fixed: true,
+          idealTime: datetime('2025-01-15T10:00:00'), duration: minutes(60),
+        } as Instance;
+
+        const chainTree: ChainTree = new Map();
+        chainTree.set(parent, [{
+          instance: child, distance: 60, earlyWobble: 0, lateWobble: 0, children: [],
+        }]);
+
+        // Parent at 09:00 → child at 10:30 → overlaps occupier [10:00-11:00]
+        // Parent at 08:00 → child at 09:30 → clear
+        // Parent at 10:00 → child at 11:30 → clear
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(parent, [
+          datetime('2025-01-15T08:00:00'),
+          datetime('2025-01-15T09:00:00'),
+          datetime('2025-01-15T10:00:00'),
+        ]);
+
+        pruneByChainShadow(domains, chainTree, [parent, child, occupier]);
+
+        const remaining = domains.get(parent)!;
+        expect(remaining).toContain(datetime('2025-01-15T08:00:00'));
+        expect(remaining).not.toContain(datetime('2025-01-15T09:00:00'));
+        expect(remaining).toContain(datetime('2025-01-15T10:00:00'));
+        expect(remaining).toHaveLength(2);
+      });
+
+      it('preserves all parent slots when no fixed conflicts', () => {
+        const parent = {
+          seriesId: seriesId('P'), fixed: false, duration: minutes(30),
+          idealTime: datetime('2025-01-15T09:00:00'),
+        } as Instance;
+        const child = {
+          seriesId: seriesId('C'), fixed: false, parentId: seriesId('P'),
+          duration: minutes(15),
+        } as Instance;
+
+        const chainTree: ChainTree = new Map();
+        chainTree.set(parent, [{
+          instance: child, distance: 60, earlyWobble: 0, lateWobble: 0, children: [],
+        }]);
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(parent, [
+          datetime('2025-01-15T08:00:00'),
+          datetime('2025-01-15T09:00:00'),
+          datetime('2025-01-15T10:00:00'),
+        ]);
+
+        // No fixed items → nothing pruned
+        pruneByChainShadow(domains, chainTree, [parent, child]);
+
+        expect(domains.get(parent)!).toStrictEqual([
+          datetime('2025-01-15T08:00:00'),
+          datetime('2025-01-15T09:00:00'),
+          datetime('2025-01-15T10:00:00'),
+        ]);
+      });
+    });
+
+    describe('backtracking with shadow checking', () => {
+      it('parent displaced when derived child would hit fixed item (T4)', () => {
+        const parent = {
+          seriesId: seriesId('P'), fixed: false, duration: minutes(30),
+          idealTime: datetime('2025-01-15T09:00:00'),
+        } as Instance;
+        const occupier = {
+          seriesId: seriesId('OCC'), fixed: true, duration: minutes(60),
+          idealTime: datetime('2025-01-15T10:00:00'),
+        } as Instance;
+        const child = {
+          seriesId: seriesId('C'), fixed: false, parentId: seriesId('P'),
+          chainDistance: 60, earlyWobble: minutes(0), lateWobble: minutes(0),
+          duration: minutes(15),
+        } as Instance;
+
+        const chainTree: ChainTree = new Map();
+        chainTree.set(parent, [{
+          instance: child, distance: 60, earlyWobble: 0, lateWobble: 0, children: [],
+        }]);
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(occupier, [datetime('2025-01-15T10:00:00')]);
+        domains.set(parent, [
+          datetime('2025-01-15T08:00:00'),
+          datetime('2025-01-15T09:00:00'),
+          datetime('2025-01-15T10:00:00'),
+        ]);
+
+        const constraints = [
+          { type: 'noOverlap' as const, instances: [parent, occupier] as [Instance, Instance] },
+        ];
+
+        const result = backtrackSearch([occupier, parent], domains, constraints, { chainTree });
+
+        expect(result).toBeInstanceOf(Map);
+        expect(result!.size).toBe(2);
+        // Parent at 09:00 → child at 10:30 → overlaps occupier → rejected by shadow check
+        // Parent at 08:00 → child at 09:30 → clear → accepted (closest to ideal among valid)
+        const parentSlot = result!.get(parent)!;
+        expect(parentSlot).not.toBe(datetime('2025-01-15T09:00:00'));
+        expect([datetime('2025-01-15T08:00:00'), datetime('2025-01-15T10:00:00')]).toContain(parentSlot);
+      });
+    });
+
+    describe('performance', () => {
+      it('schedule with chains completes in under 100ms', () => {
+        // Create a realistic schedule: 7 fixed + 5 flex + 2 chain children
+        const series: any[] = [];
+        // Fixed items
+        for (let i = 0; i < 7; i++) {
+          series.push({
+            id: seriesId(`F${i}`),
+            fixed: true,
+            idealTime: datetime(`2025-01-15T${String(7 + i * 2).padStart(2, '0')}:00:00`),
+            duration: minutes(60),
+            daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+            cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          });
+        }
+        // Flexible items
+        for (let i = 0; i < 5; i++) {
+          series.push({
+            id: seriesId(`X${i}`),
+            fixed: false,
+            idealTime: datetime(`2025-01-15T${String(8 + i).padStart(2, '0')}:30:00`),
+            duration: minutes(30),
+            daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+            cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          });
+        }
+        // Chain root
+        series.push({
+          id: seriesId('LOAD'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T09:15:00'),
+          duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        });
+        // Chain children
+        series.push({
+          id: seriesId('TRANSFER'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T10:35:00'),
+          duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        });
+        series.push({
+          id: seriesId('FOLD'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T14:00:00'),
+          duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        });
+
+        const input = {
+          series,
+          constraints: [],
+          chains: [
+            { parentId: seriesId('LOAD'), childId: seriesId('TRANSFER'), distance: 80, earlyWobble: 0, lateWobble: 10 },
+            { parentId: seriesId('TRANSFER'), childId: seriesId('FOLD'), distance: 200, earlyWobble: 0, lateWobble: 10 },
+          ],
+          today: date('2025-01-15'),
+          windowStart: date('2025-01-15'),
+          windowEnd: date('2025-01-15'),
+        } as ReflowInput;
+
+        const start = performance.now();
+        const result = reflow(input);
+        const elapsed = performance.now() - start;
+
+        expect(elapsed).toBeLessThan(100);
+        // All 15 items (7 fixed + 5 flex + 3 chain) should have assignments
+        expect(result.assignments).toHaveLength(15);
+        expect(result.conflicts).toStrictEqual([]);
+
+        // Verify chain assignments: Load, Transfer, Fold all present with times
+        const loadAssign = result.assignments.find(a => (a.seriesId as string) === 'LOAD');
+        const transferAssign = result.assignments.find(a => (a.seriesId as string) === 'TRANSFER');
+        const foldAssign = result.assignments.find(a => (a.seriesId as string) === 'FOLD');
+        expect(loadAssign).toMatchObject({ seriesId: seriesId('LOAD') });
+        expect(transferAssign).toMatchObject({ seriesId: seriesId('TRANSFER') });
+        expect(foldAssign).toMatchObject({ seriesId: seriesId('FOLD') });
+
+        // Verify fixed items placed at their ideal times
+        const f0Assign = result.assignments.find(a => (a.seriesId as string) === 'F0');
+        const f6Assign = result.assignments.find(a => (a.seriesId as string) === 'F6');
+        expect(f0Assign).toMatchObject({ seriesId: seriesId('F0'), time: datetime('2025-01-15T07:00:00') });
+        expect(f6Assign).toMatchObject({ seriesId: seriesId('F6'), time: datetime('2025-01-15T19:00:00') });
       });
     });
   });
@@ -1258,31 +1574,49 @@ describe('Segment 13: Reflow Algorithm', () => {
         }));
       });
 
-      it('chainCannotFit conflict - child outside parent bounds', () => {
+      it('chainCannotFit conflict - derived child overlaps fixed item', () => {
+        // Parent fixed at 09:00 (dur=15). Child chain distance=0, wobble 0/0.
+        // Occupier fixed at 09:15 (dur=60). Child derives to 09:15 → overlaps occupier.
         const parent = {
           seriesId: seriesId('A'),
           fixed: true,
           idealTime: datetime('2025-01-15T09:00:00'),
-          duration: minutes(60),
+          duration: minutes(15),
         } as Instance;
         const child = {
           seriesId: seriesId('B'),
           fixed: false,
           parentId: seriesId('A'),
-          idealTime: datetime('2025-01-15T12:00:00'), // Too far from parent
+          duration: minutes(30),
+          chainDistance: 0,
           earlyWobble: minutes(0),
-          lateWobble: minutes(30),
+          lateWobble: minutes(0),
+        } as Instance;
+        const occupier = {
+          seriesId: seriesId('OCC'),
+          fixed: true,
+          idealTime: datetime('2025-01-15T09:15:00'),
+          duration: minutes(60),
         } as Instance;
 
+        const chainTree: ChainTree = new Map();
+        chainTree.set(parent, [{
+          instance: child,
+          distance: 0,
+          earlyWobble: 0,
+          lateWobble: 0,
+          children: [],
+        }]);
+
         const domains = new Map<Instance, LocalDateTime[]>();
-        domains.set(child, []); // No valid slots
+        domains.set(parent, [datetime('2025-01-15T09:00:00')]);
 
-        const result = handleNoSolution([parent, child], domains, []);
-        const chainConflict = result.conflicts.find((c) => c.type === 'chainCannotFit');
-
-        expect(chainConflict).toEqual(expect.objectContaining({
-          type: 'chainCannotFit',
-          severity: 'error',
+        const result = handleNoSolution([parent, child, occupier], domains, [], chainTree);
+        // Should detect overlap between derived child and occupier
+        const overlapConflict = result.conflicts.find((c) => c.type === 'overlap');
+        expect(overlapConflict).toEqual(expect.objectContaining({
+          type: 'overlap',
+          severity: 'warning',
         }));
       });
 
@@ -2316,6 +2650,770 @@ describe('Segment 13: Reflow Algorithm', () => {
 
       // 3 assignments + non-overlapping times verified above = no conflicts
       expect(result.conflicts).toStrictEqual([]);
+    });
+  });
+
+  // ============================================================================
+  // Chain Displacement Edge Cases
+  // ============================================================================
+
+  describe('Chain Displacement Edge Cases', () => {
+    it('deriveChildTime silent fallback — fully blocked wobble window produces overlap', () => {
+      // Parent B is flexible (15min), child C derives from B with distance=80, wobble=0/10.
+      // Fixed item A occupies 10:00-11:00. If B is placed at 08:45, parent ends at 09:00,
+      // child target = 10:20, wobble window = [10:20, 10:30].
+      // Fixed item WALL occupies 10:15-10:45, covering the entire wobble window.
+      // deriveChildTime should fall back to target (10:20) which overlaps WALL.
+      const series = [
+        {
+          id: seriesId('A'),
+          fixed: true,
+          idealTime: datetime('2025-01-15T10:00:00'),
+          duration: minutes(60),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        {
+          id: seriesId('WALL'),
+          fixed: true,
+          idealTime: datetime('2025-01-15T10:15:00'),
+          duration: minutes(30),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        {
+          id: seriesId('B'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T08:45:00'),
+          duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          timeWindowStart: '08:45', timeWindowEnd: '08:45',
+        },
+        {
+          id: seriesId('C'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T10:20:00'),
+          duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+      ];
+
+      const input = createReflowInput(series, {
+        chains: [
+          { parentId: seriesId('B'), childId: seriesId('C'), distance: 80, earlyWobble: 0, lateWobble: 10 },
+        ],
+      });
+
+      const result = reflow(input);
+
+      // C should be assigned (derived from parent B)
+      const assignC = result.assignments.find(a => (a.seriesId as string) === 'C');
+      expect(assignC).toBeDefined();
+      expect(assignC!.seriesId).toBe(seriesId('C'));
+
+      // B should be assigned
+      const assignB = result.assignments.find(a => (a.seriesId as string) === 'B');
+      expect(assignB).toBeDefined();
+      expect(assignB!.seriesId).toBe(seriesId('B'));
+
+      // If the solver can't avoid the overlap, we expect a conflict to be reported.
+      // The shadow pruner should ideally prevent this, but if B's only domain slot
+      // puts C into the blocked zone, deriveChildTime silently falls back to target.
+      // Either: (a) no conflicts and C avoids the blocker, or (b) overlap conflict reported.
+      const cTime = assignC!.time;
+      const blockerStart = '2025-01-15T10:15:00';
+      const blockerEnd = '2025-01-15T10:45:00';
+      const cEnd = datetime('2025-01-15T' +
+        String(parseInt(cTime.substring(11, 13)) + Math.floor((parseInt(cTime.substring(14, 16)) + 15) / 60)).padStart(2, '0') + ':' +
+        String((parseInt(cTime.substring(14, 16)) + 15) % 60).padStart(2, '0') + ':00');
+
+      const cOverlapsWall = !((cEnd as string) <= blockerStart || (cTime as string) >= blockerEnd);
+
+      if (cOverlapsWall) {
+        // Silent fallback happened — overlap conflict MUST be reported for C vs WALL
+        const cWallOverlap = result.conflicts.find(c =>
+          c.type === 'overlap' &&
+          c.message !== undefined &&
+          c.message.includes('WALL') &&
+          /\bC\b/.test(c.message)
+        );
+        expect(cWallOverlap).toEqual(expect.objectContaining({
+          type: 'overlap',
+          severity: 'warning',
+        }));
+
+        // Also verify C overlaps A (10:00-11:00) since C at 10:20 is inside A's range
+        const cAOverlap = result.conflicts.find(c =>
+          c.type === 'overlap' &&
+          c.message !== undefined &&
+          /\bC\b/.test(c.message) &&
+          /\bA\b/.test(c.message)
+        );
+        expect(cAOverlap).toEqual(expect.objectContaining({
+          type: 'overlap',
+          severity: 'warning',
+        }));
+      } else {
+        // Solver found a way to avoid the overlap entirely — C-specific overlaps absent
+        const cOverlaps = result.conflicts.filter(c =>
+          c.type === 'overlap' && c.message !== undefined &&
+          /\bC\b/.test(c.message)
+        );
+        expect(cOverlaps).toStrictEqual([]);
+      }
+    });
+
+    it('handleNoSolution with chain roots — children derived and conflicts detected', () => {
+      // Force into handleNoSolution: three fixed items at overlapping times + a flex chain root.
+      // The flex chain root has a child. Verify child appears in output and overlaps are reported.
+      const fixedA = {
+        seriesId: seriesId('F1'),
+        fixed: true,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+      } as Instance;
+      const fixedB = {
+        seriesId: seriesId('F2'),
+        fixed: true,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+      } as Instance;
+      // Chain root: flexible, 15min
+      const chainRoot = {
+        seriesId: seriesId('ROOT'),
+        fixed: false,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(15),
+      } as Instance;
+      // Chain child: derived from ROOT
+      const chainChild = {
+        seriesId: seriesId('CHILD'),
+        fixed: false,
+        parentId: seriesId('ROOT'),
+        idealTime: datetime('2025-01-15T09:45:00'),
+        duration: minutes(15),
+        chainDistance: 30,
+        earlyWobble: minutes(0),
+        lateWobble: minutes(5),
+      } as Instance;
+
+      const chainTree: ChainTree = new Map();
+      chainTree.set(chainRoot, [{
+        instance: chainChild,
+        distance: 30,
+        earlyWobble: 0,
+        lateWobble: 5,
+        children: [],
+      }]);
+
+      // Give chainRoot a domain with only the conflicting slot (forces overlap)
+      const domains = new Map<Instance, LocalDateTime[]>();
+      domains.set(fixedA, [datetime('2025-01-15T09:00:00')]);
+      domains.set(fixedB, [datetime('2025-01-15T09:00:00')]);
+      domains.set(chainRoot, [datetime('2025-01-15T09:00:00')]);
+
+      const constraints = [
+        { type: 'noOverlap' as const, instances: [fixedA, fixedB] as [Instance, Instance] },
+        { type: 'noOverlap' as const, instances: [fixedA, chainRoot] as [Instance, Instance] },
+        { type: 'noOverlap' as const, instances: [fixedB, chainRoot] as [Instance, Instance] },
+      ];
+
+      const result = handleNoSolution(
+        [fixedA, fixedB, chainRoot, chainChild],
+        domains,
+        constraints,
+        chainTree
+      );
+
+      // All items should be assigned (fixed at their times, root greedy-placed, child derived)
+      expect(result.assignments.size).toBe(4);
+      expect(result.assignments.get(fixedA)).toBe(datetime('2025-01-15T09:00:00'));
+      expect(result.assignments.get(fixedB)).toBe(datetime('2025-01-15T09:00:00'));
+
+      // Chain root: only candidate is 09:00 (overlaps both fixed), greedy places it there
+      const rootTime = result.assignments.get(chainRoot);
+      expect(rootTime).toBe(datetime('2025-01-15T09:00:00'));
+
+      // Chain child derived: parentEnd(09:15) + distance(30) = 09:45
+      // Wobble window [09:45, 09:50] fully blocked by F1/F2 (09:00-10:00)
+      // deriveChildTime falls back to target = 09:45
+      const childTime = result.assignments.get(chainChild);
+      expect(childTime).toBe(datetime('2025-01-15T09:45:00'));
+
+      // Overlap conflicts: F1-F2, F1-ROOT, F2-ROOT from pair check,
+      // plus CHILD vs F1, CHILD vs F2 from both pair and chain-child checks
+      const overlapConflicts = result.conflicts.filter(c => c.type === 'overlap');
+
+      // Verify the fixed-fixed overlap is specifically reported
+      const ffOverlap = overlapConflicts.find(c =>
+        c.message?.includes('F1') && c.message?.includes('F2')
+      );
+      expect(ffOverlap).toEqual(expect.objectContaining({
+        type: 'overlap',
+        severity: 'warning',
+      }));
+
+      // Verify child-fixed overlaps are reported (child at 09:45 overlaps F1 and F2 at 09:00-10:00)
+      const childF1Overlap = overlapConflicts.find(c =>
+        c.message?.includes('CHILD') && c.message?.includes('F1')
+      );
+      expect(childF1Overlap).toEqual(expect.objectContaining({
+        type: 'overlap',
+        severity: 'warning',
+      }));
+    });
+
+    it('full reflow displacement — chain child must not overlap fixed item', () => {
+      // Minimal displacement scenario:
+      // Item A: fixed at 10:00, 60min (occupies 10:00-11:00)
+      // Item B: flexible, 15min (chain root), time window 06:00-23:00
+      // Item C: flexible, 15min (chain child of B, distance=30, wobble=0)
+      //
+      // If B is at 09:15, B ends 09:30, C = 09:30+30 = 10:00 — overlaps A.
+      // So B MUST be displaced: either before 09:15 (so C lands before 10:00)
+      // or after 11:00 (so C starts at 11:30+).
+      const series = [
+        {
+          id: seriesId('A'),
+          fixed: true,
+          idealTime: datetime('2025-01-15T10:00:00'),
+          duration: minutes(60),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        {
+          id: seriesId('B'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T09:15:00'),
+          duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        {
+          id: seriesId('C'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T10:00:00'),
+          duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+      ];
+
+      const input = createReflowInput(series, {
+        chains: [
+          { parentId: seriesId('B'), childId: seriesId('C'), distance: 30, earlyWobble: 0, lateWobble: 0 },
+        ],
+      });
+
+      const result = reflow(input);
+
+      // All three items must be assigned
+      expect(result.assignments).toHaveLength(3);
+      const assignA = result.assignments.find(a => (a.seriesId as string) === 'A');
+      const assignB = result.assignments.find(a => (a.seriesId as string) === 'B');
+      const assignC = result.assignments.find(a => (a.seriesId as string) === 'C');
+
+      expect(assignA).toMatchObject({ seriesId: seriesId('A'), time: datetime('2025-01-15T10:00:00') });
+      expect(assignB).toBeDefined();
+      expect(assignB!.seriesId).toBe(seriesId('B'));
+      expect(assignC).toBeDefined();
+      expect(assignC!.seriesId).toBe(seriesId('C'));
+
+      // CRITICAL: C must NOT overlap A (10:00-11:00)
+      // C is 15min, so C must end at or before 10:00, or start at or after 11:00
+      const cTime = assignC!.time as string;
+      const aStart = '2025-01-15T10:00:00';
+      const aEnd = '2025-01-15T11:00:00';
+
+      // Compute C's end time manually (cTime + 15min)
+      const cHour = parseInt(cTime.substring(11, 13));
+      const cMin = parseInt(cTime.substring(14, 16));
+      const cEndMin = cMin + 15;
+      const cEndHour = cHour + Math.floor(cEndMin / 60);
+      const cEndTimeStr = `2025-01-15T${String(cEndHour).padStart(2, '0')}:${String(cEndMin % 60).padStart(2, '0')}:00`;
+
+      const cOverlapsA = !(cEndTimeStr <= aStart || cTime >= aEnd);
+
+      // If the shadow pruner works correctly, C should not overlap A
+      // and there should be zero conflicts
+      expect(cOverlapsA).toBe(false);
+      expect(result.conflicts).toStrictEqual([]);
+
+      // Verify B was displaced away from 09:15 (where C would land on A)
+      // B must be placed so that B_end + 30 min puts C outside [10:00, 11:00]
+      const bTime = assignB!.time as string;
+      const bHour = parseInt(bTime.substring(11, 13));
+      const bMin = parseInt(bTime.substring(14, 16));
+      const bEndMin = bMin + 15;
+      const bEndHour = bHour + Math.floor(bEndMin / 60);
+      const derivedCMin = (bEndMin % 60) + 30;
+      const derivedCHour = bEndHour + Math.floor(derivedCMin / 60);
+      const derivedCTimeStr = `2025-01-15T${String(derivedCHour).padStart(2, '0')}:${String(derivedCMin % 60).padStart(2, '0')}:00`;
+
+      // Derived C time must match the actual assignment
+      expect(assignC!.time).toBe(datetime(derivedCTimeStr));
+    });
+  });
+
+  // ============================================================================
+  // Chain Displacement Bug Reproduction
+  //
+  // Real Friday scenario: Laundry chain (Load → Transfer → Fold) overlaps
+  // Weight Training (fixed 10:00-11:00) because the reflow solver fails to
+  // displace the chain root early enough for derived children to clear the
+  // fixed blocker.
+  // ============================================================================
+
+  describe('Chain Displacement Bug Reproduction', () => {
+    const D = '2026-02-13'; // Friday
+
+    function fridaySeries() {
+      return [
+        // Fixed items
+        {
+          id: seriesId('BREAKFAST'), fixed: true,
+          idealTime: datetime(`${D}T07:15:00`), duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        {
+          id: seriesId('CHECKIN'), fixed: true,
+          idealTime: datetime(`${D}T08:00:00`), duration: minutes(30),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        {
+          id: seriesId('WALKING'), fixed: true,
+          idealTime: datetime(`${D}T09:30:00`), duration: minutes(30),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        {
+          id: seriesId('WT'), fixed: true,
+          idealTime: datetime(`${D}T10:00:00`), duration: minutes(60),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        {
+          id: seriesId('SHOWER'), fixed: true,
+          idealTime: datetime(`${D}T22:00:00`), duration: minutes(20),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+        },
+        // Laundry chain: Load (root) → Transfer (child) → Fold (grandchild)
+        {
+          id: seriesId('LOAD'), fixed: false,
+          idealTime: datetime(`${D}T08:45:00`), duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          timeWindow: { start: time('07:00'), end: time('23:00') },
+        },
+        {
+          id: seriesId('TRANSFER'), fixed: false,
+          idealTime: datetime(`${D}T10:20:00`), duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          timeWindow: { start: time('07:00'), end: time('23:00') },
+        },
+        {
+          id: seriesId('FOLD'), fixed: false,
+          idealTime: datetime(`${D}T14:00:00`), duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          timeWindow: { start: time('07:00'), end: time('23:00') },
+        },
+        // Other flexible items
+        {
+          id: seriesId('SRS'), fixed: false,
+          idealTime: datetime(`${D}T11:30:00`), duration: minutes(30),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          timeWindow: { start: time('07:00'), end: time('23:00') },
+        },
+        {
+          id: seriesId('MEDITATION'), fixed: false,
+          idealTime: datetime(`${D}T12:00:00`), duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          timeWindow: { start: time('07:00'), end: time('23:00') },
+        },
+        {
+          id: seriesId('GLASSES'), fixed: false,
+          idealTime: datetime(`${D}T07:45:00`), duration: minutes(15),
+          daysBefore: 0, daysAfter: 0, allDay: false, count: 1,
+          cancelled: false, conditionSatisfied: true, adaptiveDuration: false,
+          timeWindow: { start: time('07:00'), end: time('23:00') },
+        },
+      ];
+    }
+
+    function fridayChains() {
+      return [
+        { parentId: seriesId('LOAD'), childId: seriesId('TRANSFER'), distance: 80, earlyWobble: 0, lateWobble: 10 },
+        { parentId: seriesId('TRANSFER'), childId: seriesId('FOLD'), distance: 200, earlyWobble: 5, lateWobble: 120 },
+      ];
+    }
+
+    function fridayInput(): ReflowInput {
+      return {
+        series: fridaySeries(),
+        constraints: [],
+        chains: fridayChains(),
+        today: date(D),
+        windowStart: date(D),
+        windowEnd: date(D),
+      } as ReflowInput;
+    }
+
+    /** Parse minutes-since-midnight from a LocalDateTime */
+    function toMins(dt: string): number {
+      const h = parseInt(dt.substring(11, 13));
+      const m = parseInt(dt.substring(14, 16));
+      return h * 60 + m;
+    }
+
+    /** Check if two time ranges [startA, startA+durA) and [startB, startB+durB) overlap */
+    function rangesOverlap(startA: number, durA: number, startB: number, durB: number): boolean {
+      return startA < startB + durB && startB < startA + durA;
+    }
+
+    it('produces assignments for all 11 series', () => {
+      const result = reflow(fridayInput());
+
+      // 11 series total: 5 fixed + 3 laundry chain + 3 other flex
+      const assignedIds = result.assignments.map(a => a.seriesId as string).sort();
+      const expectedIds = [
+        'BREAKFAST', 'CHECKIN', 'FOLD', 'GLASSES', 'LOAD',
+        'MEDITATION', 'SHOWER', 'SRS', 'TRANSFER', 'WALKING', 'WT',
+      ];
+      expect(assignedIds).toStrictEqual(expectedIds);
+
+      // Each assignment has a valid ISO datetime
+      for (const a of result.assignments) {
+        expect(a.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
+      }
+    });
+
+    it('Transfer does not overlap Weight Training (10:00-11:00)', () => {
+      const result = reflow(fridayInput());
+
+      const transfer = result.assignments.find(a => (a.seriesId as string) === 'TRANSFER');
+      expect(transfer).toBeDefined();
+      expect(transfer!.seriesId).toBe(seriesId('TRANSFER'));
+
+      const transferStart = toMins(transfer!.time as string);
+      const transferEnd = transferStart + 15;
+      const wtStart = 10 * 60;       // 10:00 = 600
+      const wtEnd = wtStart + 60;    // 11:00 = 660
+
+      // Transfer must finish before WT starts or begin after WT ends
+      const outsideWT = transferEnd <= wtStart || transferStart >= wtEnd;
+      expect(outsideWT).toBe(true);
+    });
+
+    it('Fold does not overlap Weight Training (10:00-11:00)', () => {
+      const result = reflow(fridayInput());
+
+      const fold = result.assignments.find(a => (a.seriesId as string) === 'FOLD');
+      expect(fold).toBeDefined();
+      expect(fold!.seriesId).toBe(seriesId('FOLD'));
+
+      const foldStart = toMins(fold!.time as string);
+      const foldEnd = foldStart + 15;
+      const wtStart = 10 * 60;
+      const wtEnd = wtStart + 60;
+
+      // Fold must finish before WT starts or begin after WT ends
+      const outsideFold = foldEnd <= wtStart || foldStart >= wtEnd;
+      expect(outsideFold).toBe(true);
+    });
+
+    it('Load displaced early enough that Transfer clears WT', () => {
+      const result = reflow(fridayInput());
+
+      const load = result.assignments.find(a => (a.seriesId as string) === 'LOAD');
+      const transfer = result.assignments.find(a => (a.seriesId as string) === 'TRANSFER');
+      expect(load).toBeDefined();
+      expect(load!.seriesId).toBe(seriesId('LOAD'));
+      expect(transfer).toBeDefined();
+      expect(transfer!.seriesId).toBe(seriesId('TRANSFER'));
+
+      const loadStart = toMins(load!.time as string);
+      const loadEnd = loadStart + 15;
+      const transferStart = toMins(transfer!.time as string);
+      const transferEnd = transferStart + 15;
+
+      // Chain distance: Transfer starts in [loadEnd+80, loadEnd+90]
+      const gap = transferStart - loadEnd;
+      expect(gap).toBeGreaterThanOrEqual(80);
+      expect(gap).toBeLessThanOrEqual(90);
+
+      // Transfer must not overlap WT (10:00-11:00)
+      const wtStart = 10 * 60;
+      const wtEnd = wtStart + 60;
+      const outsideWT = transferEnd <= wtStart || transferStart >= wtEnd;
+      expect(outsideWT).toBe(true);
+    });
+
+    it('chain distance constraints respected for both links', () => {
+      const result = reflow(fridayInput());
+
+      const load = result.assignments.find(a => (a.seriesId as string) === 'LOAD');
+      const transfer = result.assignments.find(a => (a.seriesId as string) === 'TRANSFER');
+      const fold = result.assignments.find(a => (a.seriesId as string) === 'FOLD');
+      expect(load).toBeDefined();
+      expect(load!.seriesId).toBe(seriesId('LOAD'));
+      expect(transfer).toBeDefined();
+      expect(transfer!.seriesId).toBe(seriesId('TRANSFER'));
+      expect(fold).toBeDefined();
+      expect(fold!.seriesId).toBe(seriesId('FOLD'));
+
+      const loadEnd = toMins(load!.time as string) + 15;
+      const transferStart = toMins(transfer!.time as string);
+      const transferEnd = transferStart + 15;
+      const foldStart = toMins(fold!.time as string);
+
+      // Load → Transfer: distance=80, earlyWobble=0, lateWobble=10
+      const loadToTransfer = transferStart - loadEnd;
+      expect(loadToTransfer).toBeGreaterThanOrEqual(80);
+      expect(loadToTransfer).toBeLessThanOrEqual(90);
+
+      // Transfer → Fold: distance=200, earlyWobble=5, lateWobble=120
+      const transferToFold = foldStart - transferEnd;
+      expect(transferToFold).toBeGreaterThanOrEqual(195);
+      expect(transferToFold).toBeLessThanOrEqual(320);
+    });
+
+    it('no overlap conflicts in the output', () => {
+      const result = reflow(fridayInput());
+
+      // If there are conflicts, none should be Transfer overlapping WT
+      const overlapConflicts = result.conflicts.filter(c => c.type === 'overlap');
+      const transferWTOverlap = overlapConflicts.filter(c =>
+        c.message !== undefined &&
+        c.message.includes('TRANSFER') && c.message.includes('WT')
+      );
+      expect(transferWTOverlap).toStrictEqual([]);
+
+      // Strongest assertion: a valid placement exists, so zero conflicts
+      expect(result.conflicts).toStrictEqual([]);
+    });
+  });
+
+  // ============================================================================
+  // handleNoSolution: Occupied Slot Marking for Derived Chain Children
+  // ============================================================================
+
+  describe('handleNoSolution occupied slot marking', () => {
+    it('greedy placement does not overlap derived chain children', () => {
+      // Setup: flexible chain root R (60min) + chain child C (60min, distance=0, wobble=0)
+      // + standalone flexible item S (60min)
+      // All share same time window. R placed first, C derived at R_end.
+      // S must NOT land on C's slot.
+      const R: Instance = {
+        seriesId: seriesId('R'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T09:00:00'),
+        duration: minutes(60),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        timeWindow: { start: time('07:00:00'), end: time('23:00:00') },
+      };
+      const C: Instance = {
+        seriesId: seriesId('C'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T10:00:00'),
+        duration: minutes(60),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        parentId: seriesId('R'),
+        chainDistance: 0,
+        earlyWobble: minutes(0),
+        lateWobble: minutes(0),
+      };
+      const S: Instance = {
+        seriesId: seriesId('S'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T10:00:00'),
+        duration: minutes(60),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        timeWindow: { start: time('07:00:00'), end: time('23:00:00') },
+      };
+
+      const chainTree: ChainTree = new Map();
+      chainTree.set(R, [{
+        instance: C,
+        distance: 0,
+        earlyWobble: 0,
+        lateWobble: 0,
+        children: [],
+      }]);
+
+      // Give R a small domain so handleNoSolution places it at 09:00
+      const domains = new Map<Instance, LocalDateTime[]>();
+      domains.set(R, [datetime('2026-02-09T09:00:00')]);
+      domains.set(S, [
+        datetime('2026-02-09T09:00:00'),
+        datetime('2026-02-09T10:00:00'),
+        datetime('2026-02-09T11:00:00'),
+      ]);
+
+      const result = handleNoSolution([R, C, S], domains, [
+        { type: 'noOverlap', instances: [R, S] },
+      ], chainTree);
+
+      // R placed at 09:00 (only option)
+      expect(result.assignments.get(R)).toBe(datetime('2026-02-09T09:00:00'));
+      // C derived: R ends 10:00, distance 0 → C at 10:00
+      expect(result.assignments.get(C)).toBe(datetime('2026-02-09T10:00:00'));
+      // S must NOT be at 10:00 (overlaps C). Should be at 11:00 (first free slot)
+      expect(result.assignments.get(S)).toBe(datetime('2026-02-09T11:00:00'));
+
+      // No spurious conflicts — all items placed without overlap
+      const overlapConflicts = result.conflicts.filter(c => c.type === 'overlap');
+      expect(overlapConflicts).toStrictEqual([]);
+    });
+
+    it('fixed root children marked before greedy loop', () => {
+      // Fixed root F at 09:00 (30min) + chain child FC (60min, distance=0, wobble=0)
+      // FC occupies 09:30-10:30. Flexible item S (60min) must NOT land at 09:30.
+      const F: Instance = {
+        seriesId: seriesId('F'),
+        fixed: true,
+        idealTime: datetime('2026-02-09T09:00:00'),
+        duration: minutes(30),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+      };
+      const FC: Instance = {
+        seriesId: seriesId('FC'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T09:30:00'),
+        duration: minutes(60),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        parentId: seriesId('F'),
+        chainDistance: 0,
+        earlyWobble: minutes(0),
+        lateWobble: minutes(0),
+      };
+      const S: Instance = {
+        seriesId: seriesId('S'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T09:30:00'),
+        duration: minutes(60),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        timeWindow: { start: time('07:00:00'), end: time('23:00:00') },
+      };
+
+      const chainTree: ChainTree = new Map();
+      chainTree.set(F, [{
+        instance: FC,
+        distance: 0,
+        earlyWobble: 0,
+        lateWobble: 0,
+        children: [],
+      }]);
+
+      const domains = new Map<Instance, LocalDateTime[]>();
+      domains.set(F, [datetime('2026-02-09T09:00:00')]);
+      domains.set(S, [
+        datetime('2026-02-09T09:30:00'),
+        datetime('2026-02-09T10:30:00'),
+        datetime('2026-02-09T11:00:00'),
+      ]);
+
+      const result = handleNoSolution([F, FC, S], domains, [], chainTree);
+
+      expect(result.assignments.get(F)).toBe(datetime('2026-02-09T09:00:00'));
+      expect(result.assignments.get(FC)).toBe(datetime('2026-02-09T09:30:00'));
+      // S can't be at 09:30 (FC is there, 09:30-10:30). Must be at 10:30.
+      expect(result.assignments.get(S)).toBe(datetime('2026-02-09T10:30:00'));
+
+      // No spurious conflicts
+      const overlapConflicts = result.conflicts.filter(c => c.type === 'overlap');
+      expect(overlapConflicts).toStrictEqual([]);
+    });
+
+    it('grandchildren slots are marked in occupiedSlots', () => {
+      // Chain: R (15min) → C (15min, distance=30) → G (15min, distance=30)
+      // Plus flexible item S (15min) that tries to land on G's slot.
+      const R: Instance = {
+        seriesId: seriesId('R'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T09:00:00'),
+        duration: minutes(15),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        timeWindow: { start: time('07:00:00'), end: time('23:00:00') },
+      };
+      const C: Instance = {
+        seriesId: seriesId('C'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T09:45:00'),
+        duration: minutes(15),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        parentId: seriesId('R'),
+        chainDistance: 30,
+        earlyWobble: minutes(0),
+        lateWobble: minutes(0),
+      };
+      const G: Instance = {
+        seriesId: seriesId('G'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T10:30:00'),
+        duration: minutes(15),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        parentId: seriesId('C'),
+        chainDistance: 30,
+        earlyWobble: minutes(0),
+        lateWobble: minutes(0),
+      };
+      const S: Instance = {
+        seriesId: seriesId('S'),
+        fixed: false,
+        idealTime: datetime('2026-02-09T10:30:00'),
+        duration: minutes(15),
+        daysBefore: 0, daysAfter: 0, allDay: false,
+        timeWindow: { start: time('07:00:00'), end: time('23:00:00') },
+      };
+
+      const chainTree: ChainTree = new Map();
+      chainTree.set(R, [{
+        instance: C,
+        distance: 30,
+        earlyWobble: 0,
+        lateWobble: 0,
+        children: [{
+          instance: G,
+          distance: 30,
+          earlyWobble: 0,
+          lateWobble: 0,
+          children: [],
+        }],
+      }]);
+
+      const domains = new Map<Instance, LocalDateTime[]>();
+      domains.set(R, [datetime('2026-02-09T09:00:00')]);
+      domains.set(S, [
+        datetime('2026-02-09T10:30:00'),
+        datetime('2026-02-09T10:45:00'),
+        datetime('2026-02-09T11:00:00'),
+      ]);
+
+      const result = handleNoSolution([R, C, G, S], domains, [
+        { type: 'noOverlap', instances: [R, S] },
+      ], chainTree);
+
+      // R at 09:00, ends 09:15
+      expect(result.assignments.get(R)).toBe(datetime('2026-02-09T09:00:00'));
+      // C: R_end(09:15) + 30 = 09:45, ends 10:00
+      expect(result.assignments.get(C)).toBe(datetime('2026-02-09T09:45:00'));
+      // G: C_end(10:00) + 30 = 10:30, ends 10:45
+      expect(result.assignments.get(G)).toBe(datetime('2026-02-09T10:30:00'));
+      // S can't be at 10:30 (G is there). Must be at 10:45.
+      expect(result.assignments.get(S)).toBe(datetime('2026-02-09T10:45:00'));
+
+      // No spurious conflicts
+      const overlapConflicts = result.conflicts.filter(c => c.type === 'overlap');
+      expect(overlapConflicts).toStrictEqual([]);
     });
   });
 });

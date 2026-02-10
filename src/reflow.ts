@@ -94,6 +94,16 @@ type InternalConstraint =
   | { type: 'mustBeBefore'; first: Instance; second: Instance }
   | { type: 'chain'; parent: Instance; child: Instance }
 
+export type ChainNode = {
+  instance: Instance
+  distance: number
+  earlyWobble: number
+  lateWobble: number
+  children: ChainNode[]
+}
+
+export type ChainTree = Map<Instance, ChainNode[]>
+
 // ============================================================================
 // Internal Helpers
 // ============================================================================
@@ -108,6 +118,216 @@ function pad2(n: number): string {
 
 function makeDT(date: string, hour: number, minute: number): LocalDateTime {
   return `${date}T${pad2(hour)}:${pad2(minute)}:00` as LocalDateTime
+}
+
+// ============================================================================
+// Chain Tree Helpers (Derived Variables)
+// ============================================================================
+
+export function buildChainTree(instances: Instance[], chains: ChainInput[]): ChainTree {
+  const tree: ChainTree = new Map()
+  if (chains.length === 0) return tree
+
+  // Index instances by seriesId for fast lookup
+  const instBySeriesId = new Map<string, Instance>()
+  for (const inst of instances) {
+    instBySeriesId.set(inst.seriesId as string, inst)
+  }
+
+  // Build parent→children adjacency
+  const childrenOf = new Map<string, Array<{ instance: Instance, chain: ChainInput }>>()
+  for (const chain of chains) {
+    const childInst = instBySeriesId.get(chain.childId as string)
+    if (!childInst) continue
+    const parentId = chain.parentId as string
+    if (!childrenOf.has(parentId)) childrenOf.set(parentId, [])
+    childrenOf.get(parentId)!.push({ instance: childInst, chain })
+  }
+
+  // Recursively build nodes
+  function buildNodes(parentSeriesId: string): ChainNode[] {
+    const entries = childrenOf.get(parentSeriesId)
+    if (!entries) return []
+    return entries.map(({ instance, chain }) => ({
+      instance,
+      distance: chain.distance,
+      earlyWobble: chain.earlyWobble,
+      lateWobble: chain.lateWobble,
+      children: buildNodes(instance.seriesId as string),
+    }))
+  }
+
+  // Find roots: instances that are parents in chains but NOT children in any chain
+  const allChildIds = new Set(chains.map(c => c.childId as string))
+  for (const chain of chains) {
+    const parentId = chain.parentId as string
+    if (allChildIds.has(parentId)) continue // This parent is itself a child — not a root
+    const parentInst = instBySeriesId.get(parentId)
+    if (!parentInst || tree.has(parentInst)) continue
+    const children = buildNodes(parentId)
+    if (children.length > 0) tree.set(parentInst, children)
+  }
+
+  return tree
+}
+
+type TimeRange = { start: string; end: string }
+
+// Max depth for phantom/shadow recursion — beyond this, skip optimization.
+// Practical chains are 3 levels max (laundry). Pathological 32-deep chains
+// in the chain-depth test would cause exponential backtracking overhead.
+const MAX_CHAIN_SHADOW_DEPTH = 8
+
+export function chainShadowClear(
+  parentTime: LocalDateTime,
+  parentDur: number,
+  children: ChainNode[],
+  occupiedRanges: TimeRange[],
+  depth: number = 0
+): boolean {
+  if (depth >= MAX_CHAIN_SHADOW_DEPTH) return true // Permissive beyond depth limit
+  const parentEnd = addMinutes(parentTime, parentDur)
+
+  for (const child of children) {
+    const target = addMinutes(parentEnd, child.distance)
+    const earliest = addMinutes(target, -child.earlyWobble)
+    const latest = addMinutes(target, child.lateWobble)
+    const childDur = getDur(child.instance)
+
+    // Find ANY position in [earliest, latest] that avoids ALL occupied ranges
+    let canFit = false
+    let t = earliest
+    while ((t as string) <= (latest as string)) {
+      const tEnd = addMinutes(t, childDur) as string
+      let overlaps = false
+      for (const range of occupiedRanges) {
+        if (!((tEnd <= range.start) || ((t as string) >= range.end))) {
+          overlaps = true
+          break
+        }
+      }
+      if (!overlaps) {
+        // This slot is clear — check grandchildren recursively
+        if (child.children.length > 0) {
+          if (chainShadowClear(t, childDur, child.children, occupiedRanges, depth + 1)) {
+            canFit = true
+            break
+          }
+        } else {
+          canFit = true
+          break
+        }
+      }
+      t = addMinutes(t, 5)
+    }
+
+    if (!canFit) return false
+  }
+
+  return true
+}
+
+export function pruneByChainShadow(
+  domains: Map<Instance, LocalDateTime[]>,
+  chainTree: ChainTree,
+  instances: Instance[]
+): void {
+  if (chainTree.size === 0) return
+
+  // Collect fixed-item time ranges
+  const fixedRanges: TimeRange[] = []
+  for (const inst of instances) {
+    if (inst.fixed && !inst.allDay) {
+      const end = addMinutes(inst.idealTime, getDur(inst))
+      fixedRanges.push({ start: inst.idealTime as string, end: end as string })
+    }
+  }
+  if (fixedRanges.length === 0) return
+
+  for (const [root, children] of chainTree) {
+    const domain = domains.get(root)
+    if (!domain || domain.length === 0) continue
+
+    const pruned = domain.filter(slot =>
+      chainShadowClear(slot, getDur(root), children, fixedRanges)
+    )
+    domains.set(root, pruned)
+  }
+}
+
+function deriveChildTime(
+  parentEnd: LocalDateTime,
+  child: ChainNode,
+  assignedRanges: TimeRange[]
+): LocalDateTime {
+  const target = addMinutes(parentEnd, child.distance)
+  const earliest = addMinutes(target, -child.earlyWobble)
+  const latest = addMinutes(target, child.lateWobble)
+  const childDur = getDur(child.instance)
+
+  function isFree(t: LocalDateTime): boolean {
+    const tEnd = addMinutes(t, childDur) as string
+    for (const range of assignedRanges) {
+      if (!((tEnd <= range.start) || ((t as string) >= range.end))) return false
+    }
+    return true
+  }
+
+  // Prefer child's idealTime if it falls within the wobble range and is free.
+  // This preserves completion-adjusted timing from buildSchedule.
+  const ideal = child.instance.idealTime
+  if (ideal && (ideal as string) >= (earliest as string) && (ideal as string) <= (latest as string)) {
+    if (isFree(ideal)) return ideal
+  }
+
+  // Try chain target (parentEnd + distance)
+  if (isFree(target)) return target
+
+  // Scan wobble range for a free slot
+  let t = earliest
+  while ((t as string) <= (latest as string)) {
+    if ((t as string) === (target as string) || (t as string) === (ideal as string)) {
+      t = addMinutes(t, 5)
+      continue
+    }
+    if (isFree(t)) return t
+    t = addMinutes(t, 5)
+  }
+
+  // No free slot in wobble — fall back to target (overlap will be reported as conflict)
+  return target
+}
+
+/**
+ * Derive concrete child positions for phantom occupancy during backtracking.
+ * Returns TimeRange[] for all derived children (recursive for grandchildren).
+ * Mutates occupiedRanges by pushing derived child ranges (needed for sibling checking).
+ */
+function deriveChainPhantoms(
+  parentTime: LocalDateTime,
+  parentDur: number,
+  children: ChainNode[],
+  occupiedRanges: TimeRange[],
+  depth: number = 0
+): TimeRange[] {
+  if (depth >= MAX_CHAIN_SHADOW_DEPTH) return [] // Stop deriving beyond depth limit
+  const phantoms: TimeRange[] = []
+  const parentEnd = addMinutes(parentTime, parentDur)
+
+  for (const child of children) {
+    const bestTime = deriveChildTime(parentEnd, child, occupiedRanges)
+    const childDur = getDur(child.instance)
+    const range: TimeRange = { start: bestTime as string, end: addMinutes(bestTime, childDur) as string }
+    phantoms.push(range)
+    occupiedRanges.push(range) // Needed for sibling/grandchild checking
+
+    if (child.children.length > 0) {
+      const grandPhantoms = deriveChainPhantoms(bestTime, childDur, child.children, occupiedRanges, depth + 1)
+      phantoms.push(...grandPhantoms)
+    }
+  }
+
+  return phantoms
 }
 
 // ============================================================================
@@ -215,39 +435,8 @@ export function computeDomains(instances: Instance[]): Map<Instance, LocalDateTi
       continue
     }
 
-    // Chain child: compute relative to parent
-    if (inst.parentId) {
-      const parent = instances.find(i => (i.seriesId as string) === (inst.parentId as string))
-      if (parent) {
-        const parentDur = getDur(parent)
-        const distance = inst.chainDistance ?? 0
-        const early = (inst.earlyWobble as number) ?? 0
-        const late = (inst.lateWobble as number) ?? 0
-
-        if (parent.fixed) {
-          // Fixed parent: narrow domain from single ideal slot
-          const parentEnd = addMinutes(parent.idealTime, parentDur)
-          const target = addMinutes(parentEnd, distance)
-          domains.set(inst, generateSlotsBetween(addMinutes(target, -early), addMinutes(target, late)))
-        } else {
-          // Flexible parent: wide domain from parent's full domain range
-          const parentDomain = domains.get(parent)
-          if (parentDomain && parentDomain.length > 0) {
-            const minParentEnd = addMinutes(parentDomain[0]!, parentDur)
-            const maxParentEnd = addMinutes(parentDomain[parentDomain.length - 1]!, parentDur)
-            const earliest = addMinutes(addMinutes(minParentEnd, distance), -early)
-            const latest = addMinutes(addMinutes(maxParentEnd, distance), late)
-            domains.set(inst, generateSlotsBetween(earliest, latest))
-          } else {
-            // Fallback: parent has no domain yet — use ideal
-            const parentEnd = addMinutes(parent.idealTime, parentDur)
-            const target = addMinutes(parentEnd, distance)
-            domains.set(inst, generateSlotsBetween(addMinutes(target, -early), addMinutes(target, late)))
-          }
-        }
-        continue
-      }
-    }
+    // Chain children are derived variables — not CSP variables
+    if (inst.parentId) continue
 
     // Flexible: generate 5-min increments
     const idealDate = (inst.idealTime as string).substring(0, 10)
@@ -468,11 +657,37 @@ function isArcConsistent(
 // Phase 5: Backtracking Search
 // ============================================================================
 
+type ConstraintIndex = Map<Instance, InternalConstraint[]>
+
+function buildConstraintIndex(constraints: InternalConstraint[]): ConstraintIndex {
+  const index: ConstraintIndex = new Map()
+  for (const c of constraints) {
+    if (c.type === 'noOverlap') {
+      const [a, b] = c.instances
+      if (!index.has(a)) index.set(a, [])
+      if (!index.has(b)) index.set(b, [])
+      index.get(a)!.push(c)
+      index.get(b)!.push(c)
+    } else if (c.type === 'mustBeBefore') {
+      if (!index.has(c.first)) index.set(c.first, [])
+      if (!index.has(c.second)) index.set(c.second, [])
+      index.get(c.first)!.push(c)
+      index.get(c.second)!.push(c)
+    } else if (c.type === 'chain') {
+      if (!index.has(c.parent)) index.set(c.parent, [])
+      if (!index.has(c.child)) index.set(c.child, [])
+      index.get(c.parent)!.push(c)
+      index.get(c.child)!.push(c)
+    }
+  }
+  return index
+}
+
 export function backtrackSearch(
   instances: Instance[],
   domains: Map<Instance, LocalDateTime[]>,
   constraints: InternalConstraint[],
-  options?: { workload?: Map<string, number> }
+  options?: { workload?: Map<string, number>; chainTree?: ChainTree }
 ): Map<Instance, LocalDateTime> | null {
   // Filter to instances that have domains
   const withDomains = instances.filter(i => domains.has(i))
@@ -480,9 +695,13 @@ export function backtrackSearch(
   // Sort by variable ordering
   const sorted = sortByVariableOrdering(withDomains, domains)
 
+  // Build constraint index for O(V) lookup instead of O(V²) scan
+  const constraintIndex = buildConstraintIndex(constraints)
+
   const assignment = new Map<Instance, LocalDateTime>()
-  const iterations = { count: 0 }
-  const result = backtrack(sorted, 0, assignment, domains, constraints, options?.workload, iterations)
+  const iterations = { count: 0, deadline: Date.now() + MAX_BACKTRACK_MS }
+  const phantomRanges: TimeRange[] = []
+  const result = backtrack(sorted, 0, assignment, domains, constraints, options?.workload, iterations, options?.chainTree, phantomRanges, constraintIndex)
   return result
 }
 
@@ -546,6 +765,7 @@ function sortByValueOrdering(
 }
 
 const MAX_BACKTRACK_ITERATIONS = 100_000
+const MAX_BACKTRACK_MS = 2_000 // Wall-clock time limit for backtracking
 
 function backtrack(
   instances: Instance[],
@@ -554,27 +774,69 @@ function backtrack(
   domains: Map<Instance, LocalDateTime[]>,
   constraints: InternalConstraint[],
   workload?: Map<string, number>,
-  iterations?: { count: number }
+  iterations?: { count: number; deadline?: number; bailed?: boolean },
+  chainTree?: ChainTree,
+  phantomRanges?: TimeRange[],
+  constraintIndex?: ConstraintIndex
 ): Map<Instance, LocalDateTime> | null {
   if (iterations) {
+    if (iterations.bailed) return null
     iterations.count++
-    if (iterations.count > MAX_BACKTRACK_ITERATIONS) return null
+    if (iterations.count > MAX_BACKTRACK_ITERATIONS) {
+      iterations.bailed = true
+      return null
+    }
+    // Check wall-clock every 1024 iterations to avoid Date.now() overhead
+    if (iterations.deadline && (iterations.count & 0x3FF) === 0) {
+      if (Date.now() > iterations.deadline) {
+        iterations.bailed = true
+        return null
+      }
+    }
   }
 
   if (index >= instances.length) {
     return new Map(assignment)
   }
 
+  const phantoms = phantomRanges || []
   const inst = instances[index]!
   const domain = domains.get(inst) || []
   const sortedValues = sortByValueOrdering(domain, inst, workload)
 
   for (const value of sortedValues) {
-    if (isConsistentWithAssignment(inst, value, assignment, constraints)) {
+    if (isConsistentWithAssignment(inst, value, assignment, constraints, chainTree, phantoms, constraintIndex)) {
       assignment.set(inst, value)
-      const result = backtrack(instances, index + 1, assignment, domains, constraints, workload, iterations)
+
+      // Phantom occupancy: when assigning a chain root, derive concrete child
+      // positions and reserve them so future assignments can't steal those slots
+      let phantomCount = 0
+      if (chainTree) {
+        const childNodes = chainTree.get(inst)
+        if (childNodes && childNodes.length > 0) {
+          const occupied: TimeRange[] = []
+          for (const [ai, at] of assignment) {
+            occupied.push({ start: at as string, end: addMinutes(at, getDur(ai)) as string })
+          }
+          occupied.push(...phantoms)
+          const newPhantoms = deriveChainPhantoms(value, getDur(inst), childNodes, occupied)
+          phantoms.push(...newPhantoms)
+          phantomCount = newPhantoms.length
+        }
+      }
+
+      const result = backtrack(instances, index + 1, assignment, domains, constraints, workload, iterations, chainTree, phantoms, constraintIndex)
       if (result) return result
+
+      // Backtrack: remove phantoms for this root
       assignment.delete(inst)
+      if (phantomCount > 0) {
+        phantoms.splice(phantoms.length - phantomCount, phantomCount)
+      }
+
+      // Propagate bail signal — don't let the parent loop continue
+      // trying values after the iteration/deadline limit has been reached
+      if (iterations?.bailed) return null
     }
   }
 
@@ -585,9 +847,14 @@ function isConsistentWithAssignment(
   inst: Instance,
   value: LocalDateTime,
   assignment: Map<Instance, LocalDateTime>,
-  constraints: InternalConstraint[]
+  constraints: InternalConstraint[],
+  chainTree?: ChainTree,
+  phantomRanges?: TimeRange[],
+  constraintIndex?: ConstraintIndex
 ): boolean {
-  for (const c of constraints) {
+  // Use indexed constraints if available (O(V) instead of O(V²))
+  const relevantConstraints = constraintIndex ? (constraintIndex.get(inst) || []) : constraints
+  for (const c of relevantConstraints) {
     if (c.type === 'noOverlap') {
       const [a, b] = c.instances
       if (a === inst) {
@@ -649,6 +916,44 @@ function isConsistentWithAssignment(
     }
   }
 
+  // Check against phantom ranges — derived chain children from other roots
+  // that have been concretely placed during backtracking
+  if (phantomRanges && phantomRanges.length > 0) {
+    const instEnd = addMinutes(value, getDur(inst)) as string
+    for (const range of phantomRanges) {
+      if (!((instEnd <= range.start) || ((value as string) >= range.end))) {
+        return false
+      }
+    }
+  }
+
+  // Chain shadow check: if this instance is a chain root, verify derived children
+  // don't overlap any already-assigned items or phantom ranges
+  if (chainTree) {
+    const childNodes = chainTree.get(inst)
+    if (childNodes && childNodes.length > 0) {
+      const assignedRanges: TimeRange[] = []
+      for (const [assignedInst, assignedTime] of assignment) {
+        assignedRanges.push({
+          start: assignedTime as string,
+          end: addMinutes(assignedTime, getDur(assignedInst)) as string,
+        })
+      }
+      // Also include this instance's own range
+      assignedRanges.push({
+        start: value as string,
+        end: addMinutes(value, getDur(inst)) as string,
+      })
+      // Include phantom ranges from other chain roots' derived children
+      if (phantomRanges) {
+        assignedRanges.push(...phantomRanges)
+      }
+      if (!chainShadowClear(value, getDur(inst), childNodes, assignedRanges)) {
+        return false
+      }
+    }
+  }
+
   return true
 }
 
@@ -659,7 +964,8 @@ function isConsistentWithAssignment(
 export function handleNoSolution(
   instances: Instance[],
   domains: Map<Instance, LocalDateTime[]>,
-  constraints: InternalConstraint[]
+  constraints: InternalConstraint[],
+  chainTree?: ChainTree
 ): { assignments: Map<Instance, LocalDateTime>; conflicts: Conflict[] } {
   const assignments = new Map<Instance, LocalDateTime>()
   const conflicts: Conflict[] = []
@@ -671,9 +977,46 @@ export function handleNoSolution(
     }
   }
 
-  // Best-effort greedy placement for flexible items (overlap-aware)
+  // Derive children for fixed chain roots
+  if (chainTree) {
+    for (const [root, childNodes] of chainTree) {
+      if (!root.fixed) continue
+      const rootTime = assignments.get(root)
+      if (!rootTime) continue
+      const occupiedRanges: TimeRange[] = []
+      for (const [ai, at] of assignments) {
+        occupiedRanges.push({ start: at as string, end: addMinutes(at, getDur(ai)) as string })
+      }
+      deriveAndPlaceChildren(rootTime, getDur(root), childNodes, occupiedRanges, assignments)
+    }
+  }
+
+  // Build occupied-slot set for O(1) overlap checks instead of scanning all assignments
+  const occupiedSlots = new Set<string>()
+  function markOccupied(time: LocalDateTime, dur: number): void {
+    let t = time
+    for (let m = 0; m < dur; m += 5) {
+      occupiedSlots.add(t as string)
+      t = addMinutes(t, 5)
+    }
+  }
+  function isSlotFree(time: LocalDateTime, dur: number): boolean {
+    let t = time
+    for (let m = 0; m < dur; m += 5) {
+      if (occupiedSlots.has(t as string)) return false
+      t = addMinutes(t, 5)
+    }
+    return true
+  }
+  // Mark already-placed fixed items
+  for (const [inst, time] of assignments) {
+    markOccupied(time, getDur(inst))
+  }
+
+  // Best-effort greedy placement for flexible CSP variables (skip chain children)
   for (const inst of instances) {
     if (inst.fixed) continue
+    if (inst.parentId) continue  // Chain children are derived, not placed independently
 
     // Use propagated domain if available, otherwise regenerate from timeWindow
     let candidates = domains.get(inst)
@@ -705,18 +1048,13 @@ export function handleNoSolution(
           )
         : candidates
 
-      // Pick first slot that doesn't overlap with already-placed items
+      // Pick first slot that doesn't overlap (O(dur/5) per check via slot set)
       let placed = false
+      const dur = getDur(inst)
       for (const slot of sorted) {
-        let overlaps = false
-        for (const [placedInst, placedTime] of assignments) {
-          if (!checkNoOverlap(slot, getDur(inst) as Duration, placedTime, getDur(placedInst) as Duration)) {
-            overlaps = true
-            break
-          }
-        }
-        if (!overlaps) {
+        if (isSlotFree(slot, dur)) {
           assignments.set(inst, slot)
+          markOccupied(slot, dur)
           placed = true
           break
         }
@@ -724,9 +1062,34 @@ export function handleNoSolution(
       // If every slot overlaps, fall back to closest-to-ideal
       if (!placed) {
         assignments.set(inst, sorted[0]!)
+        markOccupied(sorted[0]!, dur)
       }
     } else if (inst.idealTime) {
       assignments.set(inst, inst.idealTime)
+      markOccupied(inst.idealTime, getDur(inst))
+    }
+
+    // If this is a chain root, derive and place its children
+    if (chainTree) {
+      const childNodes = chainTree.get(inst)
+      if (childNodes && childNodes.length > 0) {
+        const rootTime = assignments.get(inst)
+        if (rootTime) {
+          const assignedBefore = new Set(assignments.keys())
+          const occupiedRanges: TimeRange[] = []
+          for (const [ai, at] of assignments) {
+            occupiedRanges.push({ start: at as string, end: addMinutes(at, getDur(ai)) as string })
+          }
+          deriveAndPlaceChildren(rootTime, getDur(inst), childNodes, occupiedRanges, assignments)
+          // Mark newly-derived children in occupiedSlots so subsequent
+          // greedy iterations see them via isSlotFree()
+          for (const [ci, ct] of assignments) {
+            if (!assignedBefore.has(ci)) {
+              markOccupied(ct, getDur(ci))
+            }
+          }
+        }
+      }
     }
   }
 
@@ -746,17 +1109,12 @@ export function handleNoSolution(
     }
   }
 
-  // Detect chain conflicts
-  for (const inst of instances) {
-    if (!inst.parentId) continue
-
-    const domain = domains.get(inst)
-    if (!domain || domain.length === 0) {
-      conflicts.push({
-        type: 'chainCannotFit',
-        severity: 'error',
-        message: `No valid slots for chain child ${inst.seriesId}`,
-      })
+  // Detect chain conflicts — check if derived children ended up overlapping
+  if (chainTree) {
+    for (const [root, children] of chainTree) {
+      const rootTime = assignments.get(root)
+      if (!rootTime) continue
+      checkChainChildConflicts(rootTime, getDur(root), children, assignments, conflicts)
     }
   }
 
@@ -794,6 +1152,61 @@ export function handleNoSolution(
   return { assignments, conflicts }
 }
 
+function deriveAndPlaceChildren(
+  parentTime: LocalDateTime,
+  parentDur: number,
+  children: ChainNode[],
+  occupiedRanges: TimeRange[],
+  assignments: Map<Instance, LocalDateTime>
+): void {
+  const parentEnd = addMinutes(parentTime, parentDur)
+  for (const child of children) {
+    const bestTime = deriveChildTime(parentEnd, child, occupiedRanges)
+    assignments.set(child.instance, bestTime)
+    const childDur = getDur(child.instance)
+    occupiedRanges.push({ start: bestTime as string, end: addMinutes(bestTime, childDur) as string })
+    if (child.children.length > 0) {
+      deriveAndPlaceChildren(bestTime, childDur, child.children, occupiedRanges, assignments)
+    }
+  }
+}
+
+function checkChainChildConflicts(
+  parentTime: LocalDateTime,
+  parentDur: number,
+  children: ChainNode[],
+  assignments: Map<Instance, LocalDateTime>,
+  conflicts: Conflict[]
+): void {
+  const parentEnd = addMinutes(parentTime, parentDur)
+  for (const child of children) {
+    const childTime = assignments.get(child.instance)
+    if (!childTime) {
+      conflicts.push({
+        type: 'chainCannotFit',
+        severity: 'error',
+        message: `No valid slots for chain child ${child.instance.seriesId}`,
+      })
+      continue
+    }
+    // Check overlap with all other assigned items
+    const childDur = getDur(child.instance)
+    for (const [otherInst, otherTime] of assignments) {
+      if (otherInst === child.instance) continue
+      if (!checkNoOverlap(childTime, childDur as Duration, otherTime, getDur(otherInst) as Duration)) {
+        conflicts.push({
+          type: 'overlap',
+          severity: 'warning',
+          message: `Overlap: ${child.instance.seriesId} at ${childTime} and ${otherInst.seriesId} at ${otherTime}`,
+        })
+      }
+    }
+    if (child.children.length > 0) {
+      checkChainChildConflicts(childTime, childDur, child.children, assignments, conflicts)
+    }
+  }
+}
+
 // ============================================================================
 // Full Pipeline
 // ============================================================================
@@ -806,61 +1219,101 @@ export function reflow(input: ReflowInput): ReflowOutput {
   const timedInstances = instances.filter(i => !i.allDay)
   const allDayInstances = instances.filter(i => i.allDay)
 
-  // 2. Compute domains
+  // 2. Build chain tree (derived variables — children won't be CSP variables)
+  const chainTree = buildChainTree(timedInstances, input.chains)
+
+  // CSP variables = timed instances that are NOT chain children
+  const cspVariables = timedInstances.filter(i => !i.parentId)
+
+  // 3. Compute domains (chain children excluded)
   const domains = computeDomains(instances)
 
-  // 3. Build internal constraints
+  // Shadow-prune: remove parent slots where derived children overlap fixed items
+  pruneByChainShadow(domains, chainTree, timedInstances)
+
+  // 4. Build internal constraints (CSP variables only — no chain constraints)
   const constraints: InternalConstraint[] = []
 
-  // Auto-generate noOverlap between all timed pairs
-  for (let i = 0; i < timedInstances.length; i++) {
-    for (let j = i + 1; j < timedInstances.length; j++) {
-      constraints.push({ type: 'noOverlap', instances: [timedInstances[i]!, timedInstances[j]!] })
+  // Auto-generate noOverlap between CSP variable pairs only
+  for (let i = 0; i < cspVariables.length; i++) {
+    for (let j = i + 1; j < cspVariables.length; j++) {
+      constraints.push({ type: 'noOverlap', instances: [cspVariables[i]!, cspVariables[j]!] })
     }
   }
 
-  // Map input constraints to internal
+  // Map input constraints to internal (mustBeBefore only — chain constraints eliminated)
   for (const c of input.constraints) {
     if (c.type === 'mustBeBefore') {
-      const first = timedInstances.find(i => (i.seriesId as string) === (c.firstSeries as string))
-      const second = timedInstances.find(i => (i.seriesId as string) === (c.secondSeries as string))
+      const first = cspVariables.find(i => (i.seriesId as string) === (c.firstSeries as string))
+      const second = cspVariables.find(i => (i.seriesId as string) === (c.secondSeries as string))
       if (first && second) {
         constraints.push({ type: 'mustBeBefore', first, second })
       }
     }
   }
 
-  // Map chains to chain constraints
-  for (const chain of input.chains) {
-    const parent = timedInstances.find(i => (i.seriesId as string) === (chain.parentId as string))
-    const child = timedInstances.find(i => (i.seriesId as string) === (chain.childId as string))
-    if (parent && child) {
-      constraints.push({ type: 'chain', parent, child })
+  // 5. Propagate constraints (AC-3) — only CSP variables, no chain arcs
+  // Skip AC-3 when all constraints are noOverlap. In the derived-variable model,
+  // chain constraints are eliminated, leaving only noOverlap. AC-3 with noOverlap
+  // between same-domain variables is O(V² × D²) and removes nothing — every slot
+  // is trivially supported. The noOverlap constraints are still enforced during
+  // backtracking's consistency check.
+  const hasNonOverlapConstraints = constraints.some(c => c.type !== 'noOverlap')
+  const propagated = hasNonOverlapConstraints
+    ? propagateConstraints(domains, constraints)
+    : domains
+
+  // 5.5 Capacity check: if total required time exceeds available window,
+  // skip backtracking (guaranteed to fail) and go straight to greedy placement.
+  // Use the narrowest window from CSP variables (typically 07:00-23:00 = 960min).
+  let solution: Map<Instance, LocalDateTime> | null = null
+  const totalMinutes = cspVariables.reduce((sum, i) => sum + getDur(i), 0)
+  let windowMinutes = 24 * 60
+  for (const inst of cspVariables) {
+    if (inst.timeWindow) {
+      const wStart = parseInt((inst.timeWindow.start as string).substring(0, 2)) * 60 +
+        parseInt((inst.timeWindow.start as string).substring(3, 5))
+      const wEnd = parseInt((inst.timeWindow.end as string).substring(0, 2)) * 60 +
+        parseInt((inst.timeWindow.end as string).substring(3, 5))
+      const w = wEnd - wStart
+      if (w > 0 && w < windowMinutes) windowMinutes = w
     }
   }
+  if (totalMinutes <= windowMinutes) {
+    // 6. Backtracking search with chain shadow checking
+    const _btStart = Date.now()
+    solution = backtrackSearch(cspVariables, propagated, constraints, { chainTree })
+    const _btMs = Date.now() - _btStart
+  }
 
-  // 4. Propagate constraints (AC-3)
-  const propagated = propagateConstraints(domains, constraints)
-
-  // 5. Backtracking search
-  const solution = backtrackSearch(timedInstances, propagated, constraints)
-
-  // 6. Build output
+  // 7. Build output
   const outputAssignments: Assignment[] = []
 
   if (solution !== null) {
     for (const [inst, time] of solution) {
       outputAssignments.push({ seriesId: inst.seriesId, time })
     }
+
+    // Derive chain children positions from parent assignments
+    const solutionRanges: TimeRange[] = []
+    for (const [inst, time] of solution) {
+      solutionRanges.push({ start: time as string, end: addMinutes(time, getDur(inst)) as string })
+    }
+    for (const [root, children] of chainTree) {
+      const rootTime = solution.get(root)
+      if (!rootTime) continue
+      deriveAndAddChildren(rootTime, getDur(root), children, solutionRanges, outputAssignments)
+    }
+
     for (const inst of allDayInstances) {
       outputAssignments.push({ seriesId: inst.seriesId, time: inst.idealTime })
     }
     return { assignments: outputAssignments, conflicts: [] }
   }
 
-  // 7. Handle no solution
+  // 8. Handle no solution
   const { assignments: bestEffort, conflicts } = handleNoSolution(
-    timedInstances, propagated, constraints
+    timedInstances, propagated, constraints, chainTree
   )
   for (const [inst, time] of bestEffort) {
     outputAssignments.push({ seriesId: inst.seriesId, time })
@@ -869,4 +1322,28 @@ export function reflow(input: ReflowInput): ReflowOutput {
     outputAssignments.push({ seriesId: inst.seriesId, time: inst.idealTime })
   }
   return { assignments: outputAssignments, conflicts }
+}
+
+function deriveAndAddChildren(
+  parentTime: LocalDateTime,
+  parentDur: number,
+  children: ChainNode[],
+  occupiedRanges: TimeRange[],
+  output: Assignment[]
+): void {
+  const parentEnd = addMinutes(parentTime, parentDur)
+
+  for (const child of children) {
+    const bestTime = deriveChildTime(parentEnd, child, occupiedRanges)
+    output.push({ seriesId: child.instance.seriesId, time: bestTime })
+
+    // Add this child to occupied ranges for sibling/grandchild overlap checking
+    const childDur = getDur(child.instance)
+    occupiedRanges.push({ start: bestTime as string, end: addMinutes(bestTime, childDur) as string })
+
+    // Recurse for grandchildren
+    if (child.children.length > 0) {
+      deriveAndAddChildren(bestTime, childDur, child.children, occupiedRanges, output)
+    }
+  }
 }
