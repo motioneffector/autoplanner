@@ -950,6 +950,127 @@ describe('Segment 16: Integration Tests', () => {
       // No cantBeNextTo violations after constraint removal - proved violations existed above (violationsBefore)
       expect(conflicts.some((c) => c.type === 'constraintViolation')).toBe(false);
     });
+
+    it('cantBeNextTo detects Saturday-Sunday adjacency (week boundary)', async () => {
+      await planner.createSeries({
+        title: 'Saturday Heavy',
+        patterns: [{ type: 'weekly', daysOfWeek: [6], time: time('09:00') }],
+        tags: ['weekend-heavy'],
+      });
+      await planner.createSeries({
+        title: 'Sunday Heavy',
+        patterns: [{ type: 'weekly', daysOfWeek: [0], time: time('09:00') }],
+        tags: ['weekend-heavy'],
+      });
+
+      await planner.addConstraint({
+        type: 'cantBeNextTo',
+        target: { type: 'tag', tag: 'weekend-heavy' },
+      });
+
+      const conflicts = await planner.getConflicts();
+      const violations = conflicts.filter(c => c.type === 'constraintViolation');
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.seriesIds).toHaveLength(2);
+      expect(violations[0]!.description).toContain('adjacent');
+    });
+
+    it('cantBeNextTo returns empty when days are non-adjacent (Monday-Wednesday)', async () => {
+      const monId = await planner.createSeries({
+        title: 'Monday Task',
+        patterns: [{ type: 'weekly', daysOfWeek: [1], time: time('09:00') }],
+        tags: ['spaced'],
+      });
+      const wedId = await planner.createSeries({
+        title: 'Wednesday Task',
+        patterns: [{ type: 'weekly', daysOfWeek: [3], time: time('09:00') }],
+        tags: ['spaced'],
+      });
+
+      await planner.addConstraint({
+        type: 'cantBeNextTo',
+        target: { type: 'tag', tag: 'spaced' },
+      });
+
+      // Verify both series are actually scheduled (data exists before checking empty)
+      const schedule = await planner.getSchedule(date('2025-01-20'), date('2025-01-27'));
+      const monInstances = schedule.instances.filter(i => i.seriesId === monId);
+      const wedInstances = schedule.instances.filter(i => i.seriesId === wedId);
+      expect(monInstances).toHaveLength(1);
+      expect(monInstances[0]!.title).toBe('Monday Task');
+      expect(wedInstances).toHaveLength(1);
+      expect(wedInstances[0]!.title).toBe('Wednesday Task');
+
+      // No violations — Mon and Wed are 2 days apart, not adjacent
+      const conflicts = await planner.getConflicts();
+      expect(conflicts.some(c => c.type === 'constraintViolation')).toBe(false);
+    });
+
+    it('cantBeNextTo with tag resolves correct series among multiple', async () => {
+      const aId = await planner.createSeries({
+        title: 'Heavy A',
+        patterns: [{ type: 'weekly', daysOfWeek: [1], time: time('09:00') }],
+        tags: ['heavy-multi'],
+      });
+      const bId = await planner.createSeries({
+        title: 'Heavy B',
+        patterns: [{ type: 'weekly', daysOfWeek: [2], time: time('09:00') }],
+        tags: ['heavy-multi'],
+      });
+      const cId = await planner.createSeries({
+        title: 'Light C',
+        patterns: [{ type: 'weekly', daysOfWeek: [3], time: time('09:00') }],
+        tags: ['light-tag'],
+      });
+
+      await planner.addConstraint({
+        type: 'cantBeNextTo',
+        target: { type: 'tag', tag: 'heavy-multi' },
+      });
+
+      const conflicts = await planner.getConflicts();
+      const violations = conflicts.filter(c => c.type === 'constraintViolation');
+      // Only A (Mon) and B (Tue) should conflict, not C
+      expect(violations).toHaveLength(1);
+      const involvedIds = violations[0]!.seriesIds;
+      expect(involvedIds).toContain(aId);
+      expect(involvedIds).toContain(bId);
+      expect(involvedIds).not.toContain(cId);
+    });
+
+    it('cantBeNextTo works for every adjacent day pair', async () => {
+      // Test all 7 adjacent pairs: 0-1, 1-2, 2-3, 3-4, 4-5, 5-6, 6-0
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const pairs = [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,0]];
+
+      for (const [dayA, dayB] of pairs) {
+        const testPlanner = await createTestPlanner();
+        const tag = `pair-${dayA}-${dayB}`;
+
+        await testPlanner.createSeries({
+          title: `${dayNames[dayA!]!} Task`,
+          patterns: [{ type: 'weekly', daysOfWeek: [dayA!], time: time('09:00') }],
+          tags: [tag],
+        });
+        await testPlanner.createSeries({
+          title: `${dayNames[dayB!]!} Task`,
+          patterns: [{ type: 'weekly', daysOfWeek: [dayB!], time: time('09:00') }],
+          tags: [tag],
+        });
+
+        await testPlanner.addConstraint({
+          type: 'cantBeNextTo',
+          target: { type: 'tag', tag },
+        });
+
+        const conflicts = await testPlanner.getConflicts();
+        const violations = conflicts.filter(c => c.type === 'constraintViolation');
+        expect(violations).toHaveLength(1);
+        expect(violations[0]!.type).toBe('constraintViolation');
+        expect(violations[0]!.seriesIds).toHaveLength(2);
+        expect(violations[0]!.description).toContain('adjacent');
+      }
+    });
   });
 
   // ============================================================================

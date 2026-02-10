@@ -1266,8 +1266,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           const targetSeriesIds = constraint.target
             ? resolveConstraintTargetFromInstances(constraint.target, instances)
             : []
+
+          // Track flagged pairs to avoid duplicates between instance and pattern checks
+          const flaggedPairs = new Set<string>()
+
+          // 1. Instance-based check (for instances within the current window)
           const targetInstances = instances.filter(i => targetSeriesIds.includes(i.seriesId))
-          // Check for adjacent days
           const dateSeriesMap = new Map<string, string[]>()
           for (const inst of targetInstances) {
             if (!dateSeriesMap.has(inst.date as string)) dateSeriesMap.set(inst.date as string, [])
@@ -1281,10 +1285,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
             if (daysDiff === 1) {
               const series1 = dateSeriesMap.get(d1)!
               const series2 = dateSeriesMap.get(d2)!
-              // Check if different series
               for (const s1 of series1) {
                 for (const s2 of series2) {
                   if (s1 !== s2) {
+                    const pairKey = s1 < s2 ? `${s1}:${s2}` : `${s2}:${s1}`
+                    if (flaggedPairs.has(pairKey)) continue
+                    flaggedPairs.add(pairKey)
                     const inst1 = targetInstances.find(i => i.seriesId === s1 && (i.date as string) === d1)
                     const inst2 = targetInstances.find(i => i.seriesId === s2 && (i.date as string) === d2)
                     if (inst1 && inst2) {
@@ -1304,6 +1310,61 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
               }
             }
           }
+
+          // 2. Pattern-based check for weekly series — catches adjacency
+          //    regardless of which days fall in the current window
+          for (let a = 0; a < targetSeriesIds.length; a++) {
+            for (let b = a + 1; b < targetSeriesIds.length; b++) {
+              const idA = targetSeriesIds[a]!
+              const idB = targetSeriesIds[b]!
+              const pairKey = idA < idB ? `${idA}:${idB}` : `${idB}:${idA}`
+              if (flaggedPairs.has(pairKey)) continue
+
+              const sA = seriesById.get(idA)
+              const sB = seriesById.get(idB)
+              if (!sA || !sB) continue
+
+              // Collect all days-of-week each series fires on
+              // Check both daysOfWeek and days — adapter round-trip stores as `days`
+              const daysA: number[] = []
+              const daysB: number[] = []
+              for (const pat of sA.patterns || []) {
+                if (pat.type === 'weekly' && pat.daysOfWeek) daysA.push(...pat.daysOfWeek)
+                if (pat.type === 'weekly' && pat.days) daysA.push(...pat.days)
+                if (pat.type === 'daily') for (let d = 0; d < 7; d++) daysA.push(d)
+              }
+              for (const pat of sB.patterns || []) {
+                if (pat.type === 'weekly' && pat.daysOfWeek) daysB.push(...pat.daysOfWeek)
+                if (pat.type === 'weekly' && pat.days) daysB.push(...pat.days)
+                if (pat.type === 'daily') for (let d = 0; d < 7; d++) daysB.push(d)
+              }
+
+              // Check if any day from A is adjacent to any day from B
+              let adjacent = false
+              for (const da of daysA) {
+                if (adjacent) break
+                for (const db of daysB) {
+                  const diff = Math.abs(da - db)
+                  if (diff === 1 || diff === 6) { // 6 = wrap-around (Sat-Sun)
+                    adjacent = true
+                    break
+                  }
+                }
+              }
+
+              if (adjacent) {
+                flaggedPairs.add(pairKey)
+                conflicts.push({
+                  type: 'constraintViolation',
+                  seriesIds: [idA, idB],
+                  instances: [],
+                  date: undefined,
+                  description: `${sA.title} and ${sB.title} have patterns on adjacent days`,
+                })
+              }
+            }
+          }
+
           break
         }
       }
