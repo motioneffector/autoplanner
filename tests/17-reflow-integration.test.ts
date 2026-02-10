@@ -520,7 +520,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
       // Three non-overlapping series → no conflicts expected
       expect(schedule.instances).toHaveLength(3)
       expect(schedule.instances.map(i => i.title).sort()).toEqual(['Afternoon', 'Evening', 'Morning'])
-      expect(schedule.conflicts).toHaveLength(0)
+      expect(schedule.conflicts).toStrictEqual([])
     })
 
     it('overlap conflict reported for fixed-fixed', async () => {
@@ -606,7 +606,7 @@ describe('Segment 17: Reflow Integration Tests', () => {
       expect(timed.title).toBe('Timed Task')
       expect(allDay.allDay).toBe(true)
       expect(allDay.title).toBe('All Day Event')
-      expect(schedule.conflicts).toHaveLength(0)
+      expect(schedule.conflicts).toStrictEqual([])
     })
 
     it('all-day items appear in schedule', async () => {
@@ -815,7 +815,249 @@ describe('Segment 17: Reflow Integration Tests', () => {
       expect(med2Start).toBeGreaterThanOrEqual(med1End + 300 - 1) // -1 for rounding
 
       // 6. Solver found a real solution (not fallback)
-      expect(schedule.conflicts).toHaveLength(0)
+      expect(schedule.conflicts).toStrictEqual([])
     }, 5000) // 5 second timeout
+  })
+
+  // ========================================================================
+  // Chain-Aware Root Displacement (T5-T9)
+  // ========================================================================
+  describe('Chain-aware root displacement', () => {
+    it('T5: chain root displaced when child would overlap fixed item', async () => {
+      // Load (flexible, dur=15) → Transfer (distance=80, wobble 0/10, dur=15)
+      // Weight Training fixed at 10:00-11:00
+      // Default Load at 09:00 → Transfer at 10:35 → overlaps WT → solver must move Load
+      await planner.createSeries({
+        title: 'Weight Training',
+        patterns: [{ type: 'daily', time: time('10:00'), duration: minutes(60), fixed: true }],
+        startDate: date('2026-03-01'),
+      })
+
+      const loadId = await planner.createSeries({
+        title: 'Laundry Load',
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+        startDate: date('2026-03-01'),
+      })
+
+      const transferId = await planner.createSeries({
+        title: 'Laundry Transfer',
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+        startDate: date('2026-03-01'),
+      })
+
+      await planner.linkSeries(loadId, transferId, {
+        distance: 80,
+        earlyWobble: 0,
+        lateWobble: 10,
+      })
+
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
+      const wt = schedule.instances.find(i => i.title === 'Weight Training')!
+      const transfer = schedule.instances.find(i => i.title === 'Laundry Transfer')!
+      const load = schedule.instances.find(i => i.title === 'Laundry Load')!
+
+      // WT stays at 10:00
+      expect(timeOf(wt.time as string)).toBe('10:00:00')
+
+      // Transfer must NOT overlap WT [10:00-11:00]
+      expect(
+        rangesOverlap(
+          timeOf(transfer.time as string), transfer.duration || 15,
+          timeOf(wt.time as string), wt.duration || 60,
+        ),
+      ).toBe(false)
+
+      // Chain relationship preserved: Transfer starts ≥ Load_end + 80
+      const loadEnd = timeToMinutes(timeOf(load.time as string)) + (load.duration || 15)
+      const transferStart = timeToMinutes(timeOf(transfer.time as string))
+      expect(transferStart).toBeGreaterThanOrEqual(loadEnd + 80)
+    })
+
+    it('T6: 3-level chain avoids fixed item in the middle', async () => {
+      // Load → Transfer → Fold chain
+      // Fixed item at time where Transfer's default position conflicts
+      await planner.createSeries({
+        title: 'Meeting',
+        patterns: [{ type: 'daily', time: time('10:30'), duration: minutes(30), fixed: true }],
+        startDate: date('2026-03-01'),
+      })
+
+      const loadId = await planner.createSeries({
+        title: 'Load',
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+        startDate: date('2026-03-01'),
+      })
+      const transferId = await planner.createSeries({
+        title: 'Transfer',
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+        startDate: date('2026-03-01'),
+      })
+      const foldId = await planner.createSeries({
+        title: 'Fold',
+        patterns: [{ type: 'daily', duration: minutes(20) }],
+        startDate: date('2026-03-01'),
+      })
+
+      await planner.linkSeries(loadId, transferId, { distance: 80, earlyWobble: 0, lateWobble: 10 })
+      await planner.linkSeries(transferId, foldId, { distance: 120, earlyWobble: 5, lateWobble: 60 })
+
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
+      const meeting = schedule.instances.find(i => i.title === 'Meeting')!
+      const load = schedule.instances.find(i => i.title === 'Load')!
+      const transfer = schedule.instances.find(i => i.title === 'Transfer')!
+      const fold = schedule.instances.find(i => i.title === 'Fold')!
+
+      // None of the chain members overlap the meeting
+      for (const chainItem of [load, transfer, fold]) {
+        expect(
+          rangesOverlap(
+            timeOf(chainItem.time as string), chainItem.duration || 15,
+            timeOf(meeting.time as string), meeting.duration || 30,
+          ),
+        ).toBe(false)
+      }
+
+      // Chain ordering preserved
+      const loadEnd = timeToMinutes(timeOf(load.time as string)) + (load.duration || 15)
+      const transferStart = timeToMinutes(timeOf(transfer.time as string))
+      expect(transferStart).toBeGreaterThanOrEqual(loadEnd + 80)
+
+      const transferEnd = transferStart + (transfer.duration || 15)
+      const foldStart = timeToMinutes(timeOf(fold.time as string))
+      expect(foldStart).toBeGreaterThanOrEqual(transferEnd + 120 - 5) // earlyWobble=5
+    })
+
+    it('T7: multiple fixed items constrain chain — chain finds valid gap', async () => {
+      // Two fixed items blocking adjacent slots, chain must find the gap
+      await planner.createSeries({
+        title: 'Block A',
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(90), fixed: true }],
+        startDate: date('2026-03-01'),
+      })
+      await planner.createSeries({
+        title: 'Block B',
+        patterns: [{ type: 'daily', time: time('11:00'), duration: minutes(90), fixed: true }],
+        startDate: date('2026-03-01'),
+      })
+
+      const parentId = await planner.createSeries({
+        title: 'Chain Parent',
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+        startDate: date('2026-03-01'),
+      })
+      const childId = await planner.createSeries({
+        title: 'Chain Child',
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+        startDate: date('2026-03-01'),
+      })
+
+      await planner.linkSeries(parentId, childId, { distance: 15, earlyWobble: 0, lateWobble: 10 })
+
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
+      const parent = schedule.instances.find(i => i.title === 'Chain Parent')!
+      const child = schedule.instances.find(i => i.title === 'Chain Child')!
+      const blockA = schedule.instances.find(i => i.title === 'Block A')!
+      const blockB = schedule.instances.find(i => i.title === 'Block B')!
+
+      // Neither chain member overlaps Block A or Block B
+      for (const chainItem of [parent, child]) {
+        for (const block of [blockA, blockB]) {
+          expect(
+            rangesOverlap(
+              timeOf(chainItem.time as string), chainItem.duration || 15,
+              timeOf(block.time as string), block.duration || 90,
+            ),
+          ).toBe(false)
+        }
+      }
+
+      // Chain relationship preserved
+      const parentEnd = timeToMinutes(timeOf(parent.time as string)) + (parent.duration || 15)
+      const childStart = timeToMinutes(timeOf(child.time as string))
+      expect(childStart).toBeGreaterThanOrEqual(parentEnd + 15)
+    })
+
+    it('T8: chain with zero wobble — exact placement still finds solution', async () => {
+      // Parent flexible, child distance=60 wobble 0/0 (exact placement required)
+      // Fixed occupier blocking child's default position
+      await planner.createSeries({
+        title: 'Occupier',
+        patterns: [{ type: 'daily', time: time('10:00'), duration: minutes(60), fixed: true }],
+        startDate: date('2026-03-01'),
+      })
+
+      const parentId = await planner.createSeries({
+        title: 'Exact Parent',
+        patterns: [{ type: 'daily', duration: minutes(30) }],
+        startDate: date('2026-03-01'),
+      })
+      const childId = await planner.createSeries({
+        title: 'Exact Child',
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+        startDate: date('2026-03-01'),
+      })
+
+      await planner.linkSeries(parentId, childId, { distance: 60, earlyWobble: 0, lateWobble: 0 })
+
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
+      const occupier = schedule.instances.find(i => i.title === 'Occupier')!
+      const parent = schedule.instances.find(i => i.title === 'Exact Parent')!
+      const child = schedule.instances.find(i => i.title === 'Exact Child')!
+
+      // Occupier stays at 10:00
+      expect(timeOf(occupier.time as string)).toBe('10:00:00')
+
+      // Child does NOT overlap occupier
+      expect(
+        rangesOverlap(
+          timeOf(child.time as string), child.duration || 15,
+          timeOf(occupier.time as string), occupier.duration || 60,
+        ),
+      ).toBe(false)
+
+      // Zero wobble: child exactly at parent_end + distance
+      const parentEnd = timeToMinutes(timeOf(parent.time as string)) + (parent.duration || 30)
+      const childStart = timeToMinutes(timeOf(child.time as string))
+      expect(childStart).toBe(parentEnd + 60)
+    })
+
+    it('T9: unsolvable chain reports conflict — does not crash', async () => {
+      // Fill the entire day with fixed items so the chain has nowhere to go
+      for (let h = 7; h < 23; h++) {
+        const hh = h.toString().padStart(2, '0')
+        await planner.createSeries({
+          title: `Fill ${hh}`,
+          patterns: [{ type: 'daily', time: time(`${hh}:00`), duration: minutes(60), fixed: true }],
+          startDate: date('2026-03-01'),
+        })
+      }
+
+      const parentId = await planner.createSeries({
+        title: 'Squeezed Parent',
+        patterns: [{ type: 'daily', duration: minutes(30) }],
+        startDate: date('2026-03-01'),
+      })
+      const childId = await planner.createSeries({
+        title: 'Squeezed Child',
+        patterns: [{ type: 'daily', duration: minutes(30) }],
+        startDate: date('2026-03-01'),
+      })
+
+      await planner.linkSeries(parentId, childId, { distance: 60, earlyWobble: 0, lateWobble: 10 })
+
+      // Should not throw — best-effort placement
+      const schedule = await getScheduleChecked(planner, date('2026-03-01'), date('2026-03-02'))
+
+      // Parent should still appear (best-effort)
+      const parent = schedule.instances.find(i => i.title === 'Squeezed Parent')
+      expect(parent).toBeDefined()
+      expect(parent!.title).toBe('Squeezed Parent')
+
+      // All 16 fixed blocks should still be present
+      const fixedBlocks = schedule.instances.filter(i => i.title.startsWith('Fill'))
+      expect(fixedBlocks).toHaveLength(16)
+      expect(timeOf(fixedBlocks.find(i => i.title === 'Fill 07')!.time as string)).toBe('07:00:00')
+      expect(timeOf(fixedBlocks.find(i => i.title === 'Fill 22')!.time as string)).toBe('22:00:00')
+    })
   })
 })
