@@ -1281,9 +1281,7 @@ export function reflow(input: ReflowInput): ReflowOutput {
   }
   if (totalMinutes <= windowMinutes) {
     // 6. Backtracking search with chain shadow checking
-    const _btStart = Date.now()
     solution = backtrackSearch(cspVariables, propagated, constraints, { chainTree })
-    const _btMs = Date.now() - _btStart
   }
 
   // 7. Build output

@@ -848,7 +848,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         // (b) item has an explicit time outside the default waking-hours window.
         // This prevents reflow from overriding DST-adjusted, chain-placed,
         // or rescheduled times that intentionally fall outside 07:00-23:00.
-        const instTimeStr = timeOf(inst.time as string) as string
+        const instTimeStr = timeOf(inst.time as LocalDateTime) as string
         const outsideWindow = instTimeStr < '07:00:00' || instTimeStr > '23:00:00'
         const isFixed = !!inst.fixed || (!!internal._hasExplicitTime && outsideWindow)
 
@@ -1358,7 +1358,6 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
                   type: 'constraintViolation',
                   seriesIds: [idA, idB],
                   instances: [],
-                  date: undefined,
                   description: `${sA.title} and ${sB.title} have patterns on adjacent days`,
                 })
               }
