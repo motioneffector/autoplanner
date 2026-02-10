@@ -411,6 +411,86 @@ describe('Segment 13: Reflow Algorithm', () => {
           expect.arrayContaining([expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)])
         );
       });
+
+      it('flexible parent produces wide child domain (T1)', () => {
+        // Parent is flexible with a wide time window → child domain should span
+        // the full range derived from parent's domain, not just parent's ideal time
+        const parent = {
+          seriesId: seriesId('P'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T10:00:00'),
+          duration: minutes(30),
+          timeWindow: { start: time('08:00:00'), end: time('12:00:00') },
+          daysBefore: 0,
+          daysAfter: 0,
+          allDay: false,
+        } as Instance;
+
+        const child = {
+          seriesId: seriesId('C'),
+          fixed: false,
+          parentId: seriesId('P'),
+          chainDistance: 60,
+          earlyWobble: minutes(0),
+          lateWobble: minutes(10),
+        } as Instance;
+
+        const instances = [parent, child];
+        const domains = computeDomains(instances);
+
+        const parentDomain = domains.get(parent)!;
+        const childDomain = domains.get(child)!;
+
+        // Parent domain should span 08:00–12:00 in 5-min increments = 49 slots
+        expect(parentDomain).toContain(datetime('2025-01-15T08:00:00'));
+        expect(parentDomain).toContain(datetime('2025-01-15T12:00:00'));
+        expect(parentDomain).toHaveLength(49);
+
+        // Child domain should be wide: earliest parent (08:00) + dur(30) + distance(60) - early(0) = 09:30
+        // through latest parent (12:00) + dur(30) + distance(60) + late(10) = 13:40
+        // That's 09:30 to 13:40 in 5-min increments = 51 slots
+        expect(childDomain).toContain(datetime('2025-01-15T09:30:00'));
+        expect(childDomain).toContain(datetime('2025-01-15T13:40:00'));
+        expect(childDomain).toHaveLength(51);
+
+        // Slots before parent's ideal-derived position (11:30) must exist from early parent positions
+        expect(childDomain).toContain(datetime('2025-01-15T10:00:00'));
+      });
+
+      it('fixed parent produces narrow child domain (T2)', () => {
+        // Fixed parent → child domain should be computed from parent's single ideal time only
+        const parent = {
+          seriesId: seriesId('P'),
+          fixed: true,
+          idealTime: datetime('2025-01-15T09:00:00'),
+          duration: minutes(30),
+        } as Instance;
+
+        const child = {
+          seriesId: seriesId('C'),
+          fixed: false,
+          parentId: seriesId('P'),
+          chainDistance: 60,
+          earlyWobble: minutes(0),
+          lateWobble: minutes(10),
+        } as Instance;
+
+        const instances = [parent, child];
+        const domains = computeDomains(instances);
+
+        const childDomain = domains.get(child)!;
+
+        // Parent fixed at 09:00, dur=30, distance=60 → target = 10:30
+        // With wobble 0/10: domain = [10:30, 10:35, 10:40]
+        expect(childDomain).toContain(datetime('2025-01-15T10:30:00'));
+        expect(childDomain).toContain(datetime('2025-01-15T10:35:00'));
+        expect(childDomain).toContain(datetime('2025-01-15T10:40:00'));
+        expect(childDomain).toHaveLength(3);
+
+        // Must NOT contain slots outside the narrow range
+        expect(childDomain).not.toContain(datetime('2025-01-15T10:25:00'));
+        expect(childDomain).not.toContain(datetime('2025-01-15T10:45:00'));
+      });
     });
   });
 
@@ -688,6 +768,127 @@ describe('Segment 13: Reflow Algorithm', () => {
 
         // A retains: mustBeBefore is trivially satisfied when B absent
         expect(result.get(instanceA)).toStrictEqual([datetime('2025-01-15T08:00:00')]);
+      });
+
+      it('AC-3 prunes parent slots that cause child to overlap fixed item (T3)', () => {
+        // Parent flexible at [08:00, 09:00, 10:00], dur=30
+        // Child: distance=60, wobble 0/0 (exact placement)
+        // Fixed occupier at 10:00 dur=60
+        // Parent=09:00 → child=10:30 → overlaps occupier [10:00-11:00] → parent=09:00 pruned
+        // Parent=08:00 → child=09:30 → safe → parent=08:00 kept
+        // Parent=10:00 → child=11:30 → safe → parent=10:00 kept
+        const parent = {
+          seriesId: seriesId('P'),
+          fixed: false,
+          duration: minutes(30),
+          idealTime: datetime('2025-01-15T09:00:00'),
+        } as Instance;
+        const child = {
+          seriesId: seriesId('C'),
+          fixed: false,
+          parentId: seriesId('P'),
+          chainDistance: 60,
+          earlyWobble: minutes(0),
+          lateWobble: minutes(0),
+          duration: minutes(15),
+        } as Instance;
+        const occupier = {
+          seriesId: seriesId('OCC'),
+          fixed: true,
+          duration: minutes(60),
+          idealTime: datetime('2025-01-15T10:00:00'),
+        } as Instance;
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(parent, [
+          datetime('2025-01-15T08:00:00'),
+          datetime('2025-01-15T09:00:00'),
+          datetime('2025-01-15T10:00:00'),
+        ]);
+        // Child domain must be wide enough to include slots from all parent positions
+        domains.set(child, [
+          datetime('2025-01-15T09:30:00'), // from parent=08:00
+          datetime('2025-01-15T10:30:00'), // from parent=09:00 — conflicts with occupier
+          datetime('2025-01-15T11:30:00'), // from parent=10:00
+        ]);
+        domains.set(occupier, [datetime('2025-01-15T10:00:00')]);
+
+        const constraints = [
+          { type: 'chain', parent, child },
+          { type: 'noOverlap', instances: [child, occupier] },
+        ];
+
+        const result = propagateConstraints(domains, constraints);
+
+        // Child=10:30 pruned by noOverlap with occupier (10:00-11:00 overlaps 10:30-10:45)
+        const childDomain = result.get(child)!;
+        expect(childDomain).not.toContain(datetime('2025-01-15T10:30:00'));
+        expect(childDomain).toContain(datetime('2025-01-15T09:30:00'));
+        expect(childDomain).toContain(datetime('2025-01-15T11:30:00'));
+
+        // Parent=09:00 pruned via chain arc: its only valid child slot (10:30) was removed
+        const parentDomain = result.get(parent)!;
+        expect(parentDomain).not.toContain(datetime('2025-01-15T09:00:00'));
+        expect(parentDomain).toContain(datetime('2025-01-15T08:00:00'));
+        expect(parentDomain).toContain(datetime('2025-01-15T10:00:00'));
+      });
+
+      it('backtracking finds solution — parent displaced by child conflict (T4)', () => {
+        // Same setup as T3 but through backtrackSearch
+        const parent = {
+          seriesId: seriesId('P'),
+          fixed: false,
+          duration: minutes(30),
+          idealTime: datetime('2025-01-15T09:00:00'),
+        } as Instance;
+        const child = {
+          seriesId: seriesId('C'),
+          fixed: false,
+          parentId: seriesId('P'),
+          chainDistance: 60,
+          earlyWobble: minutes(0),
+          lateWobble: minutes(0),
+          duration: minutes(15),
+        } as Instance;
+        const occupier = {
+          seriesId: seriesId('OCC'),
+          fixed: true,
+          duration: minutes(60),
+          idealTime: datetime('2025-01-15T10:00:00'),
+        } as Instance;
+
+        const domains = new Map<Instance, LocalDateTime[]>();
+        domains.set(occupier, [datetime('2025-01-15T10:00:00')]);
+        domains.set(parent, [
+          datetime('2025-01-15T08:00:00'),
+          datetime('2025-01-15T09:00:00'),
+          datetime('2025-01-15T10:00:00'),
+        ]);
+        domains.set(child, [
+          datetime('2025-01-15T09:30:00'),
+          datetime('2025-01-15T10:30:00'),
+          datetime('2025-01-15T11:30:00'),
+        ]);
+
+        const constraints = [
+          { type: 'chain', parent, child },
+          { type: 'noOverlap', instances: [child, occupier] },
+          { type: 'noOverlap', instances: [parent, occupier] },
+        ];
+
+        const instances = [occupier, parent, child];
+        const result = backtrackSearch(instances, domains, constraints);
+
+        expect(result).toBeInstanceOf(Map);
+        expect(result!.size).toBe(3);
+        // Parent must NOT be at 09:00 (that puts child at 10:30 overlapping occupier)
+        const parentSlot = result!.get(parent)!;
+        expect(parentSlot).not.toBe(datetime('2025-01-15T09:00:00'));
+        // Parent lands at 08:00 (closest to ideal) or 10:00
+        expect([datetime('2025-01-15T08:00:00'), datetime('2025-01-15T10:00:00')]).toContain(parentSlot);
+        // Child does NOT overlap occupier [10:00-11:00]
+        const childSlot = result!.get(child)!;
+        expect([datetime('2025-01-15T09:30:00'), datetime('2025-01-15T11:30:00')]).toContain(childSlot);
       });
 
       it('chain child empty does not cascade to overlapping sibling via noOverlap', () => {
