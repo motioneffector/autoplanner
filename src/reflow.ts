@@ -215,19 +215,36 @@ export function computeDomains(instances: Instance[]): Map<Instance, LocalDateTi
       continue
     }
 
-    // Chain child: compute relative to parent's ideal
+    // Chain child: compute relative to parent
     if (inst.parentId) {
       const parent = instances.find(i => (i.seriesId as string) === (inst.parentId as string))
       if (parent) {
         const parentDur = getDur(parent)
-        const parentEnd = addMinutes(parent.idealTime, parentDur)
         const distance = inst.chainDistance ?? 0
         const early = (inst.earlyWobble as number) ?? 0
         const late = (inst.lateWobble as number) ?? 0
-        const target = addMinutes(parentEnd, distance)
-        const earliest = addMinutes(target, -early)
-        const latest = addMinutes(target, late)
-        domains.set(inst, generateSlotsBetween(earliest, latest))
+
+        if (parent.fixed) {
+          // Fixed parent: narrow domain from single ideal slot
+          const parentEnd = addMinutes(parent.idealTime, parentDur)
+          const target = addMinutes(parentEnd, distance)
+          domains.set(inst, generateSlotsBetween(addMinutes(target, -early), addMinutes(target, late)))
+        } else {
+          // Flexible parent: wide domain from parent's full domain range
+          const parentDomain = domains.get(parent)
+          if (parentDomain && parentDomain.length > 0) {
+            const minParentEnd = addMinutes(parentDomain[0]!, parentDur)
+            const maxParentEnd = addMinutes(parentDomain[parentDomain.length - 1]!, parentDur)
+            const earliest = addMinutes(addMinutes(minParentEnd, distance), -early)
+            const latest = addMinutes(addMinutes(maxParentEnd, distance), late)
+            domains.set(inst, generateSlotsBetween(earliest, latest))
+          } else {
+            // Fallback: parent has no domain yet — use ideal
+            const parentEnd = addMinutes(parent.idealTime, parentDur)
+            const target = addMinutes(parentEnd, distance)
+            domains.set(inst, generateSlotsBetween(addMinutes(target, -early), addMinutes(target, late)))
+          }
+        }
         continue
       }
     }

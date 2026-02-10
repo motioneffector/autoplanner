@@ -843,7 +843,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         const syntheticId = `${inst.seriesId}::${i}` as SeriesId
         instanceMap.set(syntheticId as string, inst)
 
-        const isFixed = !!(inst.fixed || inst._hasExplicitTime)
+        const isFixed = !!inst.fixed
 
         seriesInputs.push({
           id: syntheticId,
