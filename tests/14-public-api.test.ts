@@ -2161,5 +2161,202 @@ describe('Segment 14: Public API', () => {
       const child2 = sched2.instances.find(i => i.seriesId === childId)!;
       expect(child2.time).toContain('11:00');
     });
+
+    it('completion-adjusted chain child time survives reflow with exact position', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', time: time('08:00'), duration: minutes(30) }],
+      });
+
+      const childId = await planner.createSeries({
+        title: 'Child',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', duration: minutes(20) }],
+      });
+      await planner.linkSeries(parentId, childId, {
+        distance: 60,
+        earlyWobble: 0,
+        lateWobble: 30,
+      });
+
+      // Completion ran 45min over: ended at 08:00+30+45 = 09:15
+      await planner.logCompletion(parentId, date('2026-09-15'), {
+        endTime: datetime('2026-09-15T09:15:00'),
+      });
+
+      const sched = await getScheduleChecked(planner, date('2026-09-15'), date('2026-09-16'));
+      const parent = sched.instances.find(i => i.seriesId === parentId)!;
+      const child = sched.instances.find(i => i.seriesId === childId)!;
+
+      // Parent pattern time stays at 08:00
+      expect(parent.time).toBe('2026-09-15T08:00:00');
+      // Child at completion end (09:15) + distance (60) = 10:15
+      expect(child.time).toBe('2026-09-15T10:15:00');
+    });
+
+    it('non-completion chain child still uses derived position from reflow', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', time: time('08:00'), duration: minutes(30) }],
+      });
+
+      const childId = await planner.createSeries({
+        title: 'Child',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', duration: minutes(20) }],
+      });
+      await planner.linkSeries(parentId, childId, {
+        distance: 60,
+        earlyWobble: 0,
+        lateWobble: 30,
+      });
+
+      // NO completion — child should use normal derivation
+      const sched = await getScheduleChecked(planner, date('2026-09-15'), date('2026-09-16'));
+      const parent = sched.instances.find(i => i.seriesId === parentId)!;
+      const child = sched.instances.find(i => i.seriesId === childId)!;
+
+      // Parent at pattern time
+      expect(parent.time).toBe('2026-09-15T08:00:00');
+      // Child at parent end (08:30) + distance (60) = 09:30
+      expect(child.time).toBe('2026-09-15T09:30:00');
+    });
+
+    it('chain grandchild respects grandparent completion', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const gpId = await planner.createSeries({
+        title: 'Grandparent',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', time: time('08:00'), duration: minutes(30) }],
+      });
+
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', duration: minutes(20) }],
+      });
+      await planner.linkSeries(gpId, parentId, {
+        distance: 30,
+        earlyWobble: 0,
+        lateWobble: 0,
+      });
+
+      const childId = await planner.createSeries({
+        title: 'Child',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', duration: minutes(15) }],
+      });
+      await planner.linkSeries(parentId, childId, {
+        distance: 20,
+        earlyWobble: 0,
+        lateWobble: 0,
+      });
+
+      // Grandparent completion ended at 09:00 (ran 30min over)
+      await planner.logCompletion(gpId, date('2026-09-15'), {
+        endTime: datetime('2026-09-15T09:00:00'),
+      });
+
+      const sched = await getScheduleChecked(planner, date('2026-09-15'), date('2026-09-16'));
+      const gp = sched.instances.find(i => i.seriesId === gpId)!;
+      const parent = sched.instances.find(i => i.seriesId === parentId)!;
+      const child = sched.instances.find(i => i.seriesId === childId)!;
+
+      // GP at pattern time
+      expect(gp.time).toBe('2026-09-15T08:00:00');
+      // Parent at GP completion end (09:00) + distance (30) = 09:30
+      expect(parent.time).toBe('2026-09-15T09:30:00');
+      // Child at parent end (09:30 + 20min dur) + distance (20) = 10:10
+      expect(child.time).toBe('2026-09-15T10:10:00');
+    });
+
+    it('chain root with explicit time remains flexible when no completion', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      // Two series at same time — one will need to move
+      const rootId = await planner.createSeries({
+        title: 'Root',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', time: time('08:00'), duration: minutes(60) }],
+      });
+
+      const childId = await planner.createSeries({
+        title: 'Child',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', duration: minutes(30) }],
+      });
+      await planner.linkSeries(rootId, childId, {
+        distance: 30,
+        earlyWobble: 0,
+        lateWobble: 30,
+      });
+
+      const otherId = await planner.createSeries({
+        title: 'Other',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', time: time('08:00'), duration: minutes(60), fixed: true }],
+      });
+
+      // Root must move because Other is fixed at 08:00
+      const sched = await getScheduleChecked(planner, date('2026-09-15'), date('2026-09-16'));
+      const root = sched.instances.find(i => i.seriesId === rootId)!;
+      const child = sched.instances.find(i => i.seriesId === childId)!;
+      const other = sched.instances.find(i => i.seriesId === otherId)!;
+
+      // Other stays at 08:00 (fixed)
+      expect(other.time).toBe('2026-09-15T08:00:00');
+      // Root must have moved away from 08:00
+      expect(root.time).not.toBe('2026-09-15T08:00:00');
+      // Child must follow the root
+      const rootTimeHour = parseInt(root.time!.toString().substring(11, 13));
+      const rootTimeMin = parseInt(root.time!.toString().substring(14, 16));
+      const childTimeHour = parseInt(child.time!.toString().substring(11, 13));
+      const childTimeMin = parseInt(child.time!.toString().substring(14, 16));
+      const rootEndMinutes = rootTimeHour * 60 + rootTimeMin + 60;  // root dur=60
+      const childStartMinutes = childTimeHour * 60 + childTimeMin;
+      // Child should be at root end + distance(30), within wobble tolerance
+      expect(childStartMinutes).toBeGreaterThanOrEqual(rootEndMinutes + 30);
+      expect(childStartMinutes).toBeLessThanOrEqual(rootEndMinutes + 60);  // +30 late wobble
+    });
+
+    it('completion without endTime does not break chain derivation', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', time: time('08:00'), duration: minutes(30) }],
+      });
+
+      const childId = await planner.createSeries({
+        title: 'Child',
+        startDate: date('2026-09-15'),
+        patterns: [{ type: 'daily', duration: minutes(20) }],
+      });
+      await planner.linkSeries(parentId, childId, {
+        distance: 60,
+        earlyWobble: 0,
+        lateWobble: 30,
+      });
+
+      // Completion WITHOUT endTime — should NOT skip chain derivation
+      await planner.logCompletion(parentId, date('2026-09-15'), {});
+
+      const sched = await getScheduleChecked(planner, date('2026-09-15'), date('2026-09-16'));
+      const parent = sched.instances.find(i => i.seriesId === parentId)!;
+      const child = sched.instances.find(i => i.seriesId === childId)!;
+
+      // Parent at pattern time
+      expect(parent.time).toBe('2026-09-15T08:00:00');
+      // Child uses normal derivation: 08:00 + 30 + 60 = 09:30
+      expect(child.time).toBe('2026-09-15T09:30:00');
+    });
   });
 });

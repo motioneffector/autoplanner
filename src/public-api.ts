@@ -883,6 +883,30 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         if (parentIdx < 0) continue
         const parentSynth = `${link.parentId}::${parentIdx}` as SeriesId
 
+        // If parent has a completion with endTime on this date, the child's
+        // position was already computed from the completion endTime in buildSchedule.
+        // Don't send this chain to CSP — derivation would overwrite the
+        // completion-adjusted time with the parent's pattern-based position.
+        const parentCompIds = completionsBySeries.get(link.parentId) || []
+        let parentHasCompletionOnDate = false
+        for (const cId of parentCompIds) {
+          const c = completions.get(cId)
+          if (c && (c.date as string) === (date as string) && c.endTime) {
+            parentHasCompletionOnDate = true
+            break
+          }
+        }
+
+        if (parentHasCompletionOnDate) {
+          // Mark child as fixed — its position is locked to the completion endTime
+          const childInput = seriesInputs.find(si => (si.id as string) === (childSynth as string))
+          if (childInput) {
+            childInput.fixed = true
+            delete (childInput as any).timeWindow
+          }
+          continue  // skip chain — don't let CSP derivation overwrite it
+        }
+
         chains.push({
           parentId: parentSynth,
           childId: childSynth,
