@@ -292,6 +292,55 @@ describe('Segment 14: Public API', () => {
         expect(instance?.time).toContain('01:30');
         // Instance should be at the first 01:30 (EDT, not EST)
       });
+
+      it('spring forward 03:00 resolves to exactly 03:00 on gap date', async () => {
+        const planner = createAutoplanner(createValidConfig({ timezone: 'America/New_York' }));
+        const id = await planner.createSeries({
+          title: 'Post-Gap',
+          patterns: [{ type: 'daily', time: time('03:00'), fixed: true }],
+        });
+        const schedule = await getScheduleChecked(planner, date('2025-03-09'), date('2025-03-10'));
+        const inst = schedule.instances.find(i => i.seriesId === id)!;
+        expect(inst.time).toBe(datetime('2025-03-09T03:00:00'));
+      });
+
+      it('02:30 on a non-DST date returns 02:30 unchanged', async () => {
+        const planner = createAutoplanner(createValidConfig({ timezone: 'America/New_York' }));
+        const id = await planner.createSeries({
+          title: 'Normal-Night',
+          patterns: [{ type: 'daily', time: time('02:30'), fixed: true }],
+        });
+        // Jan 15 has no DST transition
+        const schedule = await getScheduleChecked(planner, date('2025-01-15'), date('2025-01-16'));
+        const inst = schedule.instances.find(i => i.seriesId === id)!;
+        expect(inst.time).toBe(datetime('2025-01-15T02:30:00'));
+      });
+
+      it('10:00 on spring-forward date is unaffected', async () => {
+        const planner = createAutoplanner(createValidConfig({ timezone: 'America/New_York' }));
+        const id = await planner.createSeries({
+          title: 'Morning',
+          patterns: [{ type: 'daily', time: time('10:00'), fixed: true }],
+        });
+        const schedule = await getScheduleChecked(planner, date('2025-03-09'), date('2025-03-10'));
+        const inst = schedule.instances.find(i => i.seriesId === id)!;
+        expect(inst.time).toBe(datetime('2025-03-09T10:00:00'));
+      });
+
+      it('02:30 spring forward in America/Chicago shifts to 03:00', async () => {
+        const planner = createAutoplanner({
+          adapter: createMockAdapter(),
+          timezone: 'America/Chicago',
+        });
+        const id = await planner.createSeries({
+          title: 'Central-Test',
+          patterns: [{ type: 'daily', time: time('02:30'), fixed: true }],
+        });
+        // March 9, 2025 is also spring-forward for Central
+        const schedule = await getScheduleChecked(planner, date('2025-03-09'), date('2025-03-10'));
+        const inst = schedule.instances.find(i => i.seriesId === id)!;
+        expect(inst.time).toBe(datetime('2025-03-09T03:00:00'));
+      });
     });
   });
 

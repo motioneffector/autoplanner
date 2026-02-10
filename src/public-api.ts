@@ -843,7 +843,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         const syntheticId = `${inst.seriesId}::${i}` as SeriesId
         instanceMap.set(syntheticId as string, inst)
 
-        const isFixed = !!inst.fixed
+        const internal = inst as InternalInstance
+        // Treat as fixed for reflow if: (a) pattern says fixed, or
+        // (b) item has an explicit time outside the default waking-hours window.
+        // This prevents reflow from overriding DST-adjusted, chain-placed,
+        // or rescheduled times that intentionally fall outside 07:00-23:00.
+        const instTimeStr = timeOf(inst.time as string) as string
+        const outsideWindow = instTimeStr < '07:00:00' || instTimeStr > '23:00:00'
+        const isFixed = !!inst.fixed || (!!internal._hasExplicitTime && outsideWindow)
 
         seriesInputs.push({
           id: syntheticId,
