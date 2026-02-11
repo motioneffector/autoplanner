@@ -2730,4 +2730,134 @@ describe('Segment 14: Public API', () => {
       expect(isNotAcked).toBe(false);
     });
   });
+
+  // ========================================================================
+  // updateSeries Persistence (F7)
+  // ========================================================================
+  describe('updateSeries Persistence', () => {
+    it('updated patterns persist through adapter round-trip', async () => {
+      const adapter = createMockAdapter();
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const id = await plannerA.createSeries({
+        title: 'Pattern Update',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+      });
+
+      // Update pattern time from 09:00 to 14:00
+      await plannerA.updateSeries(id, {
+        patterns: [{ type: 'daily' as const, time: time('14:00:00'), duration: minutes(45) }],
+      });
+
+      // Fresh planner from same adapter, hydrate
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+      const loaded = await plannerB.getSeries(id);
+      expect(loaded!.patterns).toHaveLength(1);
+      expect(loaded!.patterns[0]).toMatchObject({
+        type: 'daily',
+        time: '14:00:00',
+        duration: 45,
+      });
+    });
+
+    it('updated tags persist through adapter round-trip', async () => {
+      const adapter = createMockAdapter();
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const id = await plannerA.createSeries({
+        title: 'Tag Update',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        tags: ['exercise'],
+      });
+
+      // Update tags: add 'outdoor'
+      await plannerA.updateSeries(id, {
+        tags: ['exercise', 'outdoor'],
+      });
+
+      // Fresh planner, hydrate
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+      const loaded = await plannerB.getSeries(id);
+      expect(loaded!.tags).toEqual(['exercise', 'outdoor']);
+    });
+
+    it('removed tags are gone after round-trip', async () => {
+      const adapter = createMockAdapter();
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const id = await plannerA.createSeries({
+        title: 'Tag Removal',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        tags: ['a', 'b'],
+      });
+
+      // Verify both tags present before removal
+      const before = await plannerA.getSeries(id);
+      expect(before!.tags).toEqual(['a', 'b']);
+
+      // Remove tag 'b'
+      await plannerA.updateSeries(id, { tags: ['a'] });
+
+      // Fresh planner, hydrate
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+      const loaded = await plannerB.getSeries(id);
+      expect(loaded!.tags).toEqual(['a']);
+    });
+
+    it('updated cycling config persists through round-trip', async () => {
+      const adapter = createMockAdapter();
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const id = await plannerA.createSeries({
+        title: 'Cycling Update',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        cycling: { mode: 'sequential', items: ['A', 'B'], currentIndex: 0 },
+      });
+
+      // Update cycling to different items
+      await plannerA.updateSeries(id, {
+        cycling: { mode: 'sequential', items: ['X', 'Y', 'Z'], currentIndex: 0 },
+      });
+
+      // Fresh planner, hydrate
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+      const loaded = await plannerB.getSeries(id);
+      expect(loaded!.cycling).toMatchObject({
+        mode: 'sequential',
+        items: ['X', 'Y', 'Z'],
+      });
+    });
+
+    it('tag removal via updateSeries persists through adapter round-trip', async () => {
+      const adapter = createMockAdapter();
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+
+      // Create two series, both tagged 'heavy'
+      const idA = await plannerA.createSeries({
+        title: 'Heavy A',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        tags: ['heavy'],
+      });
+      const idB = await plannerA.createSeries({
+        title: 'Heavy B',
+        patterns: [{ type: 'daily' as const, time: time('10:00:00'), duration: minutes(30) }],
+        tags: ['heavy'],
+      });
+
+      // Remove 'heavy' tag from series A
+      await plannerA.updateSeries(idA, { tags: [] });
+
+      // Fresh planner, hydrate — verify tag removal persisted through adapter
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+
+      // Series B still has the tag (positive proof data exists in adapter)
+      const seriesB = await plannerB.getSeries(idB);
+      expect(seriesB!.tags).toEqual(['heavy']);
+
+      // Series A no longer has the tag (removal was persisted)
+      const seriesA = await plannerB.getSeries(idA);
+      expect((seriesA!.tags || [])).not.toContain('heavy');
+    });
+  });
 });

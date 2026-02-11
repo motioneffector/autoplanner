@@ -18,6 +18,7 @@ import {
   loadFullSeries as _loadFullSeries,
   loadAllFullSeries as _loadAllFullSeries,
   persistNewSeries as _persistNewSeries,
+  persistConditionTree,
 } from './series-assembly'
 import { reflow, type ReflowInput } from './reflow'
 import type { SeriesId } from './types'
@@ -1541,7 +1542,101 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       makeTime(new Date().getHours(), new Date().getMinutes(), new Date().getSeconds())
     )
 
-    await updatePersistedSeries(id, { ...changes, updatedAt: updated.updatedAt })
+    // Persist core series fields (title, startDate, endDate, updatedAt)
+    await updatePersistedSeries(id, {
+      ...(changes.title != null ? { title: changes.title } : {}),
+      ...(changes.startDate != null ? { startDate: changes.startDate } : {}),
+      ...(changes.endDate != null ? { endDate: changes.endDate } : {}),
+      updatedAt: updated.updatedAt,
+    })
+
+    // Persist patterns: delete old, create new
+    if (changes.patterns != null) {
+      const oldConditions = await adapter.getConditionsBySeries(id)
+      for (const c of oldConditions) await adapter.deleteCondition(c.id)
+      const oldPatterns = await adapter.getPatternsBySeries(id)
+      for (const p of oldPatterns) await adapter.deletePattern(p.id)
+      for (const p of changes.patterns) {
+        let condId: string | null = null
+        if (p.condition) {
+          condId = await persistConditionTree(adapter, id, p.condition, null)
+        }
+        const patternId = crypto.randomUUID()
+        await adapter.createPattern({
+          id: patternId,
+          seriesId: id,
+          type: p.type,
+          conditionId: condId,
+          ...(p.time != null ? { time: p.time } : {}),
+          ...(p.n != null ? { n: p.n } : {}),
+          ...(p.day != null ? { day: p.day } : {}),
+          ...(p.month != null ? { month: p.month } : {}),
+          ...(p.weekday != null ? { weekday: p.weekday } : {}),
+          ...(p.allDay != null ? { allDay: p.allDay } : {}),
+          ...(p.duration != null ? { duration: p.duration } : {}),
+          ...(p.fixed != null ? { fixed: p.fixed } : {}),
+        })
+        if (p.daysOfWeek && Array.isArray(p.daysOfWeek)) {
+          await adapter.setPatternWeekdays(patternId, p.daysOfWeek.map(String))
+        }
+      }
+    }
+
+    // Persist tags: diff old vs new
+    if (changes.tags != null) {
+      const oldTags = (s.tags || []) as string[]
+      const newTags = changes.tags
+      for (const tag of oldTags) {
+        if (!newTags.includes(tag)) {
+          await adapter.removeTagFromSeries(id, tag)
+          // Update tagCache: remove this series from the tag
+          const cached = tagCache.get(tag)
+          if (cached) {
+            const idx = cached.indexOf(id)
+            if (idx >= 0) cached.splice(idx, 1)
+            if (cached.length === 0) tagCache.delete(tag)
+          }
+        }
+      }
+      for (const tag of newTags) {
+        if (!oldTags.includes(tag)) {
+          await adapter.addTagToSeries(id, tag)
+          // Update tagCache: add this series to the tag
+          if (!tagCache.has(tag)) tagCache.set(tag, [])
+          if (!tagCache.get(tag)!.includes(id)) tagCache.get(tag)!.push(id)
+        }
+      }
+    }
+
+    // Persist cycling config
+    if (changes.cycling != null) {
+      await adapter.setCyclingConfig(id, {
+        seriesId: id,
+        currentIndex: changes.cycling.currentIndex ?? 0,
+        gapLeap: changes.cycling.gapLeap ?? false,
+        ...(changes.cycling.mode != null ? { mode: changes.cycling.mode } : {}),
+      })
+      const items = changes.cycling.items && Array.isArray(changes.cycling.items)
+        ? changes.cycling.items
+        : []
+      await adapter.setCyclingItems(id,
+        items.map((title: string, i: number) => ({
+          seriesId: id,
+          position: i,
+          title,
+          duration: 0,
+        }))
+      )
+    }
+
+    // Persist adaptive duration
+    if (changes.adaptiveDuration != null) {
+      await adapter.setAdaptiveDuration(id, {
+        seriesId: id,
+        ...changes.adaptiveDuration,
+      } as import('./adapter').AdaptiveDurationConfig)
+    }
+
     seriesCache.set(id, { ...updated } as FullSeries)
     await triggerReflow()
   }
