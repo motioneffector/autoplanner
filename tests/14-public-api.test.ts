@@ -3110,4 +3110,444 @@ describe('Segment 14: Public API', () => {
       expect(instances[2]).toMatchObject({ date: '2026-02-13' }); // Fri
     });
   });
+
+  // ============================================================================
+  // Schedule Result Cache
+  // ============================================================================
+
+  describe('Schedule Result Cache', () => {
+    it('getSchedule returns cached result when nothing changed', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Daily Task',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      const s1 = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+      const s2 = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+
+      expect(s1.instances).toHaveLength(7);
+      expect(s2.instances).toHaveLength(7);
+
+      // Concrete date assertions for each day
+      const dates1 = s1.instances.map(i => i.date).sort();
+      const dates2 = s2.instances.map(i => i.date).sort();
+      expect(dates1).toEqual([
+        '2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04',
+        '2025-01-05', '2025-01-06', '2025-01-07',
+      ]);
+      expect(dates2).toEqual(dates1);
+
+      // Verify all titles are correct
+      for (const inst of s1.instances) {
+        expect(inst.title).toBe('Daily Task');
+      }
+      for (const inst of s2.instances) {
+        expect(inst.title).toBe('Daily Task');
+      }
+    });
+
+    it('getSchedule cache invalidated by createSeries', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'Series A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      const before = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+      expect(before.instances).toHaveLength(7);
+      expect(before.instances[0]!.title).toBe('Series A');
+      expect(before.instances[6]!.title).toBe('Series A');
+
+      const idB = await planner.createSeries({
+        title: 'Series B',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+      expect(after.instances).toHaveLength(14);
+
+      const titlesA = after.instances.filter(i => i.title === 'Series A');
+      const titlesB = after.instances.filter(i => i.title === 'Series B');
+      expect(titlesA).toHaveLength(7);
+      expect(titlesA[0]!).toMatchObject({ title: 'Series A', date: '2025-01-01' });
+      expect(titlesB).toHaveLength(7);
+      expect(titlesB[0]!).toMatchObject({ title: 'Series B', date: '2025-01-01' });
+    });
+
+    it('getSchedule cache invalidated by logCompletion', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'Cond Series',
+        patterns: [{
+          type: 'daily',
+          time: time('09:00:00'),
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: 'self',
+            comparison: 'greaterOrEqual',
+            value: 3,
+            windowDays: 14,
+          },
+        }],
+        startDate: date('2025-01-01'),
+      });
+      // Add unconditional series so we can verify the schedule is populated
+      await planner.createSeries({
+        title: 'Baseline',
+        patterns: [{ type: 'daily', time: time('14:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      // No completions → condition not met → only Baseline fires
+      const before = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      expect(before.instances).toHaveLength(7);
+      expect(before.instances[0]!).toMatchObject({ title: 'Baseline', date: '2025-01-06' });
+
+      await planner.logCompletion(idA, date('2025-01-01'));
+      await planner.logCompletion(idA, date('2025-01-02'));
+      await planner.logCompletion(idA, date('2025-01-03'));
+
+      const after = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      expect(after.instances).toHaveLength(14); // 7 Cond + 7 Baseline
+      const condInstances = after.instances.filter(i => i.title === 'Cond Series');
+      expect(condInstances).toHaveLength(7);
+      const condDates = condInstances.map(i => i.date).sort();
+      expect(condDates).toEqual([
+        '2025-01-06', '2025-01-07', '2025-01-08', '2025-01-09',
+        '2025-01-10', '2025-01-11', '2025-01-12',
+      ]);
+      expect(condInstances[0]!).toMatchObject({ title: 'Cond Series', date: '2025-01-06' });
+    });
+
+    it('different ranges get separate cache entries', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Daily',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      const s1 = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+      const s2 = await planner.getSchedule(date('2025-01-08'), date('2025-01-15'));
+
+      expect(s1.instances).toHaveLength(7);
+      expect(s2.instances).toHaveLength(7);
+
+      const dates1 = s1.instances.map(i => i.date).sort();
+      const dates2 = s2.instances.map(i => i.date).sort();
+
+      expect(dates1).toEqual([
+        '2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04',
+        '2025-01-05', '2025-01-06', '2025-01-07',
+      ]);
+      expect(dates2).toEqual([
+        '2025-01-08', '2025-01-09', '2025-01-10', '2025-01-11',
+        '2025-01-12', '2025-01-13', '2025-01-14',
+      ]);
+
+      // No overlap between ranges
+      for (const d of dates1) {
+        expect(dates2.includes(d)).toBe(false);
+      }
+    });
+
+    it('returned schedule is a defensive copy', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Safe Copy',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      const s1 = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+      expect(s1.instances).toHaveLength(7);
+      expect(s1.instances[0]!.title).toBe('Safe Copy');
+
+      // Mutate the returned array
+      s1.instances.push({
+        seriesId: 'garbage',
+        title: 'Garbage',
+        date: date('2025-01-20'),
+        time: datetime('2025-01-20T09:00:00'),
+      });
+      expect(s1.instances).toHaveLength(8);
+      expect(s1.instances[7]!.title).toBe('Garbage');
+
+      // Mutate a returned instance's title
+      s1.instances[0]!.title = 'CORRUPTED';
+
+      // Second call should return clean data
+      const s2 = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+      expect(s2.instances).toHaveLength(7);
+      expect(s2.instances[0]!.title).toBe('Safe Copy');
+
+      for (const inst of s2.instances) {
+        expect(inst.title).toBe('Safe Copy');
+      }
+    });
+
+    describe('cache invalidated by each mutation type', () => {
+      it('updateSeries invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+        const id = await planner.createSeries({
+          title: 'Original',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+          startDate: date('2025-01-01'),
+        });
+
+        const before = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+        expect(before.instances[0]!.title).toBe('Original');
+
+        await planner.updateSeries(id, { title: 'Updated' });
+
+        const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+        expect(after.instances).toHaveLength(7);
+        expect(after.instances[0]!.title).toBe('Updated');
+      });
+
+      it('deleteSeries invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+        const id = await planner.createSeries({
+          title: 'ToDelete',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+          startDate: date('2025-01-01'),
+        });
+
+        const before = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+        expect(before.instances).toHaveLength(7);
+        expect(before.instances[0]!).toMatchObject({ title: 'ToDelete', date: '2025-01-01' });
+
+        await planner.deleteSeries(id);
+
+        const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+        expect(after.instances).toHaveLength(0);
+      });
+
+      it('cancelInstance invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+        await planner.createSeries({
+          title: 'Cancellable',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+          startDate: date('2025-01-01'),
+        });
+
+        const id = (await planner.getSchedule(date('2025-01-01'), date('2025-01-08'))).instances[0]!.seriesId;
+        const before = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+        expect(before.instances).toHaveLength(7);
+        expect(before.instances.map(i => i.date).sort()).toEqual([
+          '2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04',
+          '2025-01-05', '2025-01-06', '2025-01-07',
+        ]);
+
+        await planner.cancelInstance(id, date('2025-01-03'));
+
+        const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+        expect(after.instances).toHaveLength(6);
+        const afterDates = after.instances.map(i => i.date).sort();
+        expect(afterDates).toEqual([
+          '2025-01-01', '2025-01-02', '2025-01-04',
+          '2025-01-05', '2025-01-06', '2025-01-07',
+        ]);
+      });
+
+      it('rescheduleInstance invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+        await planner.createSeries({
+          title: 'Reschedulable',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+          startDate: date('2025-01-01'),
+        });
+
+        const id = (await planner.getSchedule(date('2025-01-01'), date('2025-01-08'))).instances[0]!.seriesId;
+
+        await planner.rescheduleInstance(id, date('2025-01-03'), datetime('2025-01-03T14:00:00'));
+
+        const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-08'));
+        expect(after.instances).toHaveLength(7);
+        const rescheduled = after.instances.find(i => i.date === '2025-01-03');
+        expect(rescheduled).toBeDefined();
+        expect(rescheduled!.time).toBe('2025-01-03T14:00:00');
+      });
+
+      it('linkSeries invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+        const parentId = await planner.createSeries({
+          title: 'Parent',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 60, fixed: true }],
+          startDate: date('2025-01-01'),
+        });
+        const childId = await planner.createSeries({
+          title: 'Child',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+          startDate: date('2025-01-01'),
+        });
+
+        const before = await planner.getSchedule(date('2025-01-01'), date('2025-01-04'));
+        const childBefore = before.instances.filter(i => i.title === 'Child');
+        expect(childBefore).toHaveLength(3);
+        expect(childBefore[0]!).toMatchObject({ title: 'Child', date: '2025-01-01' });
+
+        await planner.linkSeries(parentId, childId, { distance: 30 });
+
+        const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-04'));
+        const childAfter = after.instances.filter(i => i.title === 'Child');
+        expect(childAfter).toHaveLength(3);
+        // After linking, child should be offset: parent ends 10:00 + 30min gap = 10:30
+        expect(childAfter[0]!).toMatchObject({ title: 'Child', date: '2025-01-01' });
+        expect(childAfter[0]!.time).toBe('2025-01-01T10:30:00');
+      });
+
+      it('unlinkSeries invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+        const parentId = await planner.createSeries({
+          title: 'Parent',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 60, fixed: true }],
+          startDate: date('2025-01-01'),
+        });
+        const childId = await planner.createSeries({
+          title: 'Child',
+          patterns: [{ type: 'daily', time: time('11:00:00'), duration: 30, fixed: true }],
+          startDate: date('2025-01-01'),
+        });
+
+        await planner.linkSeries(parentId, childId, { distance: 30 });
+
+        const before = await planner.getSchedule(date('2025-01-01'), date('2025-01-04'));
+        const linkedChild = before.instances.filter(i => i.title === 'Child');
+        expect(linkedChild).toHaveLength(3);
+        // Linked: parent ends 10:00, +30 gap → child at 10:30
+        expect(linkedChild[0]!).toMatchObject({ title: 'Child', date: '2025-01-01' });
+        expect(linkedChild[0]!.time).toBe('2025-01-01T10:30:00');
+
+        await planner.unlinkSeries(childId);
+
+        const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-04'));
+        const unlinkedChild = after.instances.filter(i => i.title === 'Child');
+        expect(unlinkedChild).toHaveLength(3);
+        // Unlinked: reverts to pattern time 11:00
+        expect(unlinkedChild[0]!).toMatchObject({ title: 'Child', date: '2025-01-01' });
+        expect(unlinkedChild[0]!.time).toBe('2025-01-01T11:00:00');
+      });
+
+      it('addConstraint invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+        const idA = await planner.createSeries({
+          title: 'First',
+          patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30, fixed: true }],
+          startDate: date('2025-01-01'),
+        });
+        const idB = await planner.createSeries({
+          title: 'Second',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30, fixed: true }],
+          startDate: date('2025-01-01'),
+        });
+
+        const before = await planner.getSchedule(date('2025-01-01'), date('2025-01-04'));
+        expect(before.instances).toHaveLength(6);
+        expect(before.instances.filter(i => i.title === 'First')[0]!.date).toBe('2025-01-01');
+        expect(before.instances.filter(i => i.title === 'Second')[0]!.date).toBe('2025-01-01');
+
+        const cId = await planner.addConstraint({
+          type: 'mustBeBefore',
+          firstSeries: idA,
+          secondSeries: idB,
+        });
+
+        const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-04'));
+        expect(after.instances).toHaveLength(6);
+        expect(after.instances[0]!).toMatchObject({ date: '2025-01-01' });
+        // Constraint should generate violations since First (10:00) is after Second (09:00)
+        // 3 days in range → 3 violations
+        expect(after.conflicts).toHaveLength(3);
+        expect(after.conflicts[0]!.type).toBe('constraintViolation');
+      });
+
+      it('removeConstraint invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+        const idA = await planner.createSeries({
+          title: 'First',
+          patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30, fixed: true }],
+          startDate: date('2025-01-01'),
+        });
+        const idB = await planner.createSeries({
+          title: 'Second',
+          patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30, fixed: true }],
+          startDate: date('2025-01-01'),
+        });
+
+        const cId = await planner.addConstraint({
+          type: 'mustBeBefore',
+          firstSeries: idA,
+          secondSeries: idB,
+        });
+
+        const before = await planner.getSchedule(date('2025-01-01'), date('2025-01-04'));
+        expect(before.instances).toHaveLength(6);
+        expect(before.instances[0]!).toMatchObject({ date: '2025-01-01' });
+        // With constraint, First(10:00) must be before Second(09:00) → violation
+        expect(before.conflicts.some(c => c.type === 'constraintViolation')).toBe(true);
+
+        await planner.removeConstraint(cId);
+
+        const after = await planner.getSchedule(date('2025-01-01'), date('2025-01-04'));
+        expect(after.instances).toHaveLength(6);
+        expect(after.instances[0]!).toMatchObject({ date: '2025-01-01' });
+        // Constraint removed → no more violations
+        expect(after.conflicts.filter(c => c.type === 'constraintViolation')).toHaveLength(0);
+      });
+
+      it('deleteCompletion invalidates cache', async () => {
+        const planner = createAutoplanner(createValidConfig());
+
+        // Two series: Completable (conditional) and Always (unconditional)
+        const id = await planner.createSeries({
+          title: 'Completable',
+          patterns: [{
+            type: 'daily',
+            time: time('09:00:00'),
+            duration: 30,
+            condition: {
+              type: 'completionCount',
+              seriesRef: 'self',
+              comparison: 'greaterOrEqual',
+              value: 2,
+              windowDays: 14,
+            },
+          }],
+          startDate: date('2025-01-01'),
+        });
+        await planner.createSeries({
+          title: 'Always',
+          patterns: [{ type: 'daily', time: time('14:00:00'), duration: 30 }],
+          startDate: date('2025-01-01'),
+        });
+
+        const compId1 = await planner.logCompletion(id, date('2025-01-01'));
+        const compId2 = await planner.logCompletion(id, date('2025-01-02'));
+
+        // With 2 completions, both series fire
+        const before = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+        expect(before.instances).toHaveLength(14); // 7 Completable + 7 Always
+        expect(before.instances.filter(i => i.title === 'Completable')[0]!).toMatchObject({
+          title: 'Completable', date: '2025-01-06',
+        });
+        expect(before.instances.filter(i => i.title === 'Always')[0]!).toMatchObject({
+          title: 'Always', date: '2025-01-06',
+        });
+
+        await planner.deleteCompletion(compId2);
+
+        // Now only 1 completion → condition not met → Completable disappears, Always remains
+        const after = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+        expect(after.instances).toHaveLength(7);
+        expect(after.instances[0]!).toMatchObject({ title: 'Always', date: '2025-01-06' });
+        expect(after.instances[6]!).toMatchObject({ title: 'Always', date: '2025-01-12' });
+      });
+    });
+  });
 });

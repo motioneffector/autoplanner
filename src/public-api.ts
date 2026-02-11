@@ -268,6 +268,7 @@ export type Autoplanner = {
   getChainDepth(seriesId: string): Promise<number>
   hydrate(): Promise<void>
   on(event: string, handler: (...args: unknown[]) => void): void
+  getCacheStats(): { patternHits: number; patternMisses: number; cspHits: number; cspMisses: number }
 }
 
 // ============================================================================
@@ -556,6 +557,15 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   const remindersBySeriesMap = new Map<string, string[]>()
   const reminderAcks = new Map<string, Set<string>>()
 
+  // ========== Schedule Cache State ==========
+  let cacheGeneration = 0
+  const scheduleResultCache = new Map<string, { generation: number; schedule: Schedule }>()
+  let cacheStats = { patternHits: 0, patternMisses: 0, cspHits: 0, cspMisses: 0 }
+
+  function defensiveCopy(schedule: Schedule): Schedule {
+    return structuredClone(schedule)
+  }
+
   // ========== Adapter Helpers ==========
   // Delegations to series-assembly.ts — fat-series marshaling
 
@@ -605,8 +615,11 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function triggerReflow() {
+    cacheGeneration++
+    scheduleResultCache.clear()
+
     const win = getDefaultWindow()
-    const schedule = await buildSchedule(win.start, win.end)
+    const schedule = await getSchedule(win.start, win.end)
     cachedConflicts = schedule.conflicts
 
     const frozenSchedule = Object.freeze({
@@ -2040,7 +2053,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if ((end as string) <= (start as string)) {
       return { instances: [], conflicts: [] }
     }
-    return buildSchedule(start, end)
+    const key = `${start}:${end}`
+    const cached = scheduleResultCache.get(key)
+    if (cached && cached.generation === cacheGeneration) {
+      return defensiveCopy(cached.schedule)
+    }
+    const schedule = await buildSchedule(start, end)
+    scheduleResultCache.set(key, { generation: cacheGeneration, schedule })
+    return defensiveCopy(schedule)
   }
 
   async function getConflicts(): Promise<Conflict[]> {
@@ -2303,6 +2323,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
   }
 
+  function getCacheStats() {
+    return { ...cacheStats }
+  }
+
   return {
     createSeries,
     getSeries,
@@ -2335,5 +2359,6 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     getChainDepth: getChainDepthAsync,
     hydrate,
     on,
+    getCacheStats,
   }
 }
