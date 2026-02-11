@@ -2623,4 +2623,270 @@ describe('Segment 16: Integration Tests', () => {
       fs.unlinkSync(tmpPath);
     });
   });
+
+  // ============================================================================
+  // Caching Correctness
+  // ============================================================================
+
+  describe('Caching Correctness', () => {
+    it('cross-series condition blast radius: completion on A changes B schedule', async () => {
+      const planner = await createTestPlanner();
+      const idA = await planner.createSeries({
+        title: 'Target A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'Dependent B',
+        patterns: [{
+          type: 'daily',
+          time: time('10:00:00'),
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: idA,
+            comparison: 'greaterOrEqual',
+            value: 3,
+            windowDays: 7,
+          },
+        }],
+        startDate: date('2025-01-01'),
+      });
+
+      // Before completions: only A appears (B's condition not met)
+      const before = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      // Total = 7 means only A's instances exist, B absent
+      expect(before.instances).toHaveLength(7);
+      expect(before.instances[0]!).toMatchObject({ title: 'Target A', date: '2025-01-06' });
+      expect(before.instances[6]!).toMatchObject({ title: 'Target A', date: '2025-01-12' });
+
+      // Log 3 completions on A — meets the greaterOrEqual:3 condition
+      await planner.logCompletion(idA, date('2025-01-06'));
+      await planner.logCompletion(idA, date('2025-01-07'));
+      await planner.logCompletion(idA, date('2025-01-08'));
+
+      // After completions: B should now have instances
+      const after = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const aAfter = after.instances.filter(i => i.title === 'Target A');
+      const bAfter = after.instances.filter(i => i.title === 'Dependent B');
+      // A still has 7 instances
+      expect(aAfter).toHaveLength(7);
+      expect(aAfter[0]!).toMatchObject({ title: 'Target A', date: '2025-01-06' });
+      // B now appears with 7 instances (daily, Jan 6-12)
+      expect(bAfter).toHaveLength(7);
+      expect(bAfter[0]!).toMatchObject({ title: 'Dependent B', date: '2025-01-06' });
+      expect(bAfter[6]!).toMatchObject({ title: 'Dependent B', date: '2025-01-12' });
+    });
+
+    it('chain timing updates correctly through cache', async () => {
+      const planner = await createTestPlanner();
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 60, fixed: true }],
+        startDate: date('2025-01-01'),
+      });
+      const childId = await planner.createSeries({
+        title: 'Child',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      await planner.linkSeries(parentId, childId, { distance: 30 });
+
+      // Before completion: child at parent_end(10:00) + 30 = 10:30
+      const before = await planner.getSchedule(date('2025-01-06'), date('2025-01-08'));
+      const childBefore = before.instances.filter(i => i.title === 'Child');
+      expect(childBefore).toHaveLength(2);
+      expect(childBefore[0]!.time).toBe('2025-01-06T10:30:00');
+      expect(childBefore[1]!.time).toBe('2025-01-07T10:30:00');
+
+      // Log completion on parent for Mon with endTime 10:30
+      await planner.logCompletion(parentId, date('2025-01-06'), {
+        endTime: datetime('2025-01-06T10:30:00'),
+      });
+
+      // After: child on Mon follows completion endTime(10:30) + 30 = 11:00
+      const after = await planner.getSchedule(date('2025-01-06'), date('2025-01-08'));
+      const childAfter = after.instances.filter(i => i.title === 'Child');
+      expect(childAfter).toHaveLength(2);
+      expect(childAfter[0]!.time).toBe('2025-01-06T11:00:00'); // from completion
+      expect(childAfter[1]!.time).toBe('2025-01-07T10:30:00'); // unchanged (no completion)
+    });
+
+    it('cached schedule matches fresh planner build', async () => {
+      const adapter = createMockAdapter();
+      const config = { adapter, timezone: 'America/New_York' as const };
+
+      const planner1 = createAutoplanner(config);
+      const idA = await planner1.createSeries({
+        title: 'Daily A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner1.createSeries({
+        title: 'Weekly B',
+        patterns: [{ type: 'weekly', daysOfWeek: [1, 3, 5], time: time('10:00:00'), duration: 45 }],
+        startDate: date('2025-01-01'),
+      });
+      const idC = await planner1.createSeries({
+        title: 'Chain C',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30, fixed: true }],
+        startDate: date('2025-01-01'),
+      });
+      const idD = await planner1.createSeries({
+        title: 'Chain D',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      await planner1.linkSeries(idC, idD, { distance: 15 });
+
+      // Log some completions
+      await planner1.logCompletion(idA, date('2025-01-06'));
+      await planner1.logCompletion(idA, date('2025-01-07'));
+
+      // Cancel one instance
+      await planner1.cancelInstance(idA, date('2025-01-08'));
+
+      // Get schedule from planner1 (uses cache)
+      const result1 = await planner1.getSchedule(date('2025-01-06'), date('2025-01-13'));
+
+      // Fresh planner2 with same adapter, hydrated
+      const planner2 = createAutoplanner(config);
+      await planner2.hydrate();
+      const result2 = await planner2.getSchedule(date('2025-01-06'), date('2025-01-13'));
+
+      // Results should match
+      expect(result1.instances).toHaveLength(result2.instances.length);
+
+      // Sort both by seriesId + date for stable comparison
+      const sort = (insts: typeof result1.instances) =>
+        [...insts].sort((a, b) => `${a.seriesId}:${a.date}`.localeCompare(`${b.seriesId}:${b.date}`));
+
+      const sorted1 = sort(result1.instances);
+      const sorted2 = sort(result2.instances);
+
+      for (let i = 0; i < sorted1.length; i++) {
+        expect(sorted1[i]!.seriesId).toBe(sorted2[i]!.seriesId);
+        expect(sorted1[i]!.date).toBe(sorted2[i]!.date);
+        expect(sorted1[i]!.title).toBe(sorted2[i]!.title);
+        // Times should match (both computed fresh via buildSchedule)
+        expect(sorted1[i]!.time).toBe(sorted2[i]!.time);
+      }
+    });
+
+    it('exception on chained child does not corrupt parent cache', async () => {
+      const planner = await createTestPlanner();
+      const parentId = await planner.createSeries({
+        title: 'P',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 60, fixed: true }],
+        startDate: date('2025-01-06'),
+      });
+      const childId = await planner.createSeries({
+        title: 'C',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-06'),
+      });
+      await planner.linkSeries(parentId, childId, { distance: 30 });
+
+      // Both appear Mon-Fri
+      const before = await planner.getSchedule(date('2025-01-06'), date('2025-01-11'));
+      expect(before.instances.filter(i => i.title === 'P')).toHaveLength(5);
+      expect(before.instances.filter(i => i.title === 'P')[0]!.date).toBe('2025-01-06');
+      expect(before.instances.filter(i => i.title === 'C')).toHaveLength(5);
+      expect(before.instances.filter(i => i.title === 'C')[0]!.date).toBe('2025-01-06');
+
+      // Cancel C on Wednesday Jan 8
+      await planner.cancelInstance(childId, date('2025-01-08'));
+
+      const after = await planner.getSchedule(date('2025-01-06'), date('2025-01-11'));
+      const pAfter = after.instances.filter(i => i.title === 'P');
+      const cAfter = after.instances.filter(i => i.title === 'C');
+
+      // Parent unchanged: 5 instances
+      expect(pAfter).toHaveLength(5);
+      expect(pAfter.map(i => i.date).sort()).toEqual([
+        '2025-01-06', '2025-01-07', '2025-01-08', '2025-01-09', '2025-01-10',
+      ]);
+
+      // Child: 4 instances (Wed cancelled)
+      expect(cAfter).toHaveLength(4);
+      expect(cAfter.map(i => i.date).sort()).toEqual([
+        '2025-01-06', '2025-01-07', '2025-01-09', '2025-01-10',
+      ]);
+    });
+
+    it('constraint change invalidates CSP but pattern cache persists', async () => {
+      const planner = await createTestPlanner();
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30, fixed: true }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'B',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30, fixed: true }],
+        startDate: date('2025-01-01'),
+      });
+
+      const cId = await planner.addConstraint({
+        type: 'mustBeBefore', firstSeries: idA, secondSeries: idB,
+      });
+      const withConstraint = await planner.getSchedule(date('2025-01-06'), date('2025-01-09'));
+      // A(10:00) must be before B(09:00) → constraint violation
+      expect(withConstraint.conflicts.some(c => c.type === 'constraintViolation')).toBe(true);
+      expect(withConstraint.instances).toHaveLength(6);
+      expect(withConstraint.instances[0]!).toMatchObject({ date: '2025-01-06' });
+
+      const missesBefore = planner.getCacheStats().patternMisses;
+
+      await planner.removeConstraint(cId);
+      const withoutConstraint = await planner.getSchedule(date('2025-01-06'), date('2025-01-09'));
+
+      const missesAfter = planner.getCacheStats().patternMisses;
+
+      // Pattern cache persisted (constraint change doesn't evict patterns)
+      expect(missesAfter - missesBefore).toBe(0);
+
+      // No more violations
+      expect(withoutConstraint.conflicts.filter(c => c.type === 'constraintViolation')).toHaveLength(0);
+      expect(withoutConstraint.instances).toHaveLength(6);
+      expect(withoutConstraint.instances[0]!).toMatchObject({ date: '2025-01-06' });
+    });
+
+    it('rapid mutation sequence produces correct final state', async () => {
+      const planner = await createTestPlanner();
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-06'),
+      });
+
+      // Rapid sequence of mutations
+      const idB = await planner.createSeries({
+        title: 'B',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30 }],
+        startDate: date('2025-01-06'),
+      });
+      await planner.logCompletion(idA, date('2025-01-06'));
+      await planner.cancelInstance(idA, date('2025-01-08')); // cancel Wed
+      await planner.updateSeries(idB, {
+        patterns: [{ type: 'weekly', daysOfWeek: [1, 5], time: time('10:00:00'), duration: 30 }],
+      });
+
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+
+      // A: daily minus Wed cancel = 6 instances
+      const aInst = result.instances.filter(i => i.title === 'A');
+      expect(aInst).toHaveLength(6);
+      expect(aInst.map(i => i.date).sort()).toEqual([
+        '2025-01-06', '2025-01-07', '2025-01-09',
+        '2025-01-10', '2025-01-11', '2025-01-12',
+      ]);
+
+      // B: weekly Mon(1) + Fri(5) = Mon Jan 6, Fri Jan 10
+      const bInst = result.instances.filter(i => i.title === 'B');
+      expect(bInst).toHaveLength(2);
+      expect(bInst[0]!).toMatchObject({ title: 'B', date: '2025-01-06' });
+      expect(bInst[1]!).toMatchObject({ title: 'B', date: '2025-01-10' });
+    });
+  });
 });
