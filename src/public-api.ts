@@ -1694,6 +1694,70 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
     await persistNewSeries(newSeries)
     seriesCache.set(newId, { ...newSeries })
+
+    // Update tagCache for new series
+    if (newSeries.tags && Array.isArray(newSeries.tags)) {
+      for (const tag of newSeries.tags) {
+        if (!tagCache.has(tag)) tagCache.set(tag, [])
+        if (!tagCache.get(tag)!.includes(newId)) tagCache.get(tag)!.push(newId)
+      }
+    }
+
+    // Copy constraints that reference the original series (snapshot to avoid mutation during iteration)
+    for (const [cid, constraint] of [...constraints]) {
+      const targetsOriginal = (
+        (constraint.target?.type === 'seriesId' && constraint.target.seriesId === id) ||
+        (constraint.secondTarget?.type === 'seriesId' && constraint.secondTarget.seriesId === id)
+      )
+      if (targetsOriginal) {
+        const newConstraintId = uuid()
+        const newTarget = constraint.target?.type === 'seriesId' && constraint.target.seriesId === id
+          ? { type: 'seriesId' as const, seriesId: newId }
+          : constraint.target
+        const newSecondTarget = constraint.secondTarget?.type === 'seriesId' && constraint.secondTarget.seriesId === id
+          ? { type: 'seriesId' as const, seriesId: newId }
+          : constraint.secondTarget
+        const newConstraint = {
+          id: newConstraintId,
+          type: constraint.type,
+          target: newTarget,
+          secondTarget: newSecondTarget,
+          ...(constraint.withinMinutes != null ? { withinMinutes: constraint.withinMinutes } : {}),
+        }
+        constraints.set(newConstraintId, newConstraint as StoredConstraint)
+        await adapter.createRelationalConstraint({
+          id: newConstraintId,
+          type: constraint.type,
+          sourceTarget: newTarget ?? { seriesId: newId },
+          destinationTarget: newSecondTarget ?? { seriesId: newId },
+          ...(constraint.withinMinutes != null ? { withinMinutes: constraint.withinMinutes } : {}),
+        })
+      }
+    }
+
+    // Copy incoming link (if original is a chain child, new series should be too)
+    const originalLink = links.get(id)
+    if (originalLink) {
+      const newLink = {
+        parentId: originalLink.parentId,
+        childId: newId,
+        distance: originalLink.distance,
+        earlyWobble: originalLink.earlyWobble,
+        lateWobble: originalLink.lateWobble,
+      }
+      links.set(newId, newLink)
+      if (!linksByParent.has(originalLink.parentId)) linksByParent.set(originalLink.parentId, [])
+      linksByParent.get(originalLink.parentId)!.push(newId)
+      await adapter.createLink({
+        id: uuid(),
+        parentSeriesId: originalLink.parentId,
+        childSeriesId: newId,
+        targetDistance: originalLink.distance,
+        earlyWobble: originalLink.earlyWobble,
+        lateWobble: originalLink.lateWobble,
+      })
+    }
+
     await triggerReflow()
     return newId
   }

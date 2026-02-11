@@ -2860,4 +2860,148 @@ describe('Segment 14: Public API', () => {
       expect((seriesA!.tags || [])).not.toContain('heavy');
     });
   });
+
+  // ========================================================================
+  // splitSeries Data Preservation (F11)
+  // ========================================================================
+  describe('splitSeries Data Preservation', () => {
+    it('split series copies tags to new series and persists through round-trip', async () => {
+      const adapter = createMockAdapter();
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const id = await plannerA.createSeries({
+        title: 'Tagged Split',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        tags: ['heavy', 'exercise'],
+        startDate: date('2026-01-01'),
+      });
+
+      // Split at March 1
+      const newId = await plannerA.splitSeries(id, date('2026-03-01'));
+
+      // Verify new series has same tags in-memory
+      const newSeries = await plannerA.getSeries(newId);
+      expect(newSeries!.tags).toEqual(['heavy', 'exercise']);
+
+      // Verify through adapter round-trip
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+      const loaded = await plannerB.getSeries(newId);
+      expect(loaded!.tags).toEqual(['heavy', 'exercise']);
+    });
+
+    it('split series copies constraints referencing the original', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+      const idA = await planner.createSeries({
+        title: 'Constrained A',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        startDate: date('2026-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'Series B',
+        patterns: [{ type: 'daily' as const, time: time('10:00:00'), duration: minutes(30) }],
+      });
+
+      // Add constraint: A cantBeNextTo B
+      await planner.addConstraint({
+        type: 'cantBeNextTo',
+        target: { type: 'seriesId', seriesId: idA },
+        secondTarget: { type: 'seriesId', seriesId: idB },
+      });
+
+      // Split A at March 1 → creates A' (new series)
+      const newId = await planner.splitSeries(idA, date('2026-03-01'));
+
+      // Should have 2 constraints: original (A↔B) + copy (A'↔B)
+      const allConstraints = await planner.getConstraints();
+      expect(allConstraints).toHaveLength(2);
+
+      // Find the constraint referencing the new series
+      const newConstraint = allConstraints.find(c =>
+        (c.target?.type === 'seriesId' && c.target.seriesId === newId) ||
+        (c.secondTarget?.type === 'seriesId' && c.secondTarget.seriesId === newId)
+      );
+      expect(newConstraint).toMatchObject({
+        type: 'cantBeNextTo',
+        target: { type: 'seriesId', seriesId: newId },
+        secondTarget: { type: 'seriesId', seriesId: idB },
+      });
+
+      // Verify through adapter round-trip
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+      const hydrated = await plannerB.getConstraints();
+      expect(hydrated).toHaveLength(2);
+      const hydratedNew = hydrated.find(c =>
+        (c.target?.type === 'seriesId' && c.target.seriesId === newId)
+      );
+      expect(hydratedNew).toMatchObject({
+        type: 'cantBeNextTo',
+        target: { type: 'seriesId', seriesId: newId },
+        secondTarget: { type: 'seriesId', seriesId: idB },
+      });
+    });
+
+    it('split series copies chain link to new series', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        startDate: date('2026-01-01'),
+      });
+      const childId = await planner.createSeries({
+        title: 'Child',
+        patterns: [{ type: 'daily' as const, time: time('10:00:00'), duration: minutes(30) }],
+        startDate: date('2026-01-01'),
+      });
+
+      // Link child to parent
+      await planner.linkSeries(parentId, childId, { distance: 60 });
+
+      // Split child at March 1
+      const newChildId = await planner.splitSeries(childId, date('2026-03-01'));
+
+      // New child should also be linked to the same parent
+      // Verify via adapter round-trip
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+
+      // Get all links from adapter
+      const allLinks = await adapter.getAllLinks();
+      const newChildLink = allLinks.find(l => l.childSeriesId === newChildId);
+      expect(newChildLink).toMatchObject({
+        parentSeriesId: parentId,
+        childSeriesId: newChildId,
+        targetDistance: 60,
+      });
+    });
+
+    it('original series retains its data after split', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+      const id = await planner.createSeries({
+        title: 'Original',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        tags: ['workout'],
+        startDate: date('2026-01-01'),
+      });
+
+      // Split at March 1
+      await planner.splitSeries(id, date('2026-03-01'));
+
+      // Original should still have its tags and endDate set to splitDate
+      const original = await planner.getSeries(id);
+      expect(original).toMatchObject({
+        title: 'Original',
+        endDate: '2026-03-01',
+        tags: ['workout'],
+      });
+      expect(original!.patterns).toHaveLength(1);
+      expect(original!.patterns[0]).toMatchObject({
+        type: 'daily',
+        time: '09:00:00',
+      });
+    });
+  });
 });
