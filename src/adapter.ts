@@ -665,7 +665,7 @@ export function createMockAdapter(): Adapter {
           (e) =>
             e.seriesId === seriesId &&
             (e.originalDate as string) >= (start as string) &&
-            (e.originalDate as string) <= (end as string)
+            (e.originalDate as string) < (end as string)
         )
         .map(ca)
     },
@@ -854,7 +854,7 @@ export function createMockAdapter(): Adapter {
         .filter(
           (a) =>
             (a.instanceDate as string) >= (start as string) &&
-            (a.instanceDate as string) <= (end as string)
+            (a.instanceDate as string) < (end as string)
         )
         .map(ca)
     },
@@ -872,7 +872,7 @@ export function createMockAdapter(): Adapter {
         .filter(
           (a) =>
             (a.instanceDate as string) >= (start as string) &&
-            (a.instanceDate as string) <= (end as string)
+            (a.instanceDate as string) < (end as string)
         )
         .map((a) => ({
           reminder_id: a.reminderId,

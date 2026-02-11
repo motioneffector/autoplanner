@@ -1907,7 +1907,7 @@ describe('Segment 14: Public API', () => {
       const id = await planner.createSeries({
         title: 'Workout',
         startDate: date('2026-03-02'), // Monday
-        patterns: [{ type: 'weekdays', days: [1, 3, 5], time: time('10:00:00'), duration: minutes(60) }],
+        patterns: [{ type: 'weekdays', daysOfWeek: [1, 3, 5], time: time('10:00:00'), duration: minutes(60) }],
         cycling: { mode: 'sequential', items: ['Workout A', 'Workout B'], gapLeap: true },
       });
 
@@ -1923,7 +1923,7 @@ describe('Segment 14: Public API', () => {
       const id = await planner.createSeries({
         title: 'Workout',
         startDate: date('2026-03-02'),
-        patterns: [{ type: 'weekdays', days: [1, 3, 5], time: time('10:00:00'), duration: minutes(60) }],
+        patterns: [{ type: 'weekdays', daysOfWeek: [1, 3, 5], time: time('10:00:00'), duration: minutes(60) }],
         cycling: { mode: 'sequential', items: ['Workout A', 'Workout B'], gapLeap: true },
       });
 
@@ -1947,7 +1947,7 @@ describe('Segment 14: Public API', () => {
       const id = await planner.createSeries({
         title: 'Turbovac',
         startDate: date('2026-03-03'), // Tuesday
-        patterns: [{ type: 'weekdays', days: [2], time: time('09:00:00'), duration: minutes(15) }],
+        patterns: [{ type: 'weekdays', daysOfWeek: [2], time: time('09:00:00'), duration: minutes(15) }],
         cycling: { mode: 'sequential', items: ['Bedroom', 'Living Room', 'Office'], gapLeap: true },
       });
 
@@ -1963,7 +1963,7 @@ describe('Segment 14: Public API', () => {
       const id = await planner.createSeries({
         title: 'Turbovac',
         startDate: date('2026-03-03'),
-        patterns: [{ type: 'weekdays', days: [2], time: time('09:00:00'), duration: minutes(15) }],
+        patterns: [{ type: 'weekdays', daysOfWeek: [2], time: time('09:00:00'), duration: minutes(15) }],
         cycling: { mode: 'sequential', items: ['Bedroom', 'Living Room', 'Office'], gapLeap: true },
       });
 

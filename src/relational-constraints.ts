@@ -91,7 +91,7 @@ async function getInstanceInfo(
     const seriesStart = (series.startDate ?? date) as LocalDate
     const expanded = expandPattern(
       toExpandablePattern(p, seriesStart),
-      { start: date, end: date },
+      { start: date, end: addDays(date, 1) },
       seriesStart
     )
     if (expanded.has(date)) { found = true; break }
@@ -320,7 +320,7 @@ export async function getConstraintViolations(
   const violations: ConstraintViolation[] = []
 
   let current = range.start
-  while ((current as string) <= (range.end as string)) {
+  while ((current as string) < (range.end as string)) {
     const satisfied = await checkConstraint(adapter, constraint, current)
 
     if (!satisfied) {

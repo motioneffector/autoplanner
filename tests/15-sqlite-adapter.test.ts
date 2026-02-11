@@ -2305,4 +2305,64 @@ describe('Segment 15: SQLite Adapter', () => {
       }
     });
   });
+
+  // ==========================================================================
+  // Exclusive End Date Tests
+  // ==========================================================================
+
+  describe('Exclusive End Date Ranges', () => {
+    it('getExceptionsInRange excludes end date', async () => {
+      const sid = seriesId('exc-range-s1');
+      await adapter.createSeries(createTestSeries('exc-range-s1'));
+
+      await adapter.createInstanceException({
+        id: 'exc-r1',
+        seriesId: sid,
+        originalDate: date('2026-01-10'),
+        type: 'cancelled',
+      });
+      await adapter.createInstanceException({
+        id: 'exc-r2',
+        seriesId: sid,
+        originalDate: date('2026-01-11'),
+        type: 'cancelled',
+      });
+      await adapter.createInstanceException({
+        id: 'exc-r3',
+        seriesId: sid,
+        originalDate: date('2026-01-12'),
+        type: 'cancelled',
+      });
+
+      const results = await adapter.getExceptionsInRange(
+        sid, date('2026-01-10'), date('2026-01-12'),
+      );
+      expect(results).toHaveLength(2);
+      expect(results[0]!.originalDate).toBe('2026-01-10');
+      expect(results[1]!.originalDate).toBe('2026-01-11');
+    });
+
+    it('getReminderAcksInRange excludes end date', async () => {
+      const sid = seriesId('ack-range-s1');
+      await adapter.createSeries(createTestSeries('ack-range-s1'));
+      const rid = reminderId('ack-range-r1');
+      await adapter.createReminder({
+        id: rid,
+        seriesId: sid,
+        minutesBefore: 15,
+        label: 'test',
+      });
+
+      await adapter.acknowledgeReminder(rid, date('2026-01-10'), datetime('2026-01-10T09:00:00'));
+      await adapter.acknowledgeReminder(rid, date('2026-01-11'), datetime('2026-01-11T09:00:00'));
+      await adapter.acknowledgeReminder(rid, date('2026-01-12'), datetime('2026-01-12T09:00:00'));
+
+      const results = await adapter.getReminderAcksInRange(
+        date('2026-01-10'), date('2026-01-12'),
+      );
+      expect(results).toHaveLength(2);
+      expect(results[0]!.instanceDate).toBe('2026-01-10');
+      expect(results[1]!.instanceDate).toBe('2026-01-11');
+    });
+  });
 });

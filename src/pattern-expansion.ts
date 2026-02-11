@@ -203,10 +203,10 @@ function expandInner(pattern: Pattern, range: DateRange, seriesStart: LocalDate)
 function expandDaily(range: DateRange, seriesStart: LocalDate): Set<LocalDate> {
   const result = new Set<LocalDate>()
   const start = seriesStart > range.start ? seriesStart : range.start
-  if (start > range.end) return result
+  if (start >= range.end) return result
 
   let d = start
-  while (d <= range.end) {
+  while (d < range.end) {
     result.add(d)
     d = addDays(d, 1)
   }
@@ -216,7 +216,7 @@ function expandDaily(range: DateRange, seriesStart: LocalDate): Set<LocalDate> {
 function expandEveryNDays(n: number, range: DateRange, seriesStart: LocalDate): Set<LocalDate> {
   const result = new Set<LocalDate>()
   const start = seriesStart > range.start ? seriesStart : range.start
-  if (start > range.end) return result
+  if (start >= range.end) return result
 
   // Find first date >= start where daysBetween(seriesStart, d) % n === 0
   const gap = daysBetween(seriesStart, start)
@@ -224,7 +224,7 @@ function expandEveryNDays(n: number, range: DateRange, seriesStart: LocalDate): 
   const offset = rem === 0 ? 0 : n - rem
   let d = addDays(start, offset)
 
-  while (d <= range.end) {
+  while (d < range.end) {
     result.add(d)
     d = addDays(d, n)
   }
@@ -246,13 +246,13 @@ function expandEveryNWeeksCore(
   }
 
   const start = seriesStart > range.start ? seriesStart : range.start
-  if (start > range.end) return result
+  if (start >= range.end) return result
 
   const period = 7 * n
 
   if (anchor >= start) {
     let d = anchor
-    while (d <= range.end) {
+    while (d < range.end) {
       if (d >= start) result.add(d)
       d = addDays(d, period)
     }
@@ -261,7 +261,7 @@ function expandEveryNWeeksCore(
     const skip = Math.ceil(gap / period)
     let d = addDays(anchor, skip * period)
     if (d < start) d = addDays(d, period)
-    while (d <= range.end) {
+    while (d < range.end) {
       result.add(d)
       d = addDays(d, period)
     }
@@ -279,13 +279,13 @@ function expandMonthly(day: number, range: DateRange, seriesStart: LocalDate): S
   while (true) {
     if (day <= daysInMonth(y, m)) {
       const d = makeDate(y, m, day)
-      if (d >= seriesStart && d >= range.start && d <= range.end) {
+      if (d >= seriesStart && d >= range.start && d < range.end) {
         result.add(d)
       }
     }
     m++
     if (m > 12) { m = 1; y++ }
-    if (makeDate(y, m, 1) > range.end) break
+    if (makeDate(y, m, 1) >= range.end) break
   }
 
   return result
@@ -300,12 +300,12 @@ function expandLastDayOfMonth(range: DateRange, seriesStart: LocalDate): Set<Loc
   while (true) {
     const dim = daysInMonth(y, m)
     const d = makeDate(y, m, dim)
-    if (d >= seriesStart && d >= range.start && d <= range.end) {
+    if (d >= seriesStart && d >= range.start && d < range.end) {
       result.add(d)
     }
     m++
     if (m > 12) { m = 1; y++ }
-    if (makeDate(y, m, 1) > range.end) break
+    if (makeDate(y, m, 1) >= range.end) break
   }
 
   return result
@@ -317,7 +317,7 @@ function expandYearly(month: number, day: number, range: DateRange, seriesStart:
   for (let y = yearOf(range.start); y <= yearOf(range.end); y++) {
     if (day > daysInMonth(y, month)) continue
     const d = makeDate(y, month, day)
-    if (d >= seriesStart && d >= range.start && d <= range.end) {
+    if (d >= seriesStart && d >= range.start && d < range.end) {
       result.add(d)
     }
   }
@@ -329,10 +329,10 @@ function expandWeekdays(days: Weekday[], range: DateRange, seriesStart: LocalDat
   const result = new Set<LocalDate>()
   const daySet = new Set(days)
   const start = seriesStart > range.start ? seriesStart : range.start
-  if (start > range.end) return result
+  if (start >= range.end) return result
 
   let d = start
-  while (d <= range.end) {
+  while (d < range.end) {
     if (daySet.has(dayOfWeek(d))) {
       result.add(d)
     }
@@ -365,12 +365,12 @@ function expandNthWeekdayOfMonth(
 
   while (true) {
     const d = findNthWeekdayInMonth(n, weekday, y, m)
-    if (d !== null && d >= seriesStart && d >= range.start && d <= range.end) {
+    if (d !== null && d >= seriesStart && d >= range.start && d < range.end) {
       result.add(d)
     }
     m++
     if (m > 12) { m = 1; y++ }
-    if (makeDate(y, m, 1) > range.end) break
+    if (makeDate(y, m, 1) >= range.end) break
   }
 
   return result
@@ -393,12 +393,12 @@ function expandLastWeekdayOfMonth(weekday: Weekday, range: DateRange, seriesStar
 
   while (true) {
     const d = findLastWeekdayInMonth(weekday, y, m)
-    if (d >= seriesStart && d >= range.start && d <= range.end) {
+    if (d >= seriesStart && d >= range.start && d < range.end) {
       result.add(d)
     }
     m++
     if (m > 12) { m = 1; y++ }
-    if (makeDate(y, m, 1) > range.end) break
+    if (makeDate(y, m, 1) >= range.end) break
   }
 
   return result
@@ -418,12 +418,12 @@ function expandNthToLastWeekdayOfMonth(
   while (true) {
     const last = findLastWeekdayInMonth(weekday, y, m)
     const d = addDays(last, -(n - 1) * 7)
-    if (monthOf(d) === m && d >= seriesStart && d >= range.start && d <= range.end) {
+    if (monthOf(d) === m && d >= seriesStart && d >= range.start && d < range.end) {
       result.add(d)
     }
     m++
     if (m > 12) { m = 1; y++ }
-    if (makeDate(y, m, 1) > range.end) break
+    if (makeDate(y, m, 1) >= range.end) break
   }
 
   return result
@@ -513,7 +513,7 @@ export function toExpandablePattern(p: PatternLike, seriesStart: LocalDate): Pat
       return { type: 'everyNWeeks', n: (p.n as number) || 2 }
     }
     case 'weekdays': {
-      const days = ((p['days'] as (number | string)[] | undefined) || []).map(
+      const days = ((p['daysOfWeek'] as (number | string)[] | undefined) || []).map(
         (d: number | string) => typeof d === 'number' ? numToWeekday(d) : d as Weekday
       )
       return { type: 'weekdays', days }

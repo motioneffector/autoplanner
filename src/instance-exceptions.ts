@@ -7,7 +7,7 @@
 
 import type { Adapter, InstanceException as AdapterException } from './adapter'
 import type { LocalDate, LocalDateTime } from './time-date'
-import { parseDateTime, dateOf } from './time-date'
+import { parseDateTime, dateOf, addDays } from './time-date'
 import { expandPattern, toExpandablePattern } from './pattern-expansion'
 
 // ============================================================================
@@ -64,7 +64,7 @@ async function isValidInstance(
     const seriesStart = (series.startDate ?? date) as LocalDate
     const expanded = expandPattern(
       toExpandablePattern(p, seriesStart),
-      { start: date, end: date },
+      { start: date, end: addDays(date, 1) },
       seriesStart
     )
     if (expanded.has(date)) return true

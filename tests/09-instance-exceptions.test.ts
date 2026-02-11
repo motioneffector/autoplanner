@@ -76,7 +76,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-01'), end: date('2024-01-31') },
+          range: { start: date('2024-01-01'), end: date('2024-02-01') },
         });
 
         // Verify cancelled instance is not in schedule
@@ -89,7 +89,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-14'), end: date('2024-01-16') },
+          range: { start: date('2024-01-14'), end: date('2024-01-17') },
         });
 
         // Jan 14 and Jan 16 should still exist
@@ -114,7 +114,7 @@ describe('Segment 09: Instance Exceptions', () => {
         // Other instances should be unaffected
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-01'), end: date('2024-01-20') },
+          range: { start: date('2024-01-01'), end: date('2024-01-21') },
         });
 
         // Should have instances except Jan 15 (Jan 1-20 is 20 days, minus 1 cancelled = 19)
@@ -231,7 +231,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const instance = schedule.find(i => i.date === targetDate);
@@ -249,7 +249,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Should not be at original 9am time
@@ -364,7 +364,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Original 9am slot should still be free
@@ -389,7 +389,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         expect(schedule.some(i => i.date === targetDate)).toBe(true);
@@ -402,7 +402,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const instance = schedule.find(i => i.date === targetDate);
@@ -422,7 +422,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const instance = schedule.find(i => i.date === targetDate);
@@ -523,7 +523,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
       const exceptions = await getExceptionsInRange(adapter, testSeriesId, {
         start: date('2024-01-10'),
-        end: date('2024-01-20'),
+        end: date('2024-01-21'),
       });
 
       expect(exceptions.some(e => e.instanceDate === date('2024-01-10'))).toBe(true);
@@ -545,7 +545,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
       const exceptions = await getExceptionsInRange(adapter, testSeriesId, {
         start: date('2024-01-10'),
-        end: date('2024-01-20'),
+        end: date('2024-01-21'),
       });
 
       expect(exceptions[0].instanceDate).toBe(date('2024-01-15'));
@@ -567,7 +567,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-01'), end: date('2024-01-31') },
+          range: { start: date('2024-01-01'), end: date('2024-02-01') },
         });
 
         expect(schedule.some(i => i.date === cancelDate)).toBe(false);
@@ -581,7 +581,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const instance = schedule.find(i => i.date === targetDate);
@@ -597,7 +597,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-14'), end: date('2024-01-16') },
+          range: { start: date('2024-01-14'), end: date('2024-01-17') },
         });
 
         // Jan 14 and 16 should be present and unaffected
@@ -614,7 +614,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-01'), end: date('2024-01-31') },
+          range: { start: date('2024-01-01'), end: date('2024-02-01') },
         });
 
         expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(false);
@@ -628,7 +628,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-10'), end: date('2024-01-15') },
+          range: { start: date('2024-01-10'), end: date('2024-01-16') },
         });
 
         const jan10 = schedule.find(i => i.date === date('2024-01-10'));
@@ -644,7 +644,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-10'), end: date('2024-01-15') },
+          range: { start: date('2024-01-10'), end: date('2024-01-16') },
         });
 
         // Jan 10 should be excluded
@@ -668,7 +668,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
       const schedule = await getSchedule(adapter, {
         seriesId: testSeriesId,
-        range: { start: date('2024-01-01'), end: date('2024-01-10') },
+        range: { start: date('2024-01-01'), end: date('2024-01-11') },
       });
 
       expect(schedule.some(i => i.date === firstDate)).toBe(false);
@@ -688,7 +688,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
       const schedule = await getSchedule(adapter, {
         seriesId: boundedId,
-        range: { start: date('2024-01-01'), end: date('2024-01-11') },
+        range: { start: date('2024-01-01'), end: date('2024-01-12') },
       });
 
       expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(false);
@@ -748,7 +748,7 @@ describe('Segment 09: Instance Exceptions', () => {
       // When querying January only, the rescheduled instance shouldn't appear
       const schedule = await getSchedule(adapter, {
         seriesId: testSeriesId,
-        range: { start: date('2024-01-01'), end: date('2024-01-31') },
+        range: { start: date('2024-01-01'), end: date('2024-02-01') },
       });
 
       expect(schedule.some(i => i.date === targetDate)).toBe(false);
@@ -967,7 +967,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: workoutId,
-          range: { start: date('2024-01-08'), end: date('2024-01-12') },
+          range: { start: date('2024-01-08'), end: date('2024-01-13') },
         });
 
         // Mon, Tue, Thu, Fri should appear; Wed should not
@@ -984,7 +984,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-08'), end: date('2024-01-12') },
+          range: { start: date('2024-01-08'), end: date('2024-01-13') },
         });
 
         // All days including Wed should appear
@@ -1016,7 +1016,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: meetingId,
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         expect(schedule[0].time).toBe(datetime('2024-01-15T10:00:00'));
@@ -1050,7 +1050,7 @@ describe('Segment 09: Instance Exceptions', () => {
         // Verify instances exist before cancellation
         let schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: dates[0], end: dates[4] },
+          range: { start: dates[0], end: addDays(dates[4], 1) },
         });
         expect(schedule).toHaveLength(5);
         expect(schedule.map(i => i.date)).toEqual(dates);
@@ -1070,7 +1070,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-08'), end: date('2024-01-12') },
+          range: { start: date('2024-01-08'), end: date('2024-01-13') },
         });
 
         expect(schedule).toEqual([]);
@@ -1078,7 +1078,7 @@ describe('Segment 09: Instance Exceptions', () => {
         // LAW 2: Verify other instances still exist
         const afterRange = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-13'), end: date('2024-01-14') },
+          range: { start: date('2024-01-13'), end: date('2024-01-15') },
         });
         expect(afterRange).toHaveLength(2);
         expect(afterRange.map(i => i.date)).toEqual([
@@ -1108,7 +1108,7 @@ describe('Segment 09: Instance Exceptions', () => {
 
         const schedule = await getSchedule(adapter, {
           seriesId: testSeriesId,
-          range: { start: date('2024-01-08'), end: date('2024-01-12') },
+          range: { start: date('2024-01-08'), end: date('2024-01-13') },
         });
 
         for (const date of dates) {

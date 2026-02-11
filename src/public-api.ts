@@ -384,7 +384,7 @@ function getPatternDates(pattern: EnrichedPattern, start: LocalDate, end: LocalD
   switch (pattern.type) {
     case 'daily': {
       let d = effectiveStart
-      while ((d as string) <= (end as string)) {
+      while ((d as string) < (end as string)) {
         result.add(d)
         d = addDays(d, 1)
       }
@@ -398,7 +398,7 @@ function getPatternDates(pattern: EnrichedPattern, start: LocalDate, end: LocalD
       const rem = ((gap % n) + n) % n
       const offset = rem === 0 ? 0 : n - rem
       let d = addDays(effectiveStart, offset)
-      while ((d as string) <= (end as string)) {
+      while ((d as string) < (end as string)) {
         result.add(d)
         d = addDays(d, n)
       }
@@ -426,7 +426,7 @@ function getPatternDates(pattern: EnrichedPattern, start: LocalDate, end: LocalD
         for (let m = mStart; m <= mEnd; m++) {
           if (day > daysInMonth(y, m)) continue // skip invalid dates like Feb 30
           const d = makeDate(y, m, day)
-          if ((d as string) >= (effectiveStart as string) && (d as string) <= (end as string)) {
+          if ((d as string) >= (effectiveStart as string) && (d as string) < (end as string)) {
             result.add(d)
           }
         }
@@ -440,7 +440,7 @@ function getPatternDates(pattern: EnrichedPattern, start: LocalDate, end: LocalD
       for (let y = yearOf(start); y <= yearOf(end); y++) {
         if (day > daysInMonth(y, month)) continue // skip Feb 29 on non-leap years etc.
         const d = makeDate(y, month, day)
-        if ((d as string) >= (effectiveStart as string) && (d as string) <= (end as string)) {
+        if ((d as string) >= (effectiveStart as string) && (d as string) < (end as string)) {
           result.add(d)
         }
       }
@@ -476,20 +476,20 @@ function getWeeklyDaysOfWeekDates(
     }
   }
 
-  // Find first Monday on or before the effective anchor to establish week grid
-  let monday = effectiveAnchor
+  // Find first Monday on or before the effective start to establish week grid
+  let monday = effectiveStart
   while (dayOfWeekNum(monday) !== 1) {
     monday = addDays(monday, -1)
   }
 
   // Generate dates from Monday-aligned weeks
-  while ((monday as string) <= (end as string)) {
+  while ((monday as string) < (end as string)) {
     for (const dow of daysOfWeek) {
       const offset = ((dow - 1) + 7) % 7
       const date = addDays(monday, offset)
       if ((date as string) >= (start as string) &&
-          (date as string) <= (end as string) &&
-          (date as string) >= (effectiveAnchor as string) &&
+          (date as string) < (end as string) &&
+          (date as string) >= (effectiveStart as string) &&
           (date as string) >= (seriesStart as string)) {
         result.add(date)
       }
@@ -601,7 +601,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   function getDefaultWindow(): { start: LocalDate; end: LocalDate } {
     const now = new Date()
     const today = makeDate(now.getFullYear(), now.getMonth() + 1, now.getDate())
-    return { start: today, end: addDays(today, 6) }
+    return { start: today, end: addDays(today, 7) }
   }
 
   async function triggerReflow() {
@@ -1876,7 +1876,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
     let found = false
     for (const pattern of s.patterns) {
-      const dates = getPatternDates(pattern, date, date, seriesStart)
+      const dates = getPatternDates(pattern, date, addDays(date, 1), seriesStart)
       if (dates.has(date)) {
         if (!pattern.condition || evaluateConditionForDate(pattern.condition, seriesId, date)) {
           found = true
@@ -1915,7 +1915,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
     let found = false
     for (const pattern of s.patterns) {
-      const dates = getPatternDates(pattern, date, date, seriesStart)
+      const dates = getPatternDates(pattern, date, addDays(date, 1), seriesStart)
       if (dates.has(date)) { found = true; break }
     }
     if (!found) {
@@ -2036,12 +2036,11 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   // ========== Schedule ==========
 
   async function getSchedule(start: LocalDate, end: LocalDate): Promise<Schedule> {
-    // end is exclusive: getSchedule(Jan 15, Jan 16) = just Jan 15
-    const lastDate = addDays(end, -1)
-    if ((lastDate as string) < (start as string)) {
+    // end is exclusive: [start, end)
+    if ((end as string) <= (start as string)) {
       return { instances: [], conflicts: [] }
     }
-    return buildSchedule(start, lastDate)
+    return buildSchedule(start, end)
   }
 
   async function getConflicts(): Promise<Conflict[]> {
@@ -2087,7 +2086,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       for (const pattern of s.patterns) {
         // Only check today and tomorrow (not yesterday — yesterday's reminders are expired)
         const checkStart = asOfDate
-        const checkEnd = addDays(asOfDate, 1)
+        const checkEnd = addDays(asOfDate, 2)
         const dates = getPatternDates(pattern, checkStart, checkEnd, seriesStart)
 
         for (const date of dates) {
@@ -2149,7 +2148,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
         for (const pattern of s.patterns) {
           const checkStart = addDays(asOfDate, -1)
-          const checkEnd = addDays(asOfDate, 1)
+          const checkEnd = addDays(asOfDate, 2)
           const dates = getPatternDates(pattern, checkStart, checkEnd, seriesStart)
           for (const date of dates) {
             acks.add(`${date}:${id}`)

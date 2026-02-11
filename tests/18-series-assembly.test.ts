@@ -237,7 +237,7 @@ describe('Segment 18: Series Assembly', () => {
       expect(result!.patterns).toHaveLength(1)
       expect(result!.patterns[0]!.type).toBe('weekly')
       // Weekday conversion: adapter stores string[], loaded as number[]
-      expect(result!.patterns[0]!.days).toEqual([1, 3, 5])
+      expect(result!.patterns[0]!.daysOfWeek).toEqual([1, 3, 5])
       // seriesId should be stripped from pattern
       expect(Object.keys(result!.patterns[0]!)).not.toContain('seriesId')
     })
@@ -317,7 +317,7 @@ describe('Segment 18: Series Assembly', () => {
         title: 'Full',
         createdAt: '2025-01-01T00:00:00' as LocalDateTime,
         patterns: [
-          { type: 'weekly', time: '08:00:00', days: [1, 3, 5] },
+          { type: 'weekly', time: '08:00:00', daysOfWeek: [1, 3, 5] },
           { type: 'daily', time: '09:00:00', duration: 30, fixed: true },
         ],
         tags: ['fitness', 'routine'],
@@ -329,7 +329,7 @@ describe('Segment 18: Series Assembly', () => {
       expect(loaded!.patterns).toHaveLength(2)
 
       const weeklyPat = loaded!.patterns.find(p => p.type === 'weekly')
-      expect(weeklyPat!.days).toEqual([1, 3, 5])
+      expect(weeklyPat!.daysOfWeek).toEqual([1, 3, 5])
       expect(weeklyPat!.time).toBe('08:00:00')
 
       const dailyPat = loaded!.patterns.find(p => p.type === 'daily')

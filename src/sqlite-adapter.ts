@@ -816,7 +816,7 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
 
     async getExceptionsInRange(seriesId: string, start: LocalDate, end: LocalDate) {
       const rows = db.prepare(
-        'SELECT * FROM instance_exception WHERE series_id = ? AND original_date >= ? AND original_date <= ?',
+        'SELECT * FROM instance_exception WHERE series_id = ? AND original_date >= ? AND original_date < ?',
       ).all(seriesId, start, end) as ExceptionRow[]
       return rows.map(toException)
     },
@@ -982,7 +982,7 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
 
     async getReminderAcksInRange(start: LocalDate, end: LocalDate) {
       const rows = db.prepare(
-        'SELECT * FROM reminder_ack WHERE instance_date >= ? AND instance_date <= ?',
+        'SELECT * FROM reminder_ack WHERE instance_date >= ? AND instance_date < ?',
       ).all(start, end) as ReminderAckRow[]
       return rows.map((r: ReminderAckRow) => ({
         reminderId: r.reminder_id,

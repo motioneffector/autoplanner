@@ -354,13 +354,13 @@ describe('Segment 10: Reminders', () => {
         // Query at 08:30 - not yet due
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:30:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Boundary test: verify it DOES appear at fire time (positive case first)
         const onTimeQuery = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:45:00'),  // Fire time
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         let forOurInstance = onTimeQuery.filter(p => p.instanceDate === date('2024-01-15'));
         expect(forOurInstance).toHaveLength(1);
@@ -381,7 +381,7 @@ describe('Segment 10: Reminders', () => {
         // Query at exactly 08:45
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:45:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const forOurInstance = pending.filter(p => p.instanceDate === date('2024-01-15'));
@@ -399,7 +399,7 @@ describe('Segment 10: Reminders', () => {
         // Query at 08:50 - past due
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const forOurInstance = pending.filter(p => p.instanceDate === date('2024-01-15'));
@@ -420,7 +420,7 @@ describe('Segment 10: Reminders', () => {
         // Verify reminder appears before acknowledgment
         const pendingBefore = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         let forOurInstance = pendingBefore.filter(p =>
           p.instanceDate === date('2024-01-15') && p.reminderId === createResult.value.id
@@ -436,7 +436,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Proven present before ack, now confirmed absent after ack
@@ -454,7 +454,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const forOurInstance = pending.filter(p => p.instanceDate === date('2024-01-15'));
@@ -473,7 +473,7 @@ describe('Segment 10: Reminders', () => {
         // Verify reminder appears before cancellation
         const pendingBefore = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         let forCancelled = pendingBefore.filter(p => p.instanceDate === date('2024-01-15'));
         expect(forCancelled).toHaveLength(1);
@@ -488,7 +488,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Proven present above, now confirmed absent after cancel
@@ -506,7 +506,7 @@ describe('Segment 10: Reminders', () => {
         // Verify reminder appears before completion
         const pendingBefore = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         let forCompleted = pendingBefore.filter(p => p.instanceDate === date('2024-01-15'));
         expect(forCompleted).toHaveLength(1);
@@ -525,7 +525,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Proven present before completion, now confirmed absent after completion
@@ -545,7 +545,7 @@ describe('Segment 10: Reminders', () => {
         // New fire time is 13:45
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T13:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const forRescheduled = pending.filter(p => p.instanceDate === date('2024-01-15'));
@@ -560,7 +560,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const forOurInstance = pending.filter(p => p.instanceDate === date('2024-01-15'));
@@ -577,7 +577,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-16T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-16') },
+          range: { start: date('2024-01-15'), end: date('2024-01-17') },
         });
 
         // Should have reminders for both Jan 15 and Jan 16
@@ -629,7 +629,7 @@ describe('Segment 10: Reminders', () => {
         // Verify reminder IS in pending before acknowledgment
         const pendingBefore = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         let acknowledgedReminders = pendingBefore.filter(
           p => p.reminderId === createResult.value.id && p.instanceDate === date('2024-01-15')
@@ -641,7 +641,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Proven present before ack, now confirmed absent after ack
@@ -721,7 +721,7 @@ describe('Segment 10: Reminders', () => {
         // B should still be pending
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const bPending = pending.find(p => p.reminderId === reminderB.value.id);
@@ -886,7 +886,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T09:45:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Fire time should be 09:45, which is when we're querying
@@ -907,7 +907,7 @@ describe('Segment 10: Reminders', () => {
         // Verify reminder appears at original fire time before reschedule
         const pendingBefore = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:45:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         const beforeReschedule = pendingBefore.filter(p => p.instanceDate === date('2024-01-15'));
         expect(beforeReschedule).toHaveLength(1);
@@ -923,7 +923,7 @@ describe('Segment 10: Reminders', () => {
         // Verify reminder DOES appear at new fire time (09:45) - positive case first
         const pendingAtNew = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T09:45:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         let forInstance = pendingAtNew.filter(p => p.instanceDate === date('2024-01-15'));
         expect(forInstance).toHaveLength(1);
@@ -932,7 +932,7 @@ describe('Segment 10: Reminders', () => {
         // Query at 08:50 (would be after original fire time 08:45)
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Should NOT be pending yet (new fire time is 09:45) - proven present at new time above
@@ -961,7 +961,7 @@ describe('Segment 10: Reminders', () => {
 
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T00:00:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const forInstance = pending.find(p => p.instanceDate === date('2024-01-15'));
@@ -981,7 +981,7 @@ describe('Segment 10: Reminders', () => {
         // Fire time should be Jan 14 23:00
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-14T23:00:00'),
-          range: { start: date('2024-01-14'), end: date('2024-01-15') },
+          range: { start: date('2024-01-14'), end: date('2024-01-16') },
         });
 
         const forInstance = pending.find(p => p.instanceDate === date('2024-01-15'));
@@ -1001,7 +1001,7 @@ describe('Segment 10: Reminders', () => {
         // Fire time should be Jan 14 00:00
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-14T00:00:00'),
-          range: { start: date('2024-01-14'), end: date('2024-01-15') },
+          range: { start: date('2024-01-14'), end: date('2024-01-16') },
         });
 
         const forInstance = pending.find(p => p.instanceDate === date('2024-01-15'));
@@ -1064,7 +1064,7 @@ describe('Segment 10: Reminders', () => {
       // Verify reminder appears before cancellation
       const pendingBefore = await getPendingReminders(adapter, {
         asOf: datetime('2024-01-15T08:50:00'),
-        range: { start: date('2024-01-15'), end: date('2024-01-15') },
+        range: { start: date('2024-01-15'), end: date('2024-01-16') },
       });
       let forCancelled = pendingBefore.filter(p => p.instanceDate === date('2024-01-15'));
       expect(forCancelled).toHaveLength(1);
@@ -1079,7 +1079,7 @@ describe('Segment 10: Reminders', () => {
       // B5: Cancelled instance - no reminder
       const pending = await getPendingReminders(adapter, {
         asOf: datetime('2024-01-15T08:50:00'),
-        range: { start: date('2024-01-15'), end: date('2024-01-15') },
+        range: { start: date('2024-01-15'), end: date('2024-01-16') },
       });
 
       // Proven present before cancel, now confirmed absent after cancel
@@ -1104,7 +1104,7 @@ describe('Segment 10: Reminders', () => {
       // Fire time should be 00:00 of that day
       const pending = await getPendingReminders(adapter, {
         asOf: datetime('2024-01-15T00:00:00'),
-        range: { start: date('2024-01-15'), end: date('2024-01-15') },
+        range: { start: date('2024-01-15'), end: date('2024-01-16') },
       });
 
       const forInstance = pending.find(p => p.instanceDate === date('2024-01-15'));
@@ -1131,7 +1131,7 @@ describe('Segment 10: Reminders', () => {
       // Fire time should be 00:00 of prev day
       const pending = await getPendingReminders(adapter, {
         asOf: datetime('2024-01-14T00:00:00'),
-        range: { start: date('2024-01-14'), end: date('2024-01-15') },
+        range: { start: date('2024-01-14'), end: date('2024-01-16') },
       });
 
       const forInstance = pending.find(p => p.instanceDate === date('2024-01-15'));
@@ -1226,7 +1226,7 @@ describe('Segment 10: Reminders', () => {
         // Meeting at 09:00, reminder at 08:45
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:45:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const forInstance = pending.filter(p => p.instanceDate === date('2024-01-15'));
@@ -1243,7 +1243,7 @@ describe('Segment 10: Reminders', () => {
         // Verify it DOES appear at 08:45 (fire time) - positive case first
         const pendingOnTime = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:45:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         let forInstance = pendingOnTime.filter(p => p.instanceDate === date('2024-01-15'));
         expect(forInstance).toHaveLength(1);
@@ -1252,7 +1252,7 @@ describe('Segment 10: Reminders', () => {
         // Query at 08:30 - not yet due (proven present at fire time above)
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:30:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         expect(pending.some(p => p.instanceDate === date('2024-01-15'))).toBe(false);
@@ -1270,7 +1270,7 @@ describe('Segment 10: Reminders', () => {
         // Verify reminder is pending before acknowledgment
         const pendingBefore = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
         let forInstance = pendingBefore.filter(p => p.reminderId === createResult.value.id);
         expect(forInstance).toHaveLength(1);
@@ -1286,7 +1286,7 @@ describe('Segment 10: Reminders', () => {
         // Check at 08:50
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:50:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         // Proven present before ack, now confirmed absent after ack
@@ -1304,7 +1304,7 @@ describe('Segment 10: Reminders', () => {
         // At 08:55, both should be pending (30min fired at 08:30, 5min at 08:55)
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:55:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const forInstance = pending.filter(p => p.instanceDate === date('2024-01-15'));
@@ -1325,7 +1325,7 @@ describe('Segment 10: Reminders', () => {
         // 5min should still be pending
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-15T08:55:00'),
-          range: { start: date('2024-01-15'), end: date('2024-01-15') },
+          range: { start: date('2024-01-15'), end: date('2024-01-16') },
         });
 
         const urgent = pending.find(p => p.reminderId === reminder5.value.id);
@@ -1358,7 +1358,7 @@ describe('Segment 10: Reminders', () => {
         // Fires prev day 00:00
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-14T00:00:00'),
-          range: { start: date('2024-01-14'), end: date('2024-01-15') },
+          range: { start: date('2024-01-14'), end: date('2024-01-16') },
         });
 
         const forJan15 = pending.find(p => p.instanceDate === date('2024-01-15'));
@@ -1378,7 +1378,7 @@ describe('Segment 10: Reminders', () => {
         // Fires prev day 12:00
         const pending = await getPendingReminders(adapter, {
           asOf: datetime('2024-01-14T12:00:00'),
-          range: { start: date('2024-01-14'), end: date('2024-01-15') },
+          range: { start: date('2024-01-14'), end: date('2024-01-16') },
         });
 
         const forJan15 = pending.find(p => p.instanceDate === date('2024-01-15'));

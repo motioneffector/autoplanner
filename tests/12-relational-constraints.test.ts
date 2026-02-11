@@ -925,7 +925,7 @@ describe('Segment 12: Relational Constraints', () => {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, { start: date('2024-01-15'), end: date('2024-01-15') });
+      }, { start: date('2024-01-15'), end: date('2024-01-16') });
 
       expect(violations.length === 1 && typeof violations[0].sourceInstance === 'string' && typeof violations[0].destInstance === 'string').toBe(true);
     });
@@ -948,7 +948,7 @@ describe('Segment 12: Relational Constraints', () => {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, { start: date('2024-01-15'), end: date('2024-01-17') });
+      }, { start: date('2024-01-15'), end: date('2024-01-18') });
 
       // One per day
       expect(violations.length === 3 && violations.every(v => typeof v.sourceInstance === 'string' && typeof v.destInstance === 'string')).toBe(true);
@@ -972,7 +972,7 @@ describe('Segment 12: Relational Constraints', () => {
         type: 'mustBeBefore',
         source: { type: 'seriesId', seriesId: seriesA },
         dest: { type: 'seriesId', seriesId: seriesB },
-      }, { start: date('2024-01-15'), end: date('2024-01-15') });
+      }, { start: date('2024-01-15'), end: date('2024-01-16') });
 
       // Verify we have exactly one violation
       expect(violations).toHaveLength(1);
@@ -1077,7 +1077,7 @@ describe('Segment 12: Relational Constraints', () => {
         for (const constraint of constraints) {
           const violations = await getConstraintViolations(adapter, constraint, {
             start: date('2024-01-15'),
-            end: date('2024-01-15'),
+            end: date('2024-01-16'),
           });
           totalViolations += violations.length;
         }

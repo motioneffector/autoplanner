@@ -169,31 +169,29 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('log 7 walks - pattern transitions to daily, weights appear', async () => {
-      // Log 7 walks over 14 days
-      for (let i = 1; i <= 7; i++) {
-        await planner.logCompletion(walkSeriesId, date(`2025-01-${String(i * 2).padStart(2, '0')}`));
+      // Log 7 consecutive walks. Must be consecutive so the sliding 14-day
+      // window retains all 7 for every date in the schedule range.
+      for (let i = 8; i <= 14; i++) {
+        await planner.logCompletion(walkSeriesId, date(`2025-01-${String(i).padStart(2, '0')}`));
       }
 
-      const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-29'));
+      // Schedule range where all dates have 7 walk completions in 14-day window:
+      // Jan 15: [Jan 2, Jan 15] → 7 ✓ ... Jan 21: [Jan 8, Jan 21] → 7 ✓
+      const schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-22'));
 
-      // Walks should now be daily - 14 days = 14 instances
+      // Walks should now be daily (7 days)
       const walkInstances = schedule.instances.filter((i) => i.seriesId === walkSeriesId);
-      // Verify all 14 daily walk instances exist with correct dates
       expect(walkInstances.map((i) => i.date)).toEqual([
         date('2025-01-15'), date('2025-01-16'), date('2025-01-17'), date('2025-01-18'),
-        date('2025-01-19'), date('2025-01-20'), date('2025-01-21'), date('2025-01-22'),
-        date('2025-01-23'), date('2025-01-24'), date('2025-01-25'), date('2025-01-26'),
-        date('2025-01-27'), date('2025-01-28'),
+        date('2025-01-19'), date('2025-01-20'), date('2025-01-21'),
       ]);
-      // Verify all walk instances have correct time
       expect(walkInstances.every((i) => i.time.includes('07:00'))).toBe(true);
 
-      // Weights should appear (Mon/Fri initially) - 4 instances in 14 days (Mon 20, Fri 24, Mon 27, Fri 31... but range ends 28)
-      // Jan 15-28: Mon 20, Fri 24, Mon 27 = 3 instances
+      // Weights appear on Mon/Fri (conditioning pattern: walk >= 7 AND self < 4)
+      // Jan 15=Wed, 17=Fri, 20=Mon in range → Fri 17 + Mon 20
       const weightInstances = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
-      // Verify weights have correct dates and properties
       expect(weightInstances.map((i) => i.date)).toEqual([
-        date('2025-01-20'), date('2025-01-24'), date('2025-01-27'),
+        date('2025-01-17'), date('2025-01-20'),
       ]);
       weightInstances.forEach((instance) => {
         expect(instance.time).toContain('08:00');
@@ -218,22 +216,27 @@ describe('Segment 16: Integration Tests', () => {
     });
 
     it('log 4 weight sessions - weights now Mon/Wed/Fri', async () => {
-      // Get to conditioning state
+      // Get to conditioning state (walk completions — cross-series ref anchors
+      // to lastComp, so these stay valid regardless of schedule date)
       for (let i = 1; i <= 7; i++) {
         await planner.logCompletion(walkSeriesId, date(`2025-01-${String(i * 2).padStart(2, '0')}`));
       }
 
-      // Complete 4 weight sessions
-      await planner.logCompletion(weightSeriesId, date('2025-01-20'));
-      await planner.logCompletion(weightSeriesId, date('2025-01-24'));
-      await planner.logCompletion(weightSeriesId, date('2025-01-27'));
+      // Complete 4 weight sessions (consecutive days near schedule range
+      // so sliding 14-day self-ref window retains all 4)
+      await planner.logCompletion(weightSeriesId, date('2025-01-28'));
+      await planner.logCompletion(weightSeriesId, date('2025-01-29'));
+      await planner.logCompletion(weightSeriesId, date('2025-01-30'));
       await planner.logCompletion(weightSeriesId, date('2025-01-31'));
 
-      const schedule = await planner.getSchedule(date('2025-02-01'), date('2025-02-14'));
+      const schedule = await planner.getSchedule(date('2025-02-01'), date('2025-02-08'));
 
-      // Weights should now be Mon/Wed/Fri (3 per week)
+      // Weights should now be Mon/Wed/Fri (conditioned pattern, self >= 4)
+      // Feb 1-7: Mon 3, Wed 5, Fri 7 = 3 instances
       const weightInstances = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
-      expect(weightInstances.length).toBeGreaterThanOrEqual(5); // ~6 in 14 days
+      expect(weightInstances.map((i) => i.date)).toEqual([
+        date('2025-02-03'), date('2025-02-05'), date('2025-02-07'),
+      ]);
     });
 
     it('stop logging 7 days - regression to deconditioned', async () => {
@@ -323,10 +326,13 @@ describe('Segment 16: Integration Tests', () => {
 
       const scheduleAfter = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
       const weightsAfter = scheduleAfter.instances.filter((i) => i.seriesId === weightSeriesId);
-      // Jan 15-21 contains Mon 20 = 1 weight instance
-      expect(weightsAfter.map((i) => i.date)).toEqual([date('2025-01-20')]);
+      // Jan 15-20 (exclusive 21) contains Fri 17 + Mon 20 = 2 weight instances
+      // Cross-series condition anchors to lastComp (Jan 14), window [Jan 1, Jan 14] has 7 walks ✓
+      expect(weightsAfter.map((i) => i.date)).toEqual([date('2025-01-17'), date('2025-01-20')]);
       expect(weightsAfter[0].seriesId).toBe(weightSeriesId);
       expect(weightsAfter[0].time).toContain('08:00');
+      expect(weightsAfter[1].seriesId).toBe(weightSeriesId);
+      expect(weightsAfter[1].time).toContain('08:00');
     });
 
     it('multiple state transitions work correctly', async () => {
@@ -340,24 +346,25 @@ describe('Segment 16: Integration Tests', () => {
       const initialWalks = schedule.instances.filter((i) => i.seriesId === walkSeriesId);
       expect(initialWalks[0]).toMatchObject({ seriesId: walkSeriesId, time: expect.stringContaining('07:00') });
       // All instances are walks only - no weights in deconditioned state
-      // (positive weight case verified below after logging 7 walks)
       expect(schedule.instances.every((i) => i.seriesId === walkSeriesId)).toBe(true);
 
-      // Move to conditioning
-      for (let i = 1; i <= 7; i++) {
-        await planner.logCompletion(walkSeriesId, date(`2025-01-${String(i * 2).padStart(2, '0')}`));
+      // Move to conditioning — 7 consecutive walks so sliding window retains all 7
+      for (let i = 8; i <= 14; i++) {
+        await planner.logCompletion(walkSeriesId, date(`2025-01-${String(i).padStart(2, '0')}`));
       }
 
-      schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-21'));
+      // Jan 15-21: walk condition met (7 in window), weight Mon/Fri pattern fires
+      // Jan 15=Wed, 17=Fri, 20=Mon → Fri 17 + Mon 20
+      schedule = await planner.getSchedule(date('2025-01-15'), date('2025-01-22'));
       const conditioningWeights = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
-      // Jan 15-21 contains Mon 20 = 1 weight instance
-      expect(conditioningWeights.map((i) => i.date)).toEqual([date('2025-01-20')]);
+      expect(conditioningWeights.map((i) => i.date)).toEqual([date('2025-01-17'), date('2025-01-20')]);
       expect(conditioningWeights[0].time).toContain('08:00');
 
-      // Move to conditioned
-      for (let i = 0; i < 4; i++) {
-        await planner.logCompletion(weightSeriesId, date(`2025-01-${String(20 + i * 3).padStart(2, '0')}`));
-      }
+      // Move to conditioned — 4 consecutive weight completions near Feb schedule
+      await planner.logCompletion(weightSeriesId, date('2025-01-28'));
+      await planner.logCompletion(weightSeriesId, date('2025-01-29'));
+      await planner.logCompletion(weightSeriesId, date('2025-01-30'));
+      await planner.logCompletion(weightSeriesId, date('2025-01-31'));
 
       schedule = await planner.getSchedule(date('2025-02-01'), date('2025-02-08'));
       const weights = schedule.instances.filter((i) => i.seriesId === weightSeriesId);
@@ -2093,7 +2100,7 @@ describe('Segment 16: Integration Tests', () => {
         startDate: date('2026-01-30'),
         patterns: [
           { type: 'everyNDays', n: 3, time: time('09:00'), duration: minutes(45) },
-          { type: 'weekdays', days: [1, 3, 5], time: time('14:00'), duration: minutes(60) },
+          { type: 'weekdays', daysOfWeek: [1, 3, 5], time: time('14:00'), duration: minutes(60) },
         ],
         tags: ['exercise', 'priority'],
         cycling: {
@@ -2132,7 +2139,7 @@ describe('Segment 16: Integration Tests', () => {
       const weekdaysPattern = p0.type === 'weekdays' ? p0 : p1;
       expect(everyNPattern).toMatchObject({ type: 'everyNDays', n: 3, time: '09:00', duration: 45 });
       expect(weekdaysPattern).toMatchObject({ type: 'weekdays', time: '14:00', duration: 60 });
-      expect(weekdaysPattern.days).toEqual([1, 3, 5]);
+      expect(weekdaysPattern.daysOfWeek).toEqual([1, 3, 5]);
       expect(restored.tags).toContain('exercise');
       expect(restored.tags).toContain('priority');
       expect(restored.tags).toHaveLength(2);
@@ -2182,7 +2189,7 @@ describe('Segment 16: Integration Tests', () => {
           // Pattern B: weekdays with condition (needs >= 1 completion in last 14 days)
           {
             type: 'weekdays',
-            days: [1, 3, 5], // Mon, Wed, Fri
+            daysOfWeek: [1, 3, 5], // Mon, Wed, Fri
             time: time('17:00'),
             duration: minutes(60),
             condition: {
@@ -2475,7 +2482,7 @@ describe('Segment 16: Integration Tests', () => {
           // Morning daily
           { type: 'daily', time: time('07:00'), duration: minutes(15) },
           // Evening MWF
-          { type: 'weekdays', days: [1, 3, 5], time: time('18:00'), duration: minutes(45) },
+          { type: 'weekdays', daysOfWeek: [1, 3, 5], time: time('18:00'), duration: minutes(45) },
         ],
       });
 
@@ -2569,7 +2576,7 @@ describe('Segment 16: Integration Tests', () => {
         startDate: date('2026-03-02'),
         patterns: [
           { type: 'everyNDays', n: 3, time: time('08:30'), duration: minutes(45), fixed: true },
-          { type: 'weekdays', days: [2, 4], time: time('16:00'), duration: minutes(90) },
+          { type: 'weekdays', daysOfWeek: [2, 4], time: time('16:00'), duration: minutes(90) },
         ],
         tags: ['sqlite', 'canary'],
         cycling: { mode: 'sequential', items: ['Step 1', 'Step 2'], gapLeap: true },
@@ -2605,7 +2612,7 @@ describe('Segment 16: Integration Tests', () => {
       expect(restored.cycling.items).toEqual(['Step 1', 'Step 2']);
       expect(everyNPat).toMatchObject({ n: 3, time: '08:30', duration: 45, fixed: true });
       expect(weekdaysPat).toMatchObject({ time: '16:00', duration: 90 });
-      expect(weekdaysPat.days).toEqual([2, 4]);
+      expect(weekdaysPat.daysOfWeek).toEqual([2, 4]);
 
       // Verify schedule produces same instance count after hydrate
       const sched2 = await planner2.getSchedule(date('2026-03-02'), date('2026-03-09'));
