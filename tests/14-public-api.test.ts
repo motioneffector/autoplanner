@@ -3550,4 +3550,249 @@ describe('Segment 14: Public API', () => {
       });
     });
   });
+
+  // ============================================================================
+  // Condition Dependency Index
+  // ============================================================================
+
+  describe('Condition Dependency Index', () => {
+    it('cross-series completionCount ref creates dependency', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'Target',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'Dependent',
+        patterns: [{
+          type: 'daily',
+          time: time('10:00:00'),
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: idA,
+            comparison: 'greaterOrEqual',
+            value: 3,
+            windowDays: 14,
+          },
+        }],
+        startDate: date('2025-01-01'),
+      });
+
+      const deps = planner.getConditionDeps();
+      expect(deps.has(idA)).toBe(true);
+      expect(deps.get(idA)!.size).toBe(1);
+      expect(deps.get(idA)!.has(idB)).toBe(true);
+    });
+
+    it('self-ref does NOT create dependency', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Self Ref',
+        patterns: [{
+          type: 'daily',
+          time: time('09:00:00'),
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: 'self',
+            comparison: 'greaterOrEqual',
+            value: 3,
+            windowDays: 14,
+          },
+        }],
+        startDate: date('2025-01-01'),
+      });
+
+      const deps = planner.getConditionDeps();
+      expect(deps.size).toBe(0);
+    });
+
+    it('nested conditions (and/or/not) are traversed', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'B',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idC = await planner.createSeries({
+        title: 'C',
+        patterns: [{
+          type: 'daily',
+          time: time('11:00:00'),
+          duration: 30,
+          condition: {
+            type: 'and',
+            conditions: [
+              {
+                type: 'completionCount',
+                seriesRef: idA,
+                comparison: 'greaterOrEqual',
+                value: 1,
+                windowDays: 7,
+              },
+              {
+                type: 'not',
+                condition: {
+                  type: 'completionCount',
+                  seriesRef: idB,
+                  comparison: 'greaterOrEqual',
+                  value: 5,
+                  windowDays: 7,
+                },
+              },
+            ],
+          },
+        }],
+        startDate: date('2025-01-01'),
+      });
+
+      const deps = planner.getConditionDeps();
+      expect(deps.has(idA)).toBe(true);
+      expect(deps.get(idA)!.has(idC)).toBe(true);
+      expect(deps.get(idA)!.size).toBe(1);
+      expect(deps.has(idB)).toBe(true);
+      expect(deps.get(idB)!.has(idC)).toBe(true);
+      expect(deps.get(idB)!.size).toBe(1);
+    });
+
+    it('index rebuilt when series updated with new conditions', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idC = await planner.createSeries({
+        title: 'C',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'B',
+        patterns: [{
+          type: 'daily',
+          time: time('11:00:00'),
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: idA,
+            comparison: 'greaterOrEqual',
+            value: 1,
+            windowDays: 7,
+          },
+        }],
+        startDate: date('2025-01-01'),
+      });
+
+      // B depends on A
+      const deps1 = planner.getConditionDeps();
+      expect(deps1.has(idA)).toBe(true);
+      expect(deps1.get(idA)!.has(idB)).toBe(true);
+
+      // Update B to depend on C instead
+      await planner.updateSeries(idB, {
+        patterns: [{
+          type: 'daily',
+          time: time('11:00:00'),
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: idC,
+            comparison: 'greaterOrEqual',
+            value: 1,
+            windowDays: 7,
+          },
+        }],
+      });
+
+      const deps2 = planner.getConditionDeps();
+      // A should no longer have B as dependent
+      expect(!deps2.has(idA) || deps2.get(idA)!.size === 0).toBe(true);
+      // C should now have B
+      expect(deps2.has(idC)).toBe(true);
+      expect(deps2.get(idC)!.has(idB)).toBe(true);
+    });
+
+    it('index rebuilt when series deleted', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'B',
+        patterns: [{
+          type: 'daily',
+          time: time('11:00:00'),
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: idA,
+            comparison: 'greaterOrEqual',
+            value: 1,
+            windowDays: 7,
+          },
+        }],
+        startDate: date('2025-01-01'),
+      });
+
+      const deps1 = planner.getConditionDeps();
+      expect(deps1.has(idA)).toBe(true);
+      expect(deps1.get(idA)!.has(idB)).toBe(true);
+
+      await planner.deleteSeries(idB);
+
+      const deps2 = planner.getConditionDeps();
+      expect(!deps2.has(idA) || deps2.get(idA)!.size === 0).toBe(true);
+    });
+
+    it('hydrate rebuilds index from persisted data', async () => {
+      const adapter = (await import('../src/adapter')).createMockAdapter();
+      const config1 = { adapter, timezone: 'America/New_York' as const };
+      const planner1 = createAutoplanner(config1);
+
+      const idA = await planner1.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner1.createSeries({
+        title: 'B',
+        patterns: [{
+          type: 'daily',
+          time: time('11:00:00'),
+          duration: 30,
+          condition: {
+            type: 'completionCount',
+            seriesRef: idA,
+            comparison: 'greaterOrEqual',
+            value: 1,
+            windowDays: 7,
+          },
+        }],
+        startDate: date('2025-01-01'),
+      });
+
+      const deps1 = planner1.getConditionDeps();
+      expect(deps1.has(idA)).toBe(true);
+      expect(deps1.get(idA)!.has(idB)).toBe(true);
+
+      // Hydrate a new planner with same adapter
+      const planner2 = createAutoplanner(config1);
+      await planner2.hydrate();
+
+      const deps2 = planner2.getConditionDeps();
+      expect(deps2.has(idA)).toBe(true);
+      expect(deps2.get(idA)!.has(idB)).toBe(true);
+      expect(deps2.get(idA)!.size).toBe(1);
+    });
+  });
 });

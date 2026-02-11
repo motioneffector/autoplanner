@@ -269,6 +269,7 @@ export type Autoplanner = {
   hydrate(): Promise<void>
   on(event: string, handler: (...args: unknown[]) => void): void
   getCacheStats(): { patternHits: number; patternMisses: number; cspHits: number; cspMisses: number }
+  getConditionDeps(): Map<string, Set<string>>
 }
 
 // ============================================================================
@@ -561,6 +562,43 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   let cacheGeneration = 0
   const scheduleResultCache = new Map<string, { generation: number; schedule: Schedule }>()
   let cacheStats = { patternHits: 0, patternMisses: 0, cspHits: 0, cspMisses: 0 }
+
+  // ========== Condition Dependency Index ==========
+  // Reverse index: targetSeriesId → Set<dependentSeriesId>
+  const conditionDeps = new Map<string, Set<string>>()
+
+  function collectConditionRefs(condition: ConditionNode, seriesId: string): void {
+    switch (condition.type) {
+      case 'completionCount':
+        if (condition.seriesRef !== 'self') {
+          if (!conditionDeps.has(condition.seriesRef)) {
+            conditionDeps.set(condition.seriesRef, new Set())
+          }
+          conditionDeps.get(condition.seriesRef)!.add(seriesId)
+        }
+        break
+      case 'and':
+        for (const c of condition.conditions) collectConditionRefs(c, seriesId)
+        break
+      case 'or':
+        for (const c of condition.conditions) collectConditionRefs(c, seriesId)
+        break
+      case 'not':
+        collectConditionRefs(condition.condition, seriesId)
+        break
+    }
+  }
+
+  function buildConditionDependencyIndex(): void {
+    conditionDeps.clear()
+    for (const [id, series] of seriesCache) {
+      for (const pattern of series.patterns || []) {
+        if (pattern.condition) {
+          collectConditionRefs(pattern.condition, id)
+        }
+      }
+    }
+  }
 
   function defensiveCopy(schedule: Schedule): Schedule {
     return structuredClone(schedule)
@@ -1499,6 +1537,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       }
     }
 
+    buildConditionDependencyIndex()
     await triggerReflow()
     return id
   }
@@ -1651,6 +1690,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
 
     seriesCache.set(id, { ...updated } as FullSeries)
+    buildConditionDependencyIndex()
     await triggerReflow()
   }
 
@@ -1679,6 +1719,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
     await adapter.deleteSeries(id)
     seriesCache.delete(id)
+    buildConditionDependencyIndex()
     await triggerReflow()
   }
 
@@ -2321,10 +2362,21 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         }
       }
     }
+
+    // Build condition dependency index from hydrated series
+    buildConditionDependencyIndex()
   }
 
   function getCacheStats() {
     return { ...cacheStats }
+  }
+
+  function getConditionDeps(): Map<string, Set<string>> {
+    const result = new Map<string, Set<string>>()
+    for (const [key, value] of conditionDeps) {
+      result.set(key, new Set(value))
+    }
+    return result
   }
 
   return {
@@ -2360,5 +2412,6 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     hydrate,
     on,
     getCacheStats,
+    getConditionDeps,
   }
 }
