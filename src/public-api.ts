@@ -1738,12 +1738,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     // Copy incoming link (if original is a chain child, new series should be too)
     const originalLink = links.get(id)
     if (originalLink) {
-      const newLink = {
+      const newLink: InternalLink = {
         parentId: originalLink.parentId,
         childId: newId,
         distance: originalLink.distance,
-        earlyWobble: originalLink.earlyWobble,
-        lateWobble: originalLink.lateWobble,
+        ...(originalLink.earlyWobble != null ? { earlyWobble: originalLink.earlyWobble } : {}),
+        ...(originalLink.lateWobble != null ? { lateWobble: originalLink.lateWobble } : {}),
       }
       links.set(newId, newLink)
       if (!linksByParent.has(originalLink.parentId)) linksByParent.set(originalLink.parentId, [])
@@ -1753,8 +1753,8 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         parentSeriesId: originalLink.parentId,
         childSeriesId: newId,
         targetDistance: originalLink.distance,
-        earlyWobble: originalLink.earlyWobble,
-        lateWobble: originalLink.lateWobble,
+        earlyWobble: originalLink.earlyWobble ?? 0,
+        lateWobble: originalLink.lateWobble ?? 0,
       })
     }
 
