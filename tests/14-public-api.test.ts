@@ -3795,4 +3795,201 @@ describe('Segment 14: Public API', () => {
       expect(deps2.get(idA)!.size).toBe(1);
     });
   });
+
+  // ============================================================================
+  // Pattern Date Cache
+  // ============================================================================
+
+  describe('Pattern Date Cache', () => {
+    it('pattern expansion cached when schedule result cache misses', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'B',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      // Prime pattern cache
+      await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+
+      // addConstraint doesn't affect patterns → pattern cache preserved
+      await planner.addConstraint({ type: 'mustBeBefore', firstSeries: idA, secondSeries: idB });
+
+      const before = planner.getCacheStats();
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const after = planner.getCacheStats();
+
+      // Pattern cache should have been hit (not re-expanded)
+      expect(after.patternHits - before.patternHits).toBeGreaterThan(0);
+      expect(after.patternMisses - before.patternMisses).toBe(0);
+
+      // Instances still correct
+      const dates = result.instances.map(i => i.date).sort();
+      expect(dates).toContain('2025-01-06');
+      expect(dates).toContain('2025-01-12');
+      expect(result.instances.filter(i => i.title === 'A')).toHaveLength(7);
+      expect(result.instances.filter(i => i.title === 'A')[0]!.date).toBe('2025-01-06');
+    });
+
+    it('logCompletion does NOT evict pattern cache', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      // Prime pattern cache
+      await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+
+      // logCompletion: scope=completion, no pattern eviction
+      await planner.logCompletion(idA, date('2025-01-06'));
+
+      const before = planner.getCacheStats();
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const after = planner.getCacheStats();
+
+      expect(after.patternMisses - before.patternMisses).toBe(0);
+      expect(result.instances).toHaveLength(7);
+      expect(result.instances[0]!).toMatchObject({ title: 'A', date: '2025-01-06' });
+    });
+
+    it('updateSeries evicts only that series pattern cache', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      const idB = await planner.createSeries({
+        title: 'B',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      // Prime both series' pattern caches
+      await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+
+      // Update A → evicts A's patterns, not B's
+      await planner.updateSeries(idA, {
+        patterns: [{ type: 'weekly', daysOfWeek: [1], time: time('09:00:00'), duration: 30 }],
+      });
+
+      const before = planner.getCacheStats();
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const after = planner.getCacheStats();
+
+      // A was evicted → miss. B was preserved → hit.
+      expect(after.patternMisses - before.patternMisses).toBeGreaterThan(0);
+      expect(after.patternHits - before.patternHits).toBeGreaterThan(0);
+
+      // A now only fires on Mondays (Jan 6 is Monday)
+      const aInstances = result.instances.filter(i => i.title === 'A');
+      expect(aInstances).toHaveLength(1);
+      expect(aInstances[0]!.date).toBe('2025-01-06');
+
+      // B still daily
+      const bInstances = result.instances.filter(i => i.title === 'B');
+      expect(bInstances).toHaveLength(7);
+      expect(bInstances[0]!.date).toBe('2025-01-06');
+    });
+
+    it('eviction covers ALL ranges for a series', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const idA = await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      // Prime two different ranges
+      await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      await planner.getSchedule(date('2025-01-13'), date('2025-01-20'));
+
+      // Update A → evicts ALL entries for A (both ranges)
+      await planner.updateSeries(idA, {
+        patterns: [{ type: 'weekly', daysOfWeek: [1], time: time('09:00:00'), duration: 30 }],
+      });
+
+      const before = planner.getCacheStats();
+      const r1 = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const r2 = await planner.getSchedule(date('2025-01-13'), date('2025-01-20'));
+      const after = planner.getCacheStats();
+
+      // Both ranges should miss (evicted)
+      expect(after.patternMisses - before.patternMisses).toBeGreaterThanOrEqual(2);
+
+      // Correct results: only Mondays
+      const dates1 = r1.instances.map(i => i.date);
+      expect(dates1).toContain('2025-01-06');
+      expect(r1.instances).toHaveLength(1);
+      expect(r1.instances[0]!.date).toBe('2025-01-06'); // Monday
+
+      const dates2 = r2.instances.map(i => i.date);
+      expect(dates2).toContain('2025-01-13');
+      expect(r2.instances).toHaveLength(1);
+      expect(r2.instances[0]!.date).toBe('2025-01-13'); // Monday
+    });
+
+    it('anchor change causes cache miss for weekly daysOfWeek patterns', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const id = await planner.createSeries({
+        title: 'Weekly',
+        patterns: [{ type: 'weekly', daysOfWeek: [1, 5], time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      // Prime with no completions (anchor=none)
+      await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+
+      // Log completion → anchor changes from undefined to completion date
+      await planner.logCompletion(id, date('2025-01-06'));
+
+      const before = planner.getCacheStats();
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const after = planner.getCacheStats();
+
+      // Second pass uses anchor → different key → cache miss
+      expect(after.patternMisses - before.patternMisses).toBeGreaterThan(0);
+
+      // Instances should include Monday (1) and Friday (5)
+      const dates = result.instances.map(i => i.date).sort();
+      expect(dates).toContain('2025-01-06'); // Monday
+      expect(dates).toContain('2025-01-10'); // Friday
+      expect(result.instances[0]!).toMatchObject({ title: 'Weekly' });
+    });
+
+    it('stale _anchor cleared when completions deleted', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const id = await planner.createSeries({
+        title: 'Weekly',
+        patterns: [{ type: 'weekly', daysOfWeek: [1, 5], time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      // No completions: get baseline dates
+      const noCompResult = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const noCompDates = noCompResult.instances.map(i => i.date).sort();
+      expect(noCompDates).toContain('2025-01-06');
+      expect(noCompResult.instances[0]!.title).toBe('Weekly');
+
+      // Log then delete completion
+      const compId = await planner.logCompletion(id, date('2025-01-06'));
+      await planner.getSchedule(date('2025-01-06'), date('2025-01-13')); // cache with anchor
+      await planner.deleteCompletion(compId);
+
+      // After deletion, anchor should revert → key changes → cache miss
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const resultDates = result.instances.map(i => i.date).sort();
+
+      // Should match the no-completion baseline
+      expect(resultDates).toEqual(noCompDates);
+      expect(result.instances[0]!).toMatchObject({ title: 'Weekly' });
+    });
+  });
 });

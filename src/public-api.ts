@@ -600,6 +600,39 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
   }
 
+  // ========== Pattern Date Cache ==========
+  // Key: "seriesId:patternIdx:start:end:anchor" → Set<LocalDate>
+  const patternDateCache = new Map<string, Set<LocalDate>>()
+
+  function getCachedPatternDates(
+    pattern: EnrichedPattern, start: LocalDate, end: LocalDate,
+    seriesStart: LocalDate, seriesId: string, patternIdx: number,
+    anchor: LocalDate | undefined
+  ): Set<LocalDate> {
+    const key = `${seriesId}:${patternIdx}:${start}:${end}:${anchor ?? 'none'}`
+    const cached = patternDateCache.get(key)
+    if (cached) { cacheStats.patternHits++; return cached }
+    cacheStats.patternMisses++
+    const result = getPatternDates(pattern, start, end, seriesStart)
+    patternDateCache.set(key, result)
+    return result
+  }
+
+  function evictPatternCacheForSeries(seriesId: string): void {
+    for (const key of [...patternDateCache.keys()]) {
+      if (key.startsWith(seriesId + ':')) patternDateCache.delete(key)
+    }
+  }
+
+  // ========== Invalidation Scope ==========
+  type InvalidationScope = {
+    type: 'series'; seriesId: string
+  } | {
+    type: 'global'
+  } | {
+    type: 'link' | 'constraint' | 'exception' | 'completion'
+  }
+
   function defensiveCopy(schedule: Schedule): Schedule {
     return structuredClone(schedule)
   }
@@ -652,7 +685,15 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     return { start: today, end: addDays(today, 7) }
   }
 
-  async function triggerReflow() {
+  async function triggerReflow(scope?: InvalidationScope) {
+    // Pattern cache: evict on series definition changes
+    if (scope?.type === 'series') {
+      evictPatternCacheForSeries(scope.seriesId)
+    } else if (scope?.type === 'global') {
+      patternDateCache.clear()
+    }
+    // completions, exceptions, links, constraints → NO pattern eviction
+
     cacheGeneration++
     scheduleResultCache.clear()
 
@@ -1041,8 +1082,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
       const dates = new Set<string>()
 
-      for (const pattern of s.patterns) {
-        const patternDates = getPatternDates(pattern, start, end, seriesStart)
+      for (let pi = 0; pi < s.patterns.length; pi++) {
+        const pattern = s.patterns[pi]!
+        const patternDates = getCachedPatternDates(pattern, start, end, seriesStart, s.id, pi, undefined)
         for (const date of patternDates) {
           if (s.endDate && (date as string) >= (s.endDate as string)) continue
           dates.add(date as string)
@@ -1127,13 +1169,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         ? getFirstCompletionDate(s.id)
         : null
 
-      for (const pattern of s.patterns) {
-        // Annotate pattern with anchor for weekly daysOfWeek expansion
-        if (pattern.type === 'weekly' && pattern.daysOfWeek && firstCompDate) {
-          pattern._anchor = firstCompDate
+      for (let patternIdx = 0; patternIdx < s.patterns.length; patternIdx++) {
+        const pattern = s.patterns[patternIdx]!
+        // Always assign _anchor for weekly daysOfWeek (clears stale values on deletion)
+        if (pattern.type === 'weekly' && pattern.daysOfWeek) {
+          pattern._anchor = firstCompDate ?? undefined
         }
 
-        const dates = getPatternDates(pattern, start, end, seriesStart)
+        const dates = getCachedPatternDates(pattern, start, end, seriesStart, s.id, patternIdx, pattern._anchor)
 
         for (const date of dates) {
           if (s.endDate && (date as string) >= (s.endDate as string)) continue
@@ -1538,7 +1581,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
 
     buildConditionDependencyIndex()
-    await triggerReflow()
+    await triggerReflow({ type: 'series', seriesId: id })
     return id
   }
 
@@ -1691,7 +1734,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
     seriesCache.set(id, { ...updated } as FullSeries)
     buildConditionDependencyIndex()
-    await triggerReflow()
+    await triggerReflow({ type: 'series', seriesId: id })
   }
 
   async function lock(id: string): Promise<void> {
@@ -1720,7 +1763,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     await adapter.deleteSeries(id)
     seriesCache.delete(id)
     buildConditionDependencyIndex()
-    await triggerReflow()
+    await triggerReflow({ type: 'series', seriesId: id })
   }
 
   async function splitSeries(id: string, splitDate: LocalDate): Promise<string> {
@@ -1812,7 +1855,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       })
     }
 
-    await triggerReflow()
+    await triggerReflow({ type: 'global' })
     return newId
   }
 
@@ -1865,7 +1908,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       earlyWobble: options.earlyWobble ?? 0,
       lateWobble: options.lateWobble ?? 0,
     })
-    await triggerReflow()
+    await triggerReflow({ type: 'link' })
   }
 
   function getChainDepthSync(seriesId: string): number {
@@ -1891,7 +1934,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       const adapterLink = await adapter.getLinkByChild(childId)
       if (adapterLink) await adapter.deleteLink(adapterLink.id)
     }
-    await triggerReflow()
+    await triggerReflow({ type: 'link' })
   }
 
   // ========== Constraints ==========
@@ -1907,14 +1950,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       destinationTarget: constraint.secondTarget ?? { seriesId: constraint.secondSeries! },
       ...(constraint.withinMinutes != null ? { withinMinutes: constraint.withinMinutes } : {}),
     })
-    await triggerReflow()
+    await triggerReflow({ type: 'constraint' })
     return id
   }
 
   async function removeConstraint(id: string): Promise<void> {
     constraints.delete(id)
     await adapter.deleteRelationalConstraint(id)
-    await triggerReflow()
+    await triggerReflow({ type: 'constraint' })
   }
 
   async function getConstraints(): Promise<StoredConstraint[]> {
@@ -1986,7 +2029,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       id: uuid(), seriesId, originalDate: date, type: 'cancelled',
     })
     exceptions.set(exKey, { seriesId, date, type: 'cancelled' })
-    await triggerReflow()
+    await triggerReflow({ type: 'exception' })
   }
 
   async function rescheduleInstance(seriesId: string, date: LocalDate, newTime: LocalDateTime): Promise<void> {
@@ -2021,7 +2064,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       id: uuid(), seriesId, originalDate: date, type: 'rescheduled', newTime,
     })
     exceptions.set(exKey, { seriesId, date, type: 'rescheduled', newTime })
-    await triggerReflow()
+    await triggerReflow({ type: 'exception' })
   }
 
   // ========== Completions ==========
@@ -2058,7 +2101,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       ...(options?.startTime != null ? { startTime: options.startTime } : {}),
       ...(options?.endTime != null ? { endTime: options.endTime } : {}),
     })
-    await triggerReflow()
+    await triggerReflow({ type: 'completion' })
     return id
   }
 
@@ -2084,7 +2127,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       completions.delete(id)
       await adapter.deleteCompletion(id)
     }
-    await triggerReflow()
+    await triggerReflow({ type: 'completion' })
   }
 
   // ========== Schedule ==========
