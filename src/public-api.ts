@@ -1077,10 +1077,11 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           seriesId: a.seriesId as string,
           time: a.time as string,
         })),
-        conflicts: result.conflicts.map(c => ({
-          type: c.type,
-          message: c.message,
-        })),
+        conflicts: result.conflicts.map(c => {
+          const entry: { type: string; message?: string } = { type: c.type }
+          if (c.message !== undefined) entry.message = c.message
+          return entry
+        }),
       })
 
       // Apply optimized times back to instances
@@ -1237,7 +1238,11 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         const pattern = s.patterns[patternIdx]!
         // Always assign _anchor for weekly daysOfWeek (clears stale values on deletion)
         if (pattern.type === 'weekly' && pattern.daysOfWeek) {
-          pattern._anchor = firstCompDate ?? undefined
+          if (firstCompDate) {
+            pattern._anchor = firstCompDate
+          } else {
+            delete pattern._anchor
+          }
         }
 
         const dates = getCachedPatternDates(pattern, start, end, seriesStart, s.id, patternIdx, pattern._anchor)
