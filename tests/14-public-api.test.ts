@@ -2361,6 +2361,77 @@ describe('Segment 14: Public API', () => {
   });
 
   // ==========================================================================
+  // Field Normalization (Concern 3 / F4)
+  // ==========================================================================
+
+  describe('Field Normalization', () => {
+    it('weekly pattern daysOfWeek survives adapter round-trip as daysOfWeek', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      const id = await planner.createSeries({
+        title: 'Weekly DOW',
+        startDate: date('2026-02-09'),
+        patterns: [{ type: 'weekly', daysOfWeek: [1, 3, 5], time: time('09:00'), duration: minutes(30) }],
+      });
+
+      const series = await planner.getSeries(id);
+      expect(series).not.toBeNull();
+      expect(series!.patterns[0].daysOfWeek).toEqual([1, 3, 5]);
+      expect(Object.keys(series!.patterns[0])).not.toContain('days');
+    });
+
+    it('schedule generation uses daysOfWeek after round-trip', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      // daysOfWeek: [1, 3] = Mon, Wed (WEEKDAY_NAMES: sun=0, mon=1, tue=2, wed=3, ...)
+      const id = await planner.createSeries({
+        title: 'Weekly Schedule',
+        startDate: date('2026-02-09'),
+        patterns: [{ type: 'weekly', daysOfWeek: [1, 3], time: time('09:00'), duration: minutes(30) }],
+      });
+
+      // Mon 2026-02-09 through Sun 2026-02-15 (exclusive end)
+      const sched = await getScheduleChecked(planner, date('2026-02-09'), date('2026-02-16'));
+      const instances = sched.instances.filter(i => i.seriesId === id);
+      expect(instances).toHaveLength(2);
+      expect(instances[0]).toMatchObject({ seriesId: id, date: '2026-02-09' }); // Monday
+      expect(instances[1]).toMatchObject({ seriesId: id, date: '2026-02-11' }); // Wednesday
+    });
+
+    it('daysOfWeek is populated after adapter loadFullSeries round-trip', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      const id = await planner.createSeries({
+        title: 'Adapter Round-Trip',
+        startDate: date('2026-02-09'),
+        patterns: [{ type: 'weekly', daysOfWeek: [1, 4, 6], time: time('08:00'), duration: minutes(45) }],
+      });
+
+      // getSeries goes through loadFullSeries which reads from adapter
+      const series = await planner.getSeries(id);
+      expect(series).not.toBeNull();
+      expect(series!.patterns).toHaveLength(1);
+      expect(series!.patterns[0]).toMatchObject({
+        type: 'weekly',
+        daysOfWeek: [1, 4, 6],
+        time: '08:00',
+        duration: 45,
+      });
+
+      // Schedule should fire on Mon(1), Thu(4), Sat(6) within a full week
+      const sched = await getScheduleChecked(planner, date('2026-02-09'), date('2026-02-16'));
+      const instances = sched.instances.filter(i => i.seriesId === id);
+      expect(instances).toHaveLength(3);
+      expect(instances[0]).toMatchObject({ date: '2026-02-09' }); // Monday
+      expect(instances[1]).toMatchObject({ date: '2026-02-12' }); // Thursday
+      expect(instances[2]).toMatchObject({ date: '2026-02-14' }); // Saturday
+    });
+  });
+
+  // ==========================================================================
   // Exception Upsert (Concern 2 / F10)
   // ==========================================================================
 

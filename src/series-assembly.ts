@@ -109,7 +109,7 @@ export async function loadFullSeries(adapter: Adapter, id: string): Promise<Full
   for (const p of patterns) {
     const pat = { ...p } as EnrichedPattern
     const weekdays = await adapter.getPatternWeekdays(p.id)
-    if (weekdays.length > 0) pat.days = weekdays.map((d: string) => Number(d))
+    if (weekdays.length > 0) pat.daysOfWeek = weekdays.map((d: string) => Number(d))
     // Remove adapter-level fields not expected by internal code
     delete (pat as Record<string, unknown>).seriesId
     enrichedPatterns.push(pat)
@@ -216,9 +216,6 @@ export async function persistNewSeries(adapter: Adapter, data: FullSeries): Prom
         ...(p.duration != null ? { duration: p.duration } : {}),
         ...(p.fixed != null ? { fixed: p.fixed } : {}),
       })
-      if (p.days && Array.isArray(p.days)) {
-        await adapter.setPatternWeekdays(patternId, p.days.map(String))
-      }
       if (p.daysOfWeek && Array.isArray(p.daysOfWeek)) {
         await adapter.setPatternWeekdays(patternId, p.daysOfWeek.map(String))
       }

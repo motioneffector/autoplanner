@@ -1325,17 +1325,14 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
               if (!sA || !sB) continue
 
               // Collect all days-of-week each series fires on
-              // Check both daysOfWeek and days — adapter round-trip stores as `days`
               const daysA: number[] = []
               const daysB: number[] = []
               for (const pat of sA.patterns || []) {
                 if (pat.type === 'weekly' && pat.daysOfWeek) daysA.push(...pat.daysOfWeek)
-                if (pat.type === 'weekly' && pat.days) daysA.push(...pat.days)
                 if (pat.type === 'daily') for (let d = 0; d < 7; d++) daysA.push(d)
               }
               for (const pat of sB.patterns || []) {
                 if (pat.type === 'weekly' && pat.daysOfWeek) daysB.push(...pat.daysOfWeek)
-                if (pat.type === 'weekly' && pat.days) daysB.push(...pat.days)
                 if (pat.type === 'daily') for (let d = 0; d < 7; d++) daysB.push(d)
               }
 
