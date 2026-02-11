@@ -999,22 +999,28 @@ describe('Instance Exception Operations', () => {
     expect(exc?.type).toBe('cancel')
   })
 
-  it('unique per series+date throws DuplicateKeyError', async () => {
+  it('upsert on same series+date replaces the exception', async () => {
     await adapter.createInstanceException({
       id: 'exc-1',
       seriesId: 'series-1',
       originalDate: '2024-01-15' as LocalDate,
       type: 'cancel',
     })
-    await expect(
-      adapter.createInstanceException({
-        id: 'exc-2',
-        seriesId: 'series-1',
-        originalDate: '2024-01-15' as LocalDate,
-        type: 'reschedule',
-        newDate: '2024-01-16' as LocalDate,
-      })
-    ).rejects.toThrow(/already exists/)
+    // Second create with same (seriesId, originalDate) should upsert, not throw
+    await adapter.createInstanceException({
+      id: 'exc-2',
+      seriesId: 'series-1',
+      originalDate: '2024-01-15' as LocalDate,
+      type: 'reschedule',
+      newDate: '2024-01-16' as LocalDate,
+    })
+    const exc = await adapter.getInstanceException('series-1', '2024-01-15' as LocalDate)
+    expect(exc).toMatchObject({
+      id: 'exc-2',
+      seriesId: 'series-1',
+      originalDate: '2024-01-15',
+      type: 'reschedule',
+    })
   })
 
   it('get exceptions by series', async () => {

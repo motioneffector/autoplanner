@@ -1772,10 +1772,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       throw new AlreadyCancelledError(`Instance on ${date} is already cancelled`)
     }
 
-    exceptions.set(exKey, { seriesId, date, type: 'cancelled' })
     await adapter.createInstanceException({
       id: uuid(), seriesId, originalDate: date, type: 'cancelled',
     })
+    exceptions.set(exKey, { seriesId, date, type: 'cancelled' })
     await triggerReflow()
   }
 
@@ -1807,10 +1807,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       }
     }
 
-    exceptions.set(exKey, { seriesId, date, type: 'rescheduled', newTime })
     await adapter.createInstanceException({
       id: uuid(), seriesId, originalDate: date, type: 'rescheduled', newTime,
     })
+    exceptions.set(exKey, { seriesId, date, type: 'rescheduled', newTime })
     await triggerReflow()
   }
 

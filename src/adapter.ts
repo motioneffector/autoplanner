@@ -636,12 +636,11 @@ export function createMockAdapter(): Adapter {
       if (!state.series.has(exception.seriesId)) {
         throw new ForeignKeyError(`Series '${exception.seriesId}' not found`)
       }
-      // Unique (seriesId, originalDate)
-      for (const e of state.exceptions.values()) {
+      // Upsert on (seriesId, originalDate) — replace existing exception for same instance
+      for (const [id, e] of state.exceptions.entries()) {
         if (e.seriesId === exception.seriesId && e.originalDate === exception.originalDate) {
-          throw new DuplicateKeyError(
-            `Exception for series '${exception.seriesId}' on '${exception.originalDate}' already exists`
-          )
+          state.exceptions.delete(id)
+          break
         }
       }
       state.exceptions.set(exception.id, clone(exception))

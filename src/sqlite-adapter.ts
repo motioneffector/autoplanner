@@ -790,7 +790,7 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     async createInstanceException(exception: InstanceException) {
       safe(() =>
         db.prepare(
-          'INSERT INTO instance_exception (id, series_id, original_date, type, new_date, new_time) VALUES (?, ?, ?, ?, ?, ?)',
+          'INSERT OR REPLACE INTO instance_exception (id, series_id, original_date, type, new_date, new_time) VALUES (?, ?, ?, ?, ?, ?)',
         ).run(
           exception.id,
           exception.seriesId,

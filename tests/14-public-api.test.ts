@@ -2359,4 +2359,127 @@ describe('Segment 14: Public API', () => {
       expect(child.time).toBe('2026-09-15T09:30:00');
     });
   });
+
+  // ==========================================================================
+  // Exception Upsert (Concern 2 / F10)
+  // ==========================================================================
+
+  describe('Exception Upsert', () => {
+    it('reschedule then reschedule again does not throw', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      const id = await planner.createSeries({
+        title: 'Upsert Test',
+        startDate: date('2026-03-01'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+      });
+
+      await planner.rescheduleInstance(id, date('2026-03-09'), datetime('2026-03-09T14:00:00'));
+      // Second reschedule on same date — must NOT throw
+      await planner.rescheduleInstance(id, date('2026-03-09'), datetime('2026-03-09T16:00:00'));
+
+      const sched = await getScheduleChecked(planner, date('2026-03-09'), date('2026-03-10'));
+      const inst = sched.instances.find(i => i.seriesId === id && (i.time as string).includes('2026-03-09'));
+      expect(inst).toMatchObject({
+        seriesId: id,
+        time: '2026-03-09T16:00:00',
+      });
+    });
+
+    it('reschedule then cancel produces cancelled exception', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      const id = await planner.createSeries({
+        title: 'Reschedule Then Cancel',
+        startDate: date('2026-03-01'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+      });
+
+      await planner.rescheduleInstance(id, date('2026-03-09'), datetime('2026-03-09T14:00:00'));
+
+      // Prove rescheduled instance exists before cancel
+      const schedBefore = await getScheduleChecked(planner, date('2026-03-09'), date('2026-03-10'));
+      const beforeInst = schedBefore.instances.find(i => i.seriesId === id && i.time === '2026-03-09T14:00:00');
+      expect(beforeInst).toMatchObject({ seriesId: id, time: '2026-03-09T14:00:00' });
+
+      await planner.cancelInstance(id, date('2026-03-09'));
+
+      // Schedule should no longer show the rescheduled instance
+      const sched = await getScheduleChecked(planner, date('2026-03-09'), date('2026-03-10'));
+      const afterInst = sched.instances.find(i => i.seriesId === id && i.time === '2026-03-09T14:00:00');
+      expect(afterInst).toBeUndefined();
+
+      // Adapter has cancelled exception (concrete proof of state transition)
+      const exc = await adapter.getInstanceException(id, date('2026-03-09'));
+      expect(exc).toMatchObject({
+        seriesId: id,
+        originalDate: '2026-03-09',
+        type: 'cancelled',
+      });
+    });
+
+    it('cancel then reschedule is blocked by AlreadyCancelledError', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      const id = await planner.createSeries({
+        title: 'Cancel Then Reschedule',
+        startDate: date('2026-03-01'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+      });
+
+      await planner.cancelInstance(id, date('2026-03-09'));
+      // Attempting to reschedule a cancelled instance should throw
+      await expect(
+        planner.rescheduleInstance(id, date('2026-03-09'), datetime('2026-03-09T14:00:00'))
+      ).rejects.toThrow('cancelled');
+
+      // Adapter still has the cancel
+      const exc = await adapter.getInstanceException(id, date('2026-03-09'));
+      expect(exc).toMatchObject({
+        type: 'cancelled',
+        originalDate: '2026-03-09',
+      });
+    });
+
+    it('adapter state matches in-memory after failed adapter call', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      const id = await planner.createSeries({
+        title: 'Crash Safety',
+        startDate: date('2026-03-01'),
+        patterns: [{ type: 'daily', time: time('09:00'), duration: minutes(30) }],
+      });
+
+      // First reschedule succeeds
+      await planner.rescheduleInstance(id, date('2026-03-09'), datetime('2026-03-09T14:00:00'));
+
+      // Sabotage adapter to throw on next createInstanceException
+      const origCreate = adapter.createInstanceException.bind(adapter);
+      let callCount = 0;
+      adapter.createInstanceException = async (exc) => {
+        callCount++;
+        if (callCount >= 1) throw new Error('Simulated adapter failure');
+        return origCreate(exc);
+      };
+
+      // Second reschedule should fail due to adapter error
+      await expect(
+        planner.rescheduleInstance(id, date('2026-03-09'), datetime('2026-03-09T16:00:00'))
+      ).rejects.toThrow('Simulated adapter failure');
+
+      // Restore adapter
+      adapter.createInstanceException = origCreate;
+
+      // The adapter should still have the FIRST reschedule (14:00), not the second (16:00)
+      const exc = await adapter.getInstanceException(id, date('2026-03-09'));
+      expect(exc).toMatchObject({
+        type: 'rescheduled',
+        newTime: '2026-03-09T14:00:00',
+      });
+    });
+  });
 });
