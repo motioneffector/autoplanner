@@ -3004,4 +3004,110 @@ describe('Segment 14: Public API', () => {
       });
     });
   });
+
+  // ========================================================================
+  // Per-Date Condition Evaluation (F9)
+  // ========================================================================
+  describe('Per-Date Condition Evaluation', () => {
+    it('weekday condition fires only on matching days in multi-day window', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      // Create daily series with weekday condition: only Wednesdays (3)
+      await planner.createSeries({
+        title: 'Wed Only',
+        patterns: [{
+          type: 'daily' as const,
+          time: time('09:00:00'),
+          duration: minutes(30),
+          condition: { type: 'weekday', days: [3] },
+        }],
+        startDate: date('2026-01-01'),
+      });
+
+      // Mon 2026-02-09 through Sun 2026-02-15 (exclusive end = Mon 2026-02-16)
+      const schedule = await planner.getSchedule(date('2026-02-09'), date('2026-02-16'));
+      const instances = schedule.instances.filter(i => i.title === 'Wed Only');
+      expect(instances).toHaveLength(1);
+      expect(instances[0]).toMatchObject({
+        date: '2026-02-11',
+        title: 'Wed Only',
+      });
+    });
+
+    it('weekday condition works when window starts on non-matching day', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      // Daily series, only fires on Wed (3)
+      await planner.createSeries({
+        title: 'Wed Only 2',
+        patterns: [{
+          type: 'daily' as const,
+          time: time('09:00:00'),
+          duration: minutes(30),
+          condition: { type: 'weekday', days: [3] },
+        }],
+        startDate: date('2026-01-01'),
+      });
+
+      // Start on Thursday 2026-02-12, end exclusive 2026-02-19
+      // Window: Thu, Fri, Sat, Sun, Mon, Tue, Wed (Feb 18)
+      const schedule = await planner.getSchedule(date('2026-02-12'), date('2026-02-19'));
+      const instances = schedule.instances.filter(i => i.title === 'Wed Only 2');
+      expect(instances).toHaveLength(1);
+      expect(instances[0]).toMatchObject({
+        date: '2026-02-18',
+        title: 'Wed Only 2',
+      });
+    });
+
+    it('unconditional pattern still works (no regression)', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      await planner.createSeries({
+        title: 'Daily NoCondition',
+        patterns: [{
+          type: 'daily' as const,
+          time: time('09:00:00'),
+          duration: minutes(30),
+        }],
+        startDate: date('2026-01-01'),
+      });
+
+      // 3-day window: Mon-Wed (exclusive end Thu)
+      const schedule = await planner.getSchedule(date('2026-02-09'), date('2026-02-12'));
+      const instances = schedule.instances.filter(i => i.title === 'Daily NoCondition');
+      expect(instances).toHaveLength(3);
+      expect(instances[0]).toMatchObject({ date: '2026-02-09' });
+      expect(instances[1]).toMatchObject({ date: '2026-02-10' });
+      expect(instances[2]).toMatchObject({ date: '2026-02-11' });
+    });
+
+    it('weekday condition with multiple days fires on each matching day', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+
+      // Daily series, fires on Mon(1), Wed(3), Fri(5)
+      await planner.createSeries({
+        title: 'MWF',
+        patterns: [{
+          type: 'daily' as const,
+          time: time('09:00:00'),
+          duration: minutes(30),
+          condition: { type: 'weekday', days: [1, 3, 5] },
+        }],
+        startDate: date('2026-01-01'),
+      });
+
+      // Full week Mon 2026-02-09 through Sun 2026-02-16 (exclusive end)
+      const schedule = await planner.getSchedule(date('2026-02-09'), date('2026-02-16'));
+      const instances = schedule.instances.filter(i => i.title === 'MWF');
+      expect(instances).toHaveLength(3);
+      expect(instances[0]).toMatchObject({ date: '2026-02-09' }); // Mon
+      expect(instances[1]).toMatchObject({ date: '2026-02-11' }); // Wed
+      expect(instances[2]).toMatchObject({ date: '2026-02-13' }); // Fri
+    });
+  });
 });

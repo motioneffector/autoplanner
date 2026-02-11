@@ -1062,9 +1062,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     // Track end times of already-built instances for chain offset computation
     const builtEndTimes = new Map<string, Map<string, LocalDateTime>>()
 
-    // Second pass: generate instances with condition evaluation
-    // Conditions are evaluated at the SCHEDULE START for consistency
-    // (the schedule is a snapshot — pattern activation is stable across the range)
+    // Second pass: generate instances with per-date condition evaluation
+    // Conditions are evaluated per-date so weekday/daysSince conditions
+    // correctly filter individual dates, not entire patterns
     for (const s of sortedSeries) {
       if (!s || !s.id || !s.patterns) continue
       const seriesStart = s.startDate || ('2000-01-01' as LocalDate)
@@ -1077,9 +1077,6 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         : null
 
       for (const pattern of s.patterns) {
-        // Evaluate condition once at schedule start
-        if (pattern.condition && !evaluateConditionForDate(pattern.condition, s.id, start)) continue
-
         // Annotate pattern with anchor for weekly daysOfWeek expansion
         if (pattern.type === 'weekly' && pattern.daysOfWeek && firstCompDate) {
           pattern._anchor = firstCompDate
@@ -1089,6 +1086,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
         for (const date of dates) {
           if (s.endDate && (date as string) >= (s.endDate as string)) continue
+
+          // Evaluate condition per-date (not once for entire window)
+          if (pattern.condition && !evaluateConditionForDate(pattern.condition, s.id, date)) continue
 
           // mustBeOnSameDay filter
           if (allowedDates && !allowedDates.has(date as string)) continue
