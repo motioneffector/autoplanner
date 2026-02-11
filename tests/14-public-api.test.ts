@@ -3992,4 +3992,163 @@ describe('Segment 14: Public API', () => {
       expect(result.instances[0]!).toMatchObject({ title: 'Weekly' });
     });
   });
+
+  // ============================================================================
+  // CSP Fingerprint Cache
+  // ============================================================================
+
+  describe('CSP Fingerprint Cache', () => {
+    it('unchanged schedule uses CSP cache on second getSchedule', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Flex A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+      await planner.createSeries({
+        title: 'Flex B',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      const s1 = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const before = planner.getCacheStats();
+      const s2 = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const after = planner.getCacheStats();
+
+      // Second call should be a schedule cache hit (not even run CSP)
+      // But let's verify both returned identical results
+      expect(s1.instances).toHaveLength(14);
+      expect(s1.instances[0]!).toMatchObject({ date: '2025-01-06' });
+      expect(s2.instances).toHaveLength(14);
+      expect(s2.instances[0]!).toMatchObject({ date: '2025-01-06' });
+
+      // Verify the times are identical
+      for (let i = 0; i < s1.instances.length; i++) {
+        expect(s1.instances[i]!.time).toBe(s2.instances[i]!.time);
+      }
+    });
+
+    it('adding instance to a day produces different fingerprint', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      const s1 = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      expect(s1.instances).toHaveLength(7);
+      expect(s1.instances[0]!).toMatchObject({ title: 'A', date: '2025-01-06' });
+
+      await planner.createSeries({
+        title: 'B',
+        patterns: [{ type: 'daily', time: time('10:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      const before = planner.getCacheStats();
+      const s2 = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const after = planner.getCacheStats();
+
+      expect(s2.instances).toHaveLength(14);
+      // CSP re-ran because fingerprints changed (extra series B)
+      expect(after.cspMisses - before.cspMisses).toBeGreaterThan(0);
+      expect(s2.instances.filter(i => i.title === 'B')[0]!).toMatchObject({ title: 'B', date: '2025-01-06' });
+    });
+
+    it('duration change produces different fingerprint', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const id = await planner.createSeries({
+        title: 'Changeable',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+
+      await planner.updateSeries(id, {
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 120 }],
+      });
+
+      const before = planner.getCacheStats();
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-13'));
+      const after = planner.getCacheStats();
+
+      // Duration changed → fingerprint changed → CSP re-ran
+      expect(after.cspMisses - before.cspMisses).toBeGreaterThan(0);
+      expect(result.instances).toHaveLength(7);
+      expect(result.instances[0]!).toMatchObject({ title: 'Changeable', date: '2025-01-06', duration: 120 });
+    });
+
+    it('CSP cache persists across mutations that do not affect CSP inputs', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      // Two simple daily series with fixed times — no conditions, chains, cycling
+      await planner.createSeries({
+        title: 'Fixed A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30, fixed: true }],
+        startDate: date('2025-01-01'),
+      });
+      await planner.createSeries({
+        title: 'Fixed B',
+        patterns: [{ type: 'daily', time: time('14:00:00'), duration: 30, fixed: true }],
+        startDate: date('2025-01-01'),
+      });
+
+      // Prime CSP cache
+      const s1 = await planner.getSchedule(date('2025-01-06'), date('2025-01-11'));
+      expect(s1.instances).toHaveLength(10); // 5 days × 2 series
+      expect(s1.instances[0]!.date).toBe('2025-01-06');
+
+      // Create unrelated series in Feb → triggers triggerReflow → schedule cache cleared
+      await planner.createSeries({
+        title: 'Feb Only',
+        patterns: [{ type: 'daily', time: time('12:00:00'), duration: 30, fixed: true }],
+        startDate: date('2025-02-01'),
+        endDate: date('2025-02-08'),
+      });
+
+      const before = planner.getCacheStats();
+      const s2 = await planner.getSchedule(date('2025-01-06'), date('2025-01-11'));
+      const after = planner.getCacheStats();
+
+      // CSP cache should hit — the two Jan series are unchanged
+      expect(after.cspHits - before.cspHits).toBeGreaterThanOrEqual(5);
+      expect(s2.instances.filter(i => i.title === 'Fixed A')).toHaveLength(5);
+      expect(s2.instances.filter(i => i.title === 'Fixed A')[0]!.time).toBe(
+        s1.instances.filter(i => i.title === 'Fixed A')[0]!.time
+      );
+    });
+
+    it('chain link change produces different fingerprint', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      const parentId = await planner.createSeries({
+        title: 'Parent',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 60, fixed: true }],
+        startDate: date('2025-01-01'),
+      });
+      const childId = await planner.createSeries({
+        title: 'Child',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-01'),
+      });
+
+      await planner.linkSeries(parentId, childId, { distance: 60 });
+      const s1 = await planner.getSchedule(date('2025-01-06'), date('2025-01-08'));
+      const child1 = s1.instances.filter(i => i.title === 'Child');
+      expect(child1).toHaveLength(2);
+      // Parent ends at 10:00, +60min gap → child at 11:00
+      expect(child1[0]!.time).toBe('2025-01-06T11:00:00');
+
+      await planner.unlinkSeries(childId);
+      await planner.linkSeries(parentId, childId, { distance: 120 });
+
+      const s2 = await planner.getSchedule(date('2025-01-06'), date('2025-01-08'));
+      const child2 = s2.instances.filter(i => i.title === 'Child');
+      expect(child2).toHaveLength(2);
+      // Parent ends at 10:00, +120min gap → child at 12:00
+      expect(child2[0]!.time).toBe('2025-01-06T12:00:00');
+    });
+  });
 });

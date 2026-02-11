@@ -633,6 +633,35 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     type: 'link' | 'constraint' | 'exception' | 'completion'
   }
 
+  // ========== CSP Fingerprint Cache ==========
+  // Content-addressable: fingerprint of day's CSP inputs → solver output
+  // NEVER cleared for correctness. If inputs change, fingerprint changes.
+  const cspResultCache = new Map<string, {
+    assignments: Array<{ seriesId: string; time: string }>
+    conflicts: Array<{ type: string; message?: string }>
+  }>()
+
+  function computeCspFingerprint(
+    seriesInputs: ReflowInput['series'],
+    chains: ReflowInput['chains']
+  ): string {
+    const sortedSeries = [...seriesInputs].sort((a, b) =>
+      (a.id as string).localeCompare(b.id as string)
+    )
+    const seriesParts = sortedSeries.map(s =>
+      `${s.id}|${s.fixed}|${s.idealTime}|${s.duration}|${s.allDay}|${s.timeWindow?.start ?? ''}|${s.timeWindow?.end ?? ''}`
+    )
+    const sortedChains = [...chains].sort((a, b) => {
+      const k1 = `${a.parentId}:${a.childId}`
+      const k2 = `${b.parentId}:${b.childId}`
+      return k1.localeCompare(k2)
+    })
+    const chainParts = sortedChains.map(c =>
+      `${c.parentId}|${c.childId}|${c.distance}|${c.earlyWobble}|${c.lateWobble}`
+    )
+    return seriesParts.join(';') + '||' + chainParts.join(';')
+  }
+
   function defensiveCopy(schedule: Schedule): Schedule {
     return structuredClone(schedule)
   }
@@ -1009,6 +1038,29 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         })
       }
 
+      // Check CSP fingerprint cache before running solver
+      const fingerprint = computeCspFingerprint(seriesInputs, chains)
+      const cachedCsp = cspResultCache.get(fingerprint)
+      if (cachedCsp) {
+        cacheStats.cspHits++
+        for (const assignment of cachedCsp.assignments) {
+          const inst = instanceMap.get(assignment.seriesId)
+          if (inst) inst.time = assignment.time as LocalDateTime
+        }
+        for (const c of cachedCsp.conflicts) {
+          allConflicts.push({
+            type: c.type,
+            seriesIds: [],
+            instances: [],
+            date,
+            description: c.message || `Reflow conflict: ${c.type}`,
+          })
+        }
+        continue
+      }
+
+      cacheStats.cspMisses++
+
       // Run CSP solver for this day
       const result = reflow({
         series: seriesInputs,
@@ -1017,6 +1069,18 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         today: date,
         windowStart: date,
         windowEnd: date,
+      })
+
+      // Cache the result
+      cspResultCache.set(fingerprint, {
+        assignments: result.assignments.map(a => ({
+          seriesId: a.seriesId as string,
+          time: a.time as string,
+        })),
+        conflicts: result.conflicts.map(c => ({
+          type: c.type,
+          message: c.message,
+        })),
       })
 
       // Apply optimized times back to instances
