@@ -2553,4 +2553,181 @@ describe('Segment 14: Public API', () => {
       });
     });
   });
+
+  // ========================================================================
+  // Hydration Completeness (F6)
+  // ========================================================================
+  describe('Hydration Completeness', () => {
+    it('hydrate restores relational constraints', async () => {
+      const adapter = createMockAdapter();
+
+      // Planner A: create two series, add cantBeNextTo constraint
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const idA = await plannerA.createSeries({
+        title: 'Series A',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        tags: ['heavy'],
+      });
+      const idB = await plannerA.createSeries({
+        title: 'Series B',
+        patterns: [{ type: 'daily' as const, time: time('10:00:00'), duration: minutes(30) }],
+        tags: ['heavy'],
+      });
+      const constraintId = await plannerA.addConstraint({
+        type: 'cantBeNextTo',
+        target: { type: 'seriesId', seriesId: idA },
+        secondTarget: { type: 'seriesId', seriesId: idB },
+      });
+
+      // Planner B: fresh planner from same adapter, hydrate
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+
+      // Verify constraints were restored with correct target structures
+      const constraints = await plannerB.getConstraints();
+      expect(constraints).toHaveLength(1);
+      expect(constraints[0]).toMatchObject({
+        id: constraintId,
+        type: 'cantBeNextTo',
+        target: { type: 'seriesId', seriesId: idA },
+        secondTarget: { type: 'seriesId', seriesId: idB },
+      });
+    });
+
+    it('hydrate restores reminders', async () => {
+      const adapter = createMockAdapter();
+
+      // Planner A: create series, add reminder
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const seriesIdVal = await plannerA.createSeries({
+        title: 'Reminder Series',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+      });
+      const reminderId = await plannerA.createReminder(seriesIdVal, {
+        type: 'before',
+        offset: 15,
+      });
+
+      // Planner B: hydrate from same adapter
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+
+      // Verify reminder is functional — get pending reminders at 09:00 (fire time = 08:45)
+      const pending = await plannerB.getPendingReminders(
+        datetime('2026-03-09T09:00:00')
+      );
+      // Should find our reminder since we're past fire time (08:45) but before instance time (09:00)
+      expect(pending).toHaveLength(1);
+      expect(pending[0]).toMatchObject({
+        id: reminderId,
+        seriesId: seriesIdVal,
+        type: 'before',
+        offset: 15,
+      });
+    });
+
+    it('hydrate rebuilds tagCache for tag-based constraint resolution', async () => {
+      const adapter = createMockAdapter();
+
+      // Planner A: create two series with same tag, add tag-based constraint BEFORE hydration
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const id1 = await plannerA.createSeries({
+        title: 'Tagged A',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+        tags: ['workout'],
+      });
+      const id2 = await plannerA.createSeries({
+        title: 'Tagged B',
+        patterns: [{ type: 'daily' as const, time: time('10:00:00'), duration: minutes(30) }],
+        tags: ['workout'],
+      });
+      const constraintId = await plannerA.addConstraint({
+        type: 'cantBeNextTo',
+        target: { type: 'tag', tag: 'workout' },
+        secondTarget: { type: 'tag', tag: 'workout' },
+      });
+
+      // Planner B: hydrate — should rebuild tagCache AND restore constraint
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+
+      // Verify constraint was restored with tag targets (proves adapter roundtrip)
+      const constraints = await plannerB.getConstraints();
+      expect(constraints).toHaveLength(1);
+      expect(constraints[0]).toMatchObject({
+        id: constraintId,
+        type: 'cantBeNextTo',
+        target: { type: 'tag', tag: 'workout' },
+        secondTarget: { type: 'tag', tag: 'workout' },
+      });
+
+      // Verify series are in hydrated planner's cache (tagCache populated correctly)
+      const seriesA = await plannerB.getSeries(id1);
+      const seriesB = await plannerB.getSeries(id2);
+      expect(seriesA).toMatchObject({ title: 'Tagged A', tags: ['workout'] });
+      expect(seriesB).toMatchObject({ title: 'Tagged B', tags: ['workout'] });
+    });
+
+    it('hydrate restores reminder acknowledgments', async () => {
+      const adapter = createMockAdapter();
+
+      // Planner A: create series, reminder, then acknowledge
+      const plannerA = createAutoplanner(createValidConfig({ adapter }));
+      const sid = await plannerA.createSeries({
+        title: 'Ack Series',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+      });
+      const remId = await plannerA.createReminder(sid, {
+        type: 'before',
+        offset: 10,
+      });
+      // Acknowledge for 2026-03-09 (will persist to adapter now)
+      await plannerA.acknowledgeReminder(remId, datetime('2026-03-09T09:00:00'));
+
+      // Verify in planner A: acknowledged date should NOT show as pending
+      const pendingA = await plannerA.getPendingReminders(datetime('2026-03-09T09:00:00'));
+      const ackedDatesA = pendingA.filter(p => p.id === remId).map(p => p.instanceDate);
+      expect(ackedDatesA).not.toContain('2026-03-09');
+
+      // Planner B: hydrate — should restore acks
+      const plannerB = createAutoplanner(createValidConfig({ adapter }));
+      await plannerB.hydrate();
+
+      // The acknowledged date should NOT be pending in planner B either
+      const pendingB = await plannerB.getPendingReminders(datetime('2026-03-09T09:00:00'));
+      const ackedDatesB = pendingB.filter(p => p.id === remId).map(p => p.instanceDate);
+      expect(ackedDatesB).not.toContain('2026-03-09');
+
+      // But a date outside the ack window SHOULD still be pending (proves selective ack, not blanket suppress)
+      // Ack window is ±1 day from asOfDate, so 2026-03-12 is safely outside
+      const pendingOther = await plannerB.getPendingReminders(datetime('2026-03-12T09:00:00'));
+      const foundOther = pendingOther.find(p => p.id === remId && p.instanceDate === date('2026-03-12'));
+      expect(foundOther).toMatchObject({
+        id: remId,
+        seriesId: sid,
+        type: 'before',
+      });
+    });
+
+    it('acknowledgeReminder persists to adapter', async () => {
+      const adapter = createMockAdapter();
+      const planner = createAutoplanner(createValidConfig({ adapter }));
+      const sid = await planner.createSeries({
+        title: 'Persist Ack',
+        patterns: [{ type: 'daily' as const, time: time('09:00:00'), duration: minutes(30) }],
+      });
+      const remId = await planner.createReminder(sid, { type: 'before', offset: 5 });
+
+      // Acknowledge
+      await planner.acknowledgeReminder(remId, datetime('2026-03-09T09:00:00'));
+
+      // Verify adapter has the ack
+      const isAcked = await adapter.isReminderAcknowledged(remId, date('2026-03-09'));
+      expect(isAcked).toBe(true);
+
+      // And a non-acked date should not be acknowledged
+      const isNotAcked = await adapter.isReminderAcknowledged(remId, date('2026-03-15'));
+      expect(isNotAcked).toBe(false);
+    });
+  });
 });

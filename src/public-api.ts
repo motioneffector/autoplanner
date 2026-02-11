@@ -1994,6 +1994,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           const dates = getPatternDates(pattern, checkStart, checkEnd, seriesStart)
           for (const date of dates) {
             acks.add(`${date}:${id}`)
+            await adapter.acknowledgeReminder(id, date, asOf)
           }
         }
       }
@@ -2074,6 +2075,72 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
           type: e.type as 'cancelled' | 'rescheduled',
           ...(e.newTime != null ? { newTime: e.newTime } : {}),
         })
+      }
+    }
+
+    // Hydrate constraints
+    const allConstraints = await adapter.getAllRelationalConstraints()
+    for (const rc of allConstraints) {
+      if (!constraints.has(rc.id)) {
+        // Reconstruct ConstraintTarget with type discriminator
+        // Adapter stores { tag: string } | { seriesId: string } without type field
+        const src = rc.sourceTarget as Record<string, unknown>
+        const dst = rc.destinationTarget as Record<string, unknown>
+        const target: ConstraintTarget = 'tag' in src
+          ? { type: 'tag', tag: src.tag as string }
+          : { type: 'seriesId', seriesId: src.seriesId as string }
+        const secondTarget: ConstraintTarget = 'tag' in dst
+          ? { type: 'tag', tag: dst.tag as string }
+          : { type: 'seriesId', seriesId: dst.seriesId as string }
+        constraints.set(rc.id, {
+          id: rc.id,
+          type: rc.type,
+          target,
+          secondTarget,
+          ...(rc.withinMinutes != null ? { withinMinutes: rc.withinMinutes } : {}),
+        })
+      }
+    }
+
+    // Hydrate reminders
+    const allReminders = await adapter.getAllReminders()
+    for (const r of allReminders) {
+      if (!reminders.has(r.id)) {
+        reminders.set(r.id, {
+          id: r.id,
+          seriesId: r.seriesId,
+          type: r.label,
+          offset: r.minutesBefore,
+        })
+        if (!reminderAcks.has(r.id)) reminderAcks.set(r.id, new Set())
+        if (!remindersBySeriesMap.has(r.seriesId)) remindersBySeriesMap.set(r.seriesId, [])
+        if (!remindersBySeriesMap.get(r.seriesId)!.includes(r.id)) {
+          remindersBySeriesMap.get(r.seriesId)!.push(r.id)
+        }
+      }
+    }
+
+    // Hydrate reminder acks
+    const today = new Date().toISOString().slice(0, 10) as LocalDate
+    const ackStart = addDays(today, -30)
+    const ackEnd = addDays(today, 30)
+    const allAcks = await adapter.getReminderAcksInRange(ackStart, ackEnd)
+    for (const ack of allAcks) {
+      if (!reminderAcks.has(ack.reminderId)) reminderAcks.set(ack.reminderId, new Set())
+      reminderAcks.get(ack.reminderId)!.add(`${ack.instanceDate}:${ack.reminderId}`)
+    }
+
+    // Rebuild tag cache and series cache from all series
+    const allSeries = await loadAllFullSeries()
+    for (const s of allSeries) {
+      seriesCache.set(s.id, { ...s })
+      if (s.tags && Array.isArray(s.tags)) {
+        for (const tag of s.tags) {
+          if (!tagCache.has(tag)) tagCache.set(tag, [])
+          if (!tagCache.get(tag)!.includes(s.id)) {
+            tagCache.get(tag)!.push(s.id)
+          }
+        }
       }
     }
   }
