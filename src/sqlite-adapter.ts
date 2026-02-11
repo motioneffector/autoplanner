@@ -148,6 +148,7 @@ const SCHEMA_SQL = `
     original_date TEXT NOT NULL,
     type TEXT NOT NULL,
     new_date TEXT,
+    new_time TEXT,
     UNIQUE(series_id, original_date)
   );
 
@@ -266,6 +267,7 @@ type ExceptionRow = {
   original_date: string
   type: string
   new_date: string | null
+  new_time: string | null
 }
 
 type ReminderRow = {
@@ -412,6 +414,7 @@ function toException(row: ExceptionRow): InstanceException {
     originalDate: row.original_date,
     type: row.type,
     ...(row.new_date != null ? { newDate: row.new_date } : {}),
+    ...(row.new_time != null ? { newTime: row.new_time } : {}),
   } as InstanceException
 }
 
@@ -464,7 +467,15 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
   const ver = db.prepare('SELECT MAX(version) as v FROM schema_version').get() as SchemaVersionRow | undefined
   if (ver?.v == null) {
     db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
-      1, new Date().toISOString(),
+      2, new Date().toISOString(),
+    )
+  }
+
+  // Migration v1 → v2: Add new_time column to instance_exception
+  if (ver?.v != null && ver.v < 2) {
+    db.exec('ALTER TABLE instance_exception ADD COLUMN new_time TEXT')
+    db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(
+      2, new Date().toISOString(),
     )
   }
 
@@ -779,13 +790,14 @@ export async function createSqliteAdapter(path: string): Promise<SqliteAdapter> 
     async createInstanceException(exception: InstanceException) {
       safe(() =>
         db.prepare(
-          'INSERT INTO instance_exception (id, series_id, original_date, type, new_date) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO instance_exception (id, series_id, original_date, type, new_date, new_time) VALUES (?, ?, ?, ?, ?, ?)',
         ).run(
           exception.id,
           exception.seriesId,
           exception.originalDate,
           exception.type,
           exception.newDate ?? null,
+          exception.newTime ?? null,
         ),
       )
     },

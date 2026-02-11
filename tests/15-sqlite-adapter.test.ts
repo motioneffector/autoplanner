@@ -2087,4 +2087,222 @@ describe('Segment 15: SQLite Adapter', () => {
       });
     });
   });
+
+  // ==========================================================================
+  // Exception newTime Persistence (Concern 1 / F1)
+  // ==========================================================================
+
+  describe('Exception newTime Persistence', () => {
+    const testSid = 'newtime-series';
+
+    beforeEach(async () => {
+      await adapter.createSeries(createTestSeries(testSid));
+    });
+
+    it('rescheduled exception persists newTime through SQLite round-trip', async () => {
+      await adapter.createInstanceException({
+        id: 'exc-reschedule-1',
+        seriesId: testSid,
+        originalDate: date('2026-03-15'),
+        type: 'rescheduled',
+        newTime: datetime('2026-03-15T14:30:00'),
+      } as any);
+
+      const result = await adapter.getInstanceException(testSid, date('2026-03-15'));
+      expect(result).not.toBeNull();
+      expect(result!.id).toBe('exc-reschedule-1');
+      expect(result!.type).toBe('rescheduled');
+      expect(result!.newTime).toBe('2026-03-15T14:30:00');
+    });
+
+    it('rescheduled exception with newTime survives adapter close and reopen', async () => {
+      const tmpPath = `/tmp/autoplanner-newtime-test-${Date.now()}.db`;
+      try {
+        const firstAdapter = await createSqliteAdapter(tmpPath);
+        await firstAdapter.createSeries(createTestSeries('persist-test'));
+        await firstAdapter.createInstanceException({
+          id: 'exc-persist-1',
+          seriesId: 'persist-test',
+          originalDate: date('2026-04-01'),
+          type: 'rescheduled',
+          newTime: datetime('2026-04-01T09:15:00'),
+        } as any);
+        await firstAdapter.close();
+
+        // Reopen from same file — newTime must survive
+        const reopened = await createSqliteAdapter(tmpPath);
+        const result = await reopened.getInstanceException('persist-test', date('2026-04-01'));
+        expect(result).toMatchObject({
+          id: 'exc-persist-1',
+          seriesId: 'persist-test',
+          originalDate: '2026-04-01',
+          type: 'rescheduled',
+          newTime: '2026-04-01T09:15:00',
+        });
+        await reopened.close();
+      } finally {
+        const fs = await import('fs');
+        try { fs.unlinkSync(tmpPath); } catch {}
+      }
+    });
+
+    it('cancelled exception without newTime stores null', async () => {
+      await adapter.createInstanceException({
+        id: 'exc-cancel-1',
+        seriesId: testSid,
+        originalDate: date('2026-03-20'),
+        type: 'cancelled',
+      } as any);
+
+      const result = await adapter.getInstanceException(testSid, date('2026-03-20'));
+      expect(result).toMatchObject({
+        id: 'exc-cancel-1',
+        seriesId: testSid,
+        originalDate: '2026-03-20',
+        type: 'cancelled',
+      });
+      expect(Object.keys(result!)).not.toContain('newTime');
+    });
+
+    it('getAllExceptions returns newTime for rescheduled exceptions', async () => {
+      await adapter.createInstanceException({
+        id: 'exc-all-cancel',
+        seriesId: testSid,
+        originalDate: date('2026-05-01'),
+        type: 'cancelled',
+      } as any);
+      await adapter.createInstanceException({
+        id: 'exc-all-reschedule',
+        seriesId: testSid,
+        originalDate: date('2026-05-02'),
+        type: 'rescheduled',
+        newTime: datetime('2026-05-02T16:45:00'),
+      } as any);
+
+      const all = await adapter.getAllExceptions();
+      expect(all).toHaveLength(2);
+
+      const cancelled = all.find(e => e.id === 'exc-all-cancel')!;
+      const rescheduled = all.find(e => e.id === 'exc-all-reschedule')!;
+
+      expect(cancelled).toMatchObject({
+        id: 'exc-all-cancel',
+        type: 'cancelled',
+        originalDate: '2026-05-01',
+        seriesId: testSid,
+      });
+      expect(Object.keys(cancelled)).not.toContain('newTime');
+
+      expect(rescheduled).toMatchObject({
+        id: 'exc-all-reschedule',
+        type: 'rescheduled',
+        originalDate: '2026-05-02',
+        seriesId: testSid,
+        newTime: '2026-05-02T16:45:00',
+      });
+    });
+
+    it('exception with both newDate and newTime round-trips both fields', async () => {
+      await adapter.createInstanceException({
+        id: 'exc-both-fields',
+        seriesId: testSid,
+        originalDate: date('2026-06-10'),
+        type: 'rescheduled',
+        newDate: date('2026-06-11'),
+        newTime: datetime('2026-06-11T10:00:00'),
+      } as any);
+
+      const result = await adapter.getInstanceException(testSid, date('2026-06-10'));
+      expect(result).toMatchObject({
+        id: 'exc-both-fields',
+        seriesId: testSid,
+        originalDate: '2026-06-10',
+        type: 'rescheduled',
+        newDate: '2026-06-11',
+        newTime: '2026-06-11T10:00:00',
+      });
+    });
+
+    it('v1 database gets new_time column via migration', async () => {
+      const tmpPath = `/tmp/autoplanner-migration-test-${Date.now()}.db`;
+      try {
+        // Manually create a v1 database WITHOUT the new_time column
+        const Database = (await import('better-sqlite3')).default;
+        const rawDb = new Database(tmpPath);
+        rawDb.exec('PRAGMA foreign_keys = ON');
+        rawDb.exec(`
+          CREATE TABLE series (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT '',
+            description TEXT,
+            locked INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            start_date TEXT,
+            end_date TEXT,
+            default_duration INTEGER NOT NULL DEFAULT 0,
+            priority INTEGER NOT NULL DEFAULT 0,
+            time_window_start TEXT,
+            time_window_end TEXT
+          );
+          CREATE TABLE instance_exception (
+            id TEXT PRIMARY KEY,
+            series_id TEXT NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+            original_date TEXT NOT NULL,
+            type TEXT NOT NULL,
+            new_date TEXT,
+            UNIQUE(series_id, original_date)
+          );
+          CREATE TABLE schema_version (
+            version INTEGER PRIMARY KEY,
+            applied_at TEXT NOT NULL
+          );
+          INSERT INTO schema_version (version, applied_at) VALUES (1, '2025-01-01T00:00:00');
+          INSERT INTO series (id, title, locked, created_at, updated_at)
+            VALUES ('mig-series', 'Migration Test', 0, '2025-01-01T00:00:00', '2025-01-01T00:00:00');
+          INSERT INTO instance_exception (id, series_id, original_date, type, new_date)
+            VALUES ('mig-exc', 'mig-series', '2026-01-15', 'rescheduled', '2026-01-16');
+        `);
+        rawDb.close();
+
+        // Open with createSqliteAdapter — migration should run
+        const migrated = await createSqliteAdapter(tmpPath);
+
+        // Verify old exception survived migration
+        const oldExc = await migrated.getInstanceException('mig-series', date('2026-01-15'));
+        expect(oldExc).toMatchObject({
+          id: 'mig-exc',
+          type: 'rescheduled',
+          originalDate: '2026-01-15',
+          newDate: '2026-01-16',
+        });
+        expect(Object.keys(oldExc!)).not.toContain('newTime');
+
+        // Verify new exceptions can use newTime after migration
+        await migrated.createInstanceException({
+          id: 'mig-exc-new',
+          seriesId: 'mig-series',
+          originalDate: date('2026-02-15'),
+          type: 'rescheduled',
+          newTime: datetime('2026-02-15T14:00:00'),
+        } as any);
+
+        const newExc = await migrated.getInstanceException('mig-series', date('2026-02-15'));
+        expect(newExc).toMatchObject({
+          id: 'mig-exc-new',
+          type: 'rescheduled',
+          newTime: '2026-02-15T14:00:00',
+        });
+
+        // Verify schema version bumped to 2
+        const version = await migrated.getSchemaVersion();
+        expect(version).toBe(2);
+
+        await migrated.close();
+      } finally {
+        const fs = await import('fs');
+        try { fs.unlinkSync(tmpPath); } catch {}
+      }
+    });
+  });
 });
