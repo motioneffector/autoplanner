@@ -3556,7 +3556,7 @@ describe('Segment 14: Public API', () => {
   // ============================================================================
 
   describe('Date Range Validation', () => {
-    it('getSchedule with same start and end auto-corrects to one day', async () => {
+    it('getSchedule with same start and end returns empty (zero-width range)', async () => {
       const planner = createAutoplanner(createValidConfig());
       await planner.createSeries({
         title: 'Daily',
@@ -3564,13 +3564,10 @@ describe('Segment 14: Public API', () => {
         startDate: date('2025-01-06'),
       });
 
-      // Same date: should auto-correct to [Jan 6, Jan 7)
+      // Zero-width range [Jan 6, Jan 6) is empty — exclusive end
       const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
-      expect(result.instances).toHaveLength(1);
-      expect(result.instances[0]!).toMatchObject({
-        title: 'Daily',
-        date: '2025-01-06',
-      });
+      expect(result.instances).toHaveLength(0);
+      expect(result.conflicts).toHaveLength(0);
     });
 
     it('getSchedule with end before start throws ValidationError with dates in message', async () => {
@@ -3599,7 +3596,7 @@ describe('Segment 14: Public API', () => {
       expect(result.instances[1]!).toMatchObject({ title: 'Daily', date: '2025-01-07' });
     });
 
-    it('auto-corrected same-date result is cached correctly', async () => {
+    it('zero-width range returns empty on repeated calls', async () => {
       const planner = createAutoplanner(createValidConfig());
       await planner.createSeries({
         title: 'Daily',
@@ -3609,13 +3606,11 @@ describe('Segment 14: Public API', () => {
 
       const result1 = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
       const result2 = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
-      expect(result1.instances).toHaveLength(1);
-      expect(result2.instances).toHaveLength(1);
-      expect(result1.instances[0]!.date).toBe('2025-01-06');
-      expect(result2.instances[0]!.date).toBe('2025-01-06');
+      expect(result1.instances).toHaveLength(0);
+      expect(result2.instances).toHaveLength(0);
     });
 
-    it('auto-corrected same-date matches explicit +1 day range', async () => {
+    it('zero-width range differs from explicit +1 day range', async () => {
       const planner = createAutoplanner(createValidConfig());
       await planner.createSeries({
         title: 'Daily',
@@ -3623,12 +3618,11 @@ describe('Segment 14: Public API', () => {
         startDate: date('2025-01-06'),
       });
 
-      const sameDate = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
-      const explicit = await planner.getSchedule(date('2025-01-06'), date('2025-01-07'));
-      expect(sameDate.instances).toHaveLength(1);
-      expect(explicit.instances).toHaveLength(1);
-      expect(sameDate.instances[0]!.date).toBe(explicit.instances[0]!.date);
-      expect(sameDate.instances[0]!.title).toBe(explicit.instances[0]!.title);
+      const zeroWidth = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
+      const oneDay = await planner.getSchedule(date('2025-01-06'), date('2025-01-07'));
+      expect(zeroWidth.instances).toHaveLength(0);
+      expect(oneDay.instances).toHaveLength(1);
+      expect(oneDay.instances[0]!).toMatchObject({ title: 'Daily', date: '2025-01-06' });
     });
   });
 

@@ -1110,7 +1110,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     return allConflicts
   }
 
-  // Build schedule for [start, end] — both ends inclusive
+  // Build schedule for [start, end) — end is exclusive
   async function buildSchedule(start: LocalDate, end: LocalDate): Promise<Schedule> {
     // Use local cache if available (has full data including patterns),
     // fall back to adapter for series created outside the planner
@@ -2210,8 +2210,8 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       throw new ValidationError(`getSchedule: end (${end}) is before start (${start})`)
     }
     if ((end as string) === (start as string)) {
-      // Same date: caller wants one day — auto-correct to [start, start+1)
-      end = addDays(start, 1)
+      // Zero-width range [start, start) is empty — return immediately
+      return { instances: [], conflicts: [] }
     }
     const key = `${start}:${end}`
     const cached = scheduleResultCache.get(key)
