@@ -2203,8 +2203,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
   async function getSchedule(start: LocalDate, end: LocalDate): Promise<Schedule> {
     // end is exclusive: [start, end)
-    if ((end as string) <= (start as string)) {
-      return { instances: [], conflicts: [] }
+    if ((end as string) < (start as string)) {
+      throw new ValidationError(`getSchedule: end (${end}) is before start (${start})`)
+    }
+    if ((end as string) === (start as string)) {
+      // Same date: caller wants one day — auto-correct to [start, start+1)
+      end = addDays(start, 1)
     }
     const key = `${start}:${end}`
     const cached = scheduleResultCache.get(key)

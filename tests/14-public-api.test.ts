@@ -3552,6 +3552,91 @@ describe('Segment 14: Public API', () => {
   });
 
   // ============================================================================
+  // Date Range Validation
+  // ============================================================================
+
+  describe('Date Range Validation', () => {
+    it('getSchedule with same start and end auto-corrects to one day', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Daily',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-06'),
+      });
+
+      // Same date: should auto-correct to [Jan 6, Jan 7)
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
+      expect(result.instances).toHaveLength(1);
+      expect(result.instances[0]!).toMatchObject({
+        title: 'Daily',
+        date: '2025-01-06',
+      });
+    });
+
+    it('getSchedule with end before start throws ValidationError', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      await expect(
+        planner.getSchedule(date('2025-01-10'), date('2025-01-05'))
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it('getSchedule with end before start includes dates in error message', async () => {
+      const planner = createAutoplanner(createValidConfig());
+
+      await expect(
+        planner.getSchedule(date('2025-01-10'), date('2025-01-05'))
+      ).rejects.toThrow(/2025-01-05.*2025-01-10/);
+    });
+
+    it('getSchedule with normal range still works correctly', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Daily',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-06'),
+      });
+
+      const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-08'));
+      expect(result.instances).toHaveLength(2);
+      expect(result.instances[0]!).toMatchObject({ title: 'Daily', date: '2025-01-06' });
+      expect(result.instances[1]!).toMatchObject({ title: 'Daily', date: '2025-01-07' });
+    });
+
+    it('auto-corrected same-date result is cached correctly', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Daily',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-06'),
+      });
+
+      const result1 = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
+      const result2 = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
+      expect(result1.instances).toHaveLength(1);
+      expect(result2.instances).toHaveLength(1);
+      expect(result1.instances[0]!.date).toBe('2025-01-06');
+      expect(result2.instances[0]!.date).toBe('2025-01-06');
+    });
+
+    it('auto-corrected same-date matches explicit +1 day range', async () => {
+      const planner = createAutoplanner(createValidConfig());
+      await planner.createSeries({
+        title: 'Daily',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        startDate: date('2025-01-06'),
+      });
+
+      const sameDate = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
+      const explicit = await planner.getSchedule(date('2025-01-06'), date('2025-01-07'));
+      expect(sameDate.instances).toHaveLength(1);
+      expect(explicit.instances).toHaveLength(1);
+      expect(sameDate.instances[0]!.date).toBe(explicit.instances[0]!.date);
+      expect(sameDate.instances[0]!.title).toBe(explicit.instances[0]!.title);
+    });
+  });
+
+  // ============================================================================
   // Condition Dependency Index
   // ============================================================================
 
