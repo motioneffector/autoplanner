@@ -344,6 +344,7 @@ function resolveTimeForDate(dateStr: LocalDate, timeStr: LocalTime, tz: string):
   const d = dayOf(dateStr)
   const [hS, mS, sS] = (normalized as string).split(':') as [string, string, string]
   const h = parseInt(hS), m = parseInt(mS), s = parseInt(sS || '0')
+  if (isNaN(h) || isNaN(m) || isNaN(s)) throw new Error(`Non-numeric time components in '${normalized}'`)
 
   // Get offset at noon (safe from DST edges)
   const noonEpoch = Date.UTC(y, mo - 1, d, 12, 0, 0)
@@ -696,11 +697,13 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   const eventHandlers = new Map<string, ((...args: unknown[]) => void)[]>()
   let cachedConflicts: Conflict[] = []
 
-  function emit(event: string, ...args: unknown[]) {
+  function emit(event: string, ...args: unknown[]): boolean {
     const handlers = eventHandlers.get(event) || []
+    let hadErrors = false
     for (const handler of handlers) {
-      try { handler(...args) } catch { /* isolated */ }
+      try { handler(...args) } catch (e) { hadErrors = true; console.error(`Event handler error on '${event}':`, e) }
     }
+    return !hadErrors
   }
 
   function on(event: string, handler: (...args: unknown[]) => void) {

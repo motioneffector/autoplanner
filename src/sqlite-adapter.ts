@@ -381,6 +381,11 @@ function toPattern(row: PatternRow): Pattern {
   } as Pattern
 }
 
+function safeParseDays(raw: string, conditionId: string): number[] {
+  try { return JSON.parse(raw) as number[] }
+  catch { console.error('Malformed days JSON in condition', conditionId, raw); return [] }
+}
+
 function toCondition(row: ConditionRow): Condition {
   return {
     id: row.id,
@@ -392,7 +397,7 @@ function toCondition(row: ConditionRow): Condition {
     ...(row.window_days != null ? { windowDays: row.window_days } : {}),
     ...(row.comparison != null ? { comparison: row.comparison } : {}),
     ...(row.value != null ? { value: row.value } : {}),
-    ...(row.days != null ? { days: JSON.parse(row.days) as number[] } : {}),
+    ...(row.days != null ? { days: safeParseDays(row.days, row.id) } : {}),
   } as Condition
 }
 

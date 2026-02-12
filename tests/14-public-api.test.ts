@@ -3573,20 +3573,16 @@ describe('Segment 14: Public API', () => {
       });
     });
 
-    it('getSchedule with end before start throws ValidationError', async () => {
+    it('getSchedule with end before start throws ValidationError with dates in message', async () => {
       const planner = createAutoplanner(createValidConfig());
 
-      await expect(
-        planner.getSchedule(date('2025-01-10'), date('2025-01-05'))
-      ).rejects.toThrow(ValidationError);
-    });
-
-    it('getSchedule with end before start includes dates in error message', async () => {
-      const planner = createAutoplanner(createValidConfig());
-
-      await expect(
-        planner.getSchedule(date('2025-01-10'), date('2025-01-05'))
-      ).rejects.toThrow(/2025-01-05.*2025-01-10/);
+      try {
+        await planner.getSchedule(date('2025-01-10'), date('2025-01-05'));
+        expect.unreachable('should have thrown');
+      } catch (e) {
+        expect(e).toBeInstanceOf(ValidationError);
+        expect((e as Error).message).toMatch(/2025-01-05.*2025-01-10/);
+      }
     });
 
     it('getSchedule with normal range still works correctly', async () => {

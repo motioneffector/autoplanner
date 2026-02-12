@@ -90,7 +90,9 @@ export function completionValidGen(options?: {
 
       // Use JavaScript Date for proper arithmetic handling (including day overflow)
       const startDate = new Date(Date.UTC(year, month - 1, day, startHour, startMinute))
+      if (isNaN(startDate.getTime())) throw new Error(`Invalid start date in completion gen: ${year}-${month}-${day}`)
       const endDate = new Date(startDate.getTime() + (actualDuration as number) * 60 * 1000)
+      if (isNaN(endDate.getTime())) throw new Error(`Invalid end date in completion gen`)
 
       const endTime = makeLocalDateTime(
         makeLocalDate(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, endDate.getUTCDate()),
@@ -136,7 +138,9 @@ export function boundaryCompletionGen(): Arbitrary<Completion> {
 
       // Calculate end time for exactly 1 minute
       const startDate = new Date(Date.UTC(year, month - 1, day, startHour, startMinute))
+      if (isNaN(startDate.getTime())) throw new Error(`Invalid start date in boundary completion gen: ${year}-${month}-${day}`)
       const endDate = new Date(startDate.getTime() + 1 * 60 * 1000)
+      if (isNaN(endDate.getTime())) throw new Error(`Invalid end date in boundary completion gen`)
       const endTime = makeLocalDateTime(
         makeLocalDate(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, endDate.getUTCDate()),
         makeLocalTime(endDate.getUTCHours(), endDate.getUTCMinutes())

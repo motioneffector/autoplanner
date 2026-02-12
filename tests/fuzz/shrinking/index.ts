@@ -50,6 +50,7 @@ export function shrinkDateRange(range: DateRange): fc.Stream<DateRange> {
   if (daysBetween >= 2) {
     const halfDays = Math.floor(daysBetween / 2)
     const halfDate = new Date(startDate.getTime() + halfDays * 24 * 60 * 60 * 1000)
+    if (isNaN(halfDate.getTime())) throw new Error('Invalid half date in shrinkDateRange')
     shrinks.push({
       start: range.start,
       end: makeLocalDate(halfDate.getUTCFullYear(), halfDate.getUTCMonth() + 1, halfDate.getUTCDate()),
@@ -58,6 +59,7 @@ export function shrinkDateRange(range: DateRange): fc.Stream<DateRange> {
 
   // Strategy 2: Shrink by one day (from the end)
   const oneDayLess = new Date(endDate.getTime() - 24 * 60 * 60 * 1000)
+  if (isNaN(oneDayLess.getTime())) throw new Error('Invalid oneDayLess in shrinkDateRange')
   if (oneDayLess >= startDate) {
     shrinks.push({
       start: range.start,
@@ -67,6 +69,7 @@ export function shrinkDateRange(range: DateRange): fc.Stream<DateRange> {
 
   // Strategy 3: Shrink by one day (from the start)
   const oneDayMore = new Date(startDate.getTime() + 24 * 60 * 60 * 1000)
+  if (isNaN(oneDayMore.getTime())) throw new Error('Invalid oneDayMore in shrinkDateRange')
   if (oneDayMore <= endDate) {
     shrinks.push({
       start: makeLocalDate(oneDayMore.getUTCFullYear(), oneDayMore.getUTCMonth() + 1, oneDayMore.getUTCDate()),
@@ -101,7 +104,9 @@ export function dateRangeArb(options?: {
     .map(([year, month, day, rangeDays]) => {
       const start = makeLocalDate(year, month, day)
       const startDate = new Date(Date.UTC(year, month - 1, day))
+      if (isNaN(startDate.getTime())) throw new Error(`Invalid start date in dateRangeArb: ${year}-${month}-${day}`)
       const endDate = new Date(startDate.getTime() + rangeDays * 24 * 60 * 60 * 1000)
+      if (isNaN(endDate.getTime())) throw new Error(`Invalid end date in dateRangeArb`)
       const end = makeLocalDate(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, endDate.getUTCDate())
       return { start, end }
     })

@@ -116,6 +116,20 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
+function safeInt(s: string): number {
+  const n = parseInt(s, 10)
+  if (isNaN(n)) throw new Error(`Non-numeric time component: '${s}'`)
+  return n
+}
+
+function parseTimeWindow(tw: { start: LocalTime; end: LocalTime }): { startH: number; startM: number; endH: number; endM: number } {
+  const startH = safeInt((tw.start as string).substring(0, 2))
+  const startM = safeInt((tw.start as string).substring(3, 5))
+  const endH = safeInt((tw.end as string).substring(0, 2))
+  const endM = safeInt((tw.end as string).substring(3, 5))
+  return { startH, startM, endH, endM }
+}
+
 function makeDT(date: string, hour: number, minute: number): LocalDateTime {
   return `${date}T${pad2(hour)}:${pad2(minute)}:00` as LocalDateTime
 }
@@ -449,10 +463,7 @@ export function computeDomains(instances: Instance[]): Map<Instance, LocalDateTi
       const currentDate = addDays(idealDate as LocalDate, d) as string
 
       if (inst.timeWindow) {
-        const startH = parseInt((inst.timeWindow.start as string).substring(0, 2))
-        const startM = parseInt((inst.timeWindow.start as string).substring(3, 5))
-        const endH = parseInt((inst.timeWindow.end as string).substring(0, 2))
-        const endM = parseInt((inst.timeWindow.end as string).substring(3, 5))
+        const { startH, startM, endH, endM } = parseTimeWindow(inst.timeWindow)
 
         let h = startH
         let m = startM
@@ -1024,10 +1035,7 @@ export function handleNoSolution(
       // Domain was emptied by AC-3 cascade — regenerate from timeWindow
       if (inst.timeWindow) {
         const idealDate = (inst.idealTime as string).substring(0, 10)
-        const startH = parseInt((inst.timeWindow.start as string).substring(0, 2))
-        const startM = parseInt((inst.timeWindow.start as string).substring(3, 5))
-        const endH = parseInt((inst.timeWindow.end as string).substring(0, 2))
-        const endM = parseInt((inst.timeWindow.end as string).substring(3, 5))
+        const { startH, startM, endH, endM } = parseTimeWindow(inst.timeWindow)
         candidates = []
         let h = startH, m = startM
         while (h < endH || (h === endH && m <= endM)) {
@@ -1271,10 +1279,9 @@ export function reflow(input: ReflowInput): ReflowOutput {
   let windowMinutes = 24 * 60
   for (const inst of cspVariables) {
     if (inst.timeWindow) {
-      const wStart = parseInt((inst.timeWindow.start as string).substring(0, 2)) * 60 +
-        parseInt((inst.timeWindow.start as string).substring(3, 5))
-      const wEnd = parseInt((inst.timeWindow.end as string).substring(0, 2)) * 60 +
-        parseInt((inst.timeWindow.end as string).substring(3, 5))
+      const { startH, startM, endH, endM } = parseTimeWindow(inst.timeWindow)
+      const wStart = startH * 60 + startM
+      const wEnd = endH * 60 + endM
       const w = wEnd - wStart
       if (w > 0 && w < windowMinutes) windowMinutes = w
     }

@@ -107,6 +107,9 @@ export function parseDate(str: string): Result<LocalDate, ParseError> {
   const month = parseInt(match[2]!, 10)
   const day = parseInt(match[3]!, 10)
 
+  if (isNaN(year) || isNaN(month) || isNaN(day))
+    return Err(new ParseError(`Non-numeric date components in: '${str}'`))
+
   if (month < 1 || month > 12)
     return Err(new ParseError(`Invalid month in date: '${str}'`))
   if (day < 1 || day > daysInMonth(year, month))
@@ -122,6 +125,9 @@ export function parseTime(str: string): Result<LocalTime, ParseError> {
   const hour = parseInt(match[1]!, 10)
   const minute = parseInt(match[2]!, 10)
   const second = match[3] ? parseInt(match[3], 10) : 0
+
+  if (isNaN(hour) || isNaN(minute) || isNaN(second))
+    return Err(new ParseError(`Non-numeric time components in: '${str}'`))
 
   if (hour > 23)
     return Err(new ParseError(`Invalid hour in time: '${str}'`))
@@ -367,6 +373,7 @@ function dtToMs(dt: LocalDateTime): number {
 /** Convert epoch ms to a LocalDateTime (treating ms as UTC) */
 function msToDt(ms: number): LocalDateTime {
   const d = new Date(ms)
+  if (isNaN(d.getTime())) throw new Error(`Invalid timestamp: ${ms}`)
   return makeDateTime(
     makeDate(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()),
     makeTime(d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds())

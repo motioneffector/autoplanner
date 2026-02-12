@@ -33,7 +33,7 @@ function getNumRuns(): number {
  * Check if verbose mode is enabled.
  */
 function isVerbose(): boolean {
-  return process.env.FUZZ_VERBOSE === 'true'
+  return (process.env.FUZZ_VERBOSE ?? 'false') === 'true'
 }
 
 /**

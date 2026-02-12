@@ -102,6 +102,15 @@ export function timeIsValid(time: LocalTime): InvariantCheckResult {
   const hours = parseInt(match[1], 10)
   const minutes = parseInt(match[2], 10)
 
+  if (isNaN(hours) || isNaN(minutes)) {
+    violations.push({
+      invariant: 'timeIsValid',
+      message: `Non-numeric time components: ${time}`,
+      context: { time },
+    })
+    return { passed: false, violations }
+  }
+
   if (hours < 0 || hours > 23) {
     violations.push({
       invariant: 'timeIsValid',

@@ -198,7 +198,9 @@ export function genLogCompletion(state: SystemState): fc.Arbitrary<LogCompletion
     // Parse startTime and add duration to get endTime
     const startStr = startTime as string
     const startDate = new Date(startStr)
+    if (isNaN(startDate.getTime())) throw new Error(`Invalid start date in operation gen: ${startStr}`)
     const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000)
+    if (isNaN(endDate.getTime())) throw new Error(`Invalid end date in operation gen`)
 
     // Format endTime as LocalDateTime
     const endTime = `${endDate.getUTCFullYear()}-${String(endDate.getUTCMonth() + 1).padStart(2, '0')}-${String(endDate.getUTCDate()).padStart(2, '0')}T${String(endDate.getUTCHours()).padStart(2, '0')}:${String(endDate.getUTCMinutes()).padStart(2, '0')}:00` as any

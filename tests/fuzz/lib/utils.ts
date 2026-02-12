@@ -114,6 +114,7 @@ export function isValidTime(hours: number, minutes: number): boolean {
 export function getDayOfWeek(date: LocalDate): number {
   const { year, month, day } = parseLocalDate(date)
   const d = new Date(year, month - 1, day)
+  if (isNaN(d.getTime())) throw new Error(`Invalid date in getDayOfWeek: ${year}-${month}-${day}`)
   return d.getDay()
 }
 
@@ -131,6 +132,7 @@ export function dayOfWeekToName(dow: number): DayName {
 export function addDays(date: LocalDate, days: number): LocalDate {
   const { year, month, day } = parseLocalDate(date)
   const d = new Date(year, month - 1, day)
+  if (isNaN(d.getTime())) throw new Error(`Invalid date in addDays: ${year}-${month}-${day}`)
   d.setDate(d.getDate() + days)
   return makeLocalDate(d.getFullYear(), d.getMonth() + 1, d.getDate())
 }
@@ -229,12 +231,13 @@ export function deepEquals(a: unknown, b: unknown): boolean {
  * Uses FUZZ_ITERATIONS env var, defaulting to 100.
  */
 export function getFuzzIterations(): number {
-  return parseInt(process.env.FUZZ_ITERATIONS || '100', 10)
+  const raw = parseInt(process.env.FUZZ_ITERATIONS ?? '100', 10)
+  return isNaN(raw) ? 100 : raw
 }
 
 /**
  * Check if running in CI environment.
  */
 export function isCI(): boolean {
-  return process.env.CI === 'true'
+  return (process.env.CI ?? 'false') === 'true'
 }
