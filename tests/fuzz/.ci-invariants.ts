@@ -142,9 +142,9 @@ export function invariantCheckPlugin() {
  */
 export function getCIConfigFromEnv(): CIInvariantConfig {
   return {
-    failOnViolation: process.env.FUZZ_INVARIANT_FAIL !== 'false',
-    outputFormat: (process.env.FUZZ_INVARIANT_OUTPUT as 'json' | 'junit' | 'console') || 'console',
-    reportPath: process.env.FUZZ_INVARIANT_REPORT_PATH,
+    failOnViolation: (process.env.FUZZ_INVARIANT_FAIL ?? 'true') !== 'false',
+    outputFormat: (process.env.FUZZ_INVARIANT_OUTPUT ?? 'console') as 'json' | 'junit' | 'console',
+    reportPath: process.env.FUZZ_INVARIANT_REPORT_PATH ?? undefined,
   }
 }
 

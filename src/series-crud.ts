@@ -55,6 +55,23 @@ export type AdaptiveDurationInput = {
   max?: number
 }
 
+type PatternShape = {
+  type: string
+  n?: number
+  day?: number
+  month?: number
+  weekday?: number | string
+  allDay?: boolean
+  duration?: number
+  fixed?: boolean
+  time?: string
+  daysOfWeek?: (number | string)[]
+  dayOfWeek?: number | string
+  dayOfMonth?: number
+  days?: number[]
+  condition?: unknown
+}
+
 export type SeriesInput = {
   title: string
   startDate: LocalDate
@@ -63,8 +80,8 @@ export type SeriesInput = {
   description?: string
   endDate?: LocalDate
   count?: number
-  patterns?: { type: string; [key: string]: unknown }[]
-  pattern?: { type: string; [key: string]: unknown }
+  patterns?: PatternShape[]
+  pattern?: PatternShape
   time?: LocalDateTime
   tags?: string[]
   wiggle?: {
@@ -81,7 +98,6 @@ export type SeriesInput = {
     gapLeap: boolean
     currentIndex?: number
   }
-  [key: string]: unknown
 }
 
 export type SeriesUpdate = {
@@ -95,7 +111,6 @@ export type SeriesUpdate = {
   locked?: boolean
   fixed?: boolean
   wiggle?: SeriesInput['wiggle']
-  [key: string]: unknown
 }
 
 export type Series = {
@@ -112,7 +127,6 @@ export type Series = {
   locked: boolean
   fixed?: boolean
   wiggle?: SeriesInput['wiggle']
-  [key: string]: unknown
 }
 
 // ============================================================================

@@ -126,7 +126,6 @@ export type AdaptiveDurationInput = {
   fallback?: number
   lastN?: number
   multiplier?: number
-  [key: string]: unknown
 }
 
 export type CreateSeriesInput = {
@@ -156,7 +155,6 @@ export type ConstraintInput = {
   target?: ConstraintTarget
   secondTarget?: ConstraintTarget
   withinMinutes?: number
-  [key: string]: unknown
 }
 
 export type LogCompletionOptions = {
@@ -200,7 +198,6 @@ export type FullSeries = {
   adaptiveDuration?: AdaptiveDurationInput
   parentId?: string
   reminderOffsets?: number[]
-  [key: string]: unknown
 }
 
 type InternalCompletion = {

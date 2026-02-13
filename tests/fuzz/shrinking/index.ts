@@ -352,7 +352,8 @@ export function shrinkLinkChain(links: Link[]): fc.Stream<Link[]> {
 
 interface Operation {
   type: string
-  [key: string]: unknown
+  series?: { id: string }
+  seriesId?: string
 }
 
 /**

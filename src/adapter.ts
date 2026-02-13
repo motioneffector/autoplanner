@@ -33,7 +33,11 @@ export type Series = {
   startDate?: LocalDate
   endDate?: LocalDate
   updatedAt?: LocalDateTime
-  [key: string]: unknown
+  timeOfDay?: string
+  duration?: number | string
+  count?: number
+  fixed?: boolean
+  allDay?: boolean
 }
 
 export type Pattern = {
@@ -49,7 +53,9 @@ export type Pattern = {
   allDay?: boolean
   duration?: number
   fixed?: boolean
-  [key: string]: unknown
+  daysOfWeek?: (number | string)[]
+  dayOfWeek?: number | string
+  dayOfMonth?: number
 }
 
 export type Condition = {
@@ -63,7 +69,6 @@ export type Condition = {
   seriesRef?: string
   comparison?: string
   days?: number[]
-  [key: string]: unknown
 }
 
 export type Completion = {
@@ -84,7 +89,6 @@ export type InstanceException = {
   type: string
   newDate?: LocalDate
   newTime?: LocalDateTime
-  [key: string]: unknown
 }
 
 export type AdaptiveDurationConfig = {
@@ -128,7 +132,6 @@ export type RelationalConstraint = {
   sourceTarget: { tag: string } | { seriesId: string }
   destinationTarget: { tag: string } | { seriesId: string }
   withinMinutes?: number
-  [key: string]: unknown
 }
 
 export type Link = {

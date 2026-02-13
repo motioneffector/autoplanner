@@ -476,14 +476,14 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
@@ -501,21 +501,21 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const _seriesC = await createSeries(adapter, {
           title: 'C',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T11:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         // A at 09:00, C at 10:00, B at 11:00 - A and B not adjacent
@@ -558,21 +558,21 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const _seriesC = await createSeries(adapter, {
           title: 'C',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T11:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
@@ -590,14 +590,14 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
@@ -617,14 +617,14 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
@@ -642,14 +642,14 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T11:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
@@ -667,14 +667,14 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 60, // Ends at 10:00
+          duration: 60, // Ends at 10:00
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'), // Starts when A ends
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
@@ -694,14 +694,14 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T11:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
@@ -719,14 +719,14 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T10:00:00'),
-          durationMinutes: 60,
+          duration: 60,
         }) as SeriesId;
 
         const satisfied = await checkConstraint(adapter, {
@@ -740,27 +740,35 @@ describe('Segment 12: Relational Constraints', () => {
     });
 
     describe('4.5 mustBeWithin', () => {
+      // NOTE: These tests use duration: 45 (not 30) deliberately.
+      // Default duration is 30, so if someone accidentally writes
+      // "durationMinutes: 45" (wrong field, silently ignored), the
+      // series gets duration 30 and the gap calculations break,
+      // causing test failures. This guards against the field name bug.
+
       it('within time', async () => {
         const seriesA = await createSeries(adapter, {
           title: 'A',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 30,
+          duration: 45, // Ends 09:45
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: datetime('2024-01-01T09:20:00'),
-          durationMinutes: 30,
+          time: datetime('2024-01-01T10:00:00'),
+          duration: 45, // Ends 10:45
         }) as SeriesId;
 
+        // Gap: B starts 10:00 - A ends 09:45 = 15 min
+        // With wrong duration (30): gap would be 30 min → FAIL
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeWithin',
           source: { type: 'seriesId', seriesId: seriesA },
           dest: { type: 'seriesId', seriesId: seriesB },
-          withinMinutes: 30,
+          withinMinutes: 20,
         }, date('2024-01-15'));
 
         expect(satisfied).toBe(true);
@@ -772,21 +780,22 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 30,
+          duration: 45, // Ends 09:45
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: datetime('2024-01-01T10:01:00'), // 31 min gap from A end — actually outside
-          durationMinutes: 30,
+          time: datetime('2024-01-01T10:06:00'),
+          duration: 45,
         }) as SeriesId;
 
+        // Gap: B starts 10:06 - A ends 09:45 = 21 min > 20
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeWithin',
           source: { type: 'seriesId', seriesId: seriesA },
           dest: { type: 'seriesId', seriesId: seriesB },
-          withinMinutes: 30,
+          withinMinutes: 20,
         }, date('2024-01-15'));
 
         expect(satisfied).toBe(false);
@@ -798,16 +807,18 @@ describe('Segment 12: Relational Constraints', () => {
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
           time: datetime('2024-01-01T09:00:00'),
-          durationMinutes: 30, // Ends 09:30
+          duration: 45, // Ends 09:45
         }) as SeriesId;
         const seriesB = await createSeries(adapter, {
           title: 'B',
           startDate: date('2024-01-01'),
           pattern: { type: 'daily' },
-          time: datetime('2024-01-01T10:00:00'), // Exactly 30 min from A end
-          durationMinutes: 30,
+          time: datetime('2024-01-01T10:15:00'), // Gap = 30 min from A end
+          duration: 45,
         }) as SeriesId;
 
+        // Gap: B starts 10:15 - A ends 09:45 = 30 min = exactly withinMinutes
+        // With wrong duration (30): gap would be 45 min → FAIL
         const satisfied = await checkConstraint(adapter, {
           type: 'mustBeWithin',
           source: { type: 'seriesId', seriesId: seriesA },
@@ -927,7 +938,9 @@ describe('Segment 12: Relational Constraints', () => {
         dest: { type: 'seriesId', seriesId: seriesB },
       }, { start: date('2024-01-15'), end: date('2024-01-16') });
 
-      expect(violations.length === 1 && typeof violations[0].sourceInstance === 'string' && typeof violations[0].destInstance === 'string').toBe(true);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.sourceInstance).toMatch(/^[0-9a-f-]+@2024-01-15$/);
+      expect(violations[0]!.destInstance).toMatch(/^[0-9a-f-]+@2024-01-15$/);
     });
 
     it('multiple violations same constraint', async () => {
@@ -1170,22 +1183,26 @@ describe('Segment 12: Relational Constraints', () => {
     });
 
     it('B2: withinMinutes 0', async () => {
+      // NOTE: duration 45 (non-default) guards against field name bugs.
+      // If someone writes "durationMinutes: 45" (wrong field), default
+      // duration 30 applies → A ends 09:30, gap to B = 15 min > 0 → FAIL.
       const seriesA = await createSeries(adapter, {
         title: 'A',
         startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
         time: datetime('2024-01-01T09:00:00'),
-        durationMinutes: 30,
+        duration: 45, // Ends 09:45
       }) as SeriesId;
       const seriesB = await createSeries(adapter, {
         title: 'B',
         startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
-        time: datetime('2024-01-01T09:30:00'),
-        durationMinutes: 30,
+        time: datetime('2024-01-01T09:45:00'),
+        duration: 45,
       }) as SeriesId;
 
-      // withinMinutes=0 means must be adjacent
+      // Gap: B starts 09:45 - A ends 09:45 = 0 min
+      // With wrong duration (30): A ends 09:30, gap = 15 min > 0 → FAIL
       const satisfied = await checkConstraint(adapter, {
         type: 'mustBeWithin',
         source: { type: 'seriesId', seriesId: seriesA },
@@ -1203,7 +1220,7 @@ describe('Segment 12: Relational Constraints', () => {
         startDate: date('2024-01-01'),
         pattern: { type: 'daily' },
         time: datetime('2024-01-01T10:00:00'), // B at 10:00, A at 09:00
-        durationMinutes: 60,
+        duration: 60,
       }) as SeriesId;
 
       // Single instance in range — A(09:00) is before B(10:00)

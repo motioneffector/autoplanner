@@ -18,7 +18,16 @@ import {
   makeDate,
 } from './time-date'
 /** Minimal shape accepted by toExpandablePattern — matches both adapter Pattern and EnrichedPattern. */
-type PatternLike = { type: string; [key: string]: unknown }
+type PatternLike = {
+  type: string
+  n?: number
+  day?: number
+  month?: number
+  weekday?: number | string
+  daysOfWeek?: (number | string)[]
+  dayOfWeek?: number | string
+  dayOfMonth?: number
+}
 
 export type { LocalDate } from './time-date'
 
