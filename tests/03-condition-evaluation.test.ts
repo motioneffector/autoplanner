@@ -37,18 +37,22 @@ function createStore(completions: Completion[] = []): CompletionStore {
     getCompletionsInWindow: (target, windowStart, windowEnd) => {
       return completions.filter((c) => {
         const matchesTarget =
-          target.type === 'tag'
-            ? c.tags?.includes(target.tag) ?? false
-            : c.seriesId === target.seriesId
+          target.type === 'seriesId'
+            ? c.seriesId === target.seriesId
+            : target.type === 'tag'
+              ? c.tags?.includes(target.tag) ?? false
+              : false
         const inWindow = c.date >= windowStart && c.date <= windowEnd
         return matchesTarget && inWindow
       })
     },
     getLastCompletion: (target) => {
       const matching = completions.filter((c) =>
-        target.type === 'tag'
-          ? c.tags?.includes(target.tag) ?? false
-          : c.seriesId === target.seriesId
+        target.type === 'seriesId'
+          ? c.seriesId === target.seriesId
+          : target.type === 'tag'
+            ? c.tags?.includes(target.tag) ?? false
+            : false
       )
       if (matching.length === 0) return null
       return matching.reduce((latest, c) => (c.date > latest.date ? c : latest))
@@ -1166,6 +1170,32 @@ describe('Error Handling', () => {
   it('negative value throws InvalidConditionError', () => {
     expect(() => countCondition(byTag('walk'), '>=', -1, 14)).toThrow(/count value must be >= 0/)
   })
+
+  it('zero value is valid (boundary)', () => {
+    expect(() => countCondition(byTag('walk'), '>=', 0, 14)).not.toThrow()
+    const condition = countCondition(byTag('walk'), '>=', 0, 14)
+    expect(condition.type).toBe('count')
+    expect((condition as { value: number }).value).toBe(0)
+  })
+
+  it('zero windowDays is valid (boundary)', () => {
+    expect(() => countCondition(byTag('walk'), '>=', 1, 0)).not.toThrow()
+    const condition = countCondition(byTag('walk'), '>=', 1, 0)
+    expect(condition.type).toBe('count')
+    expect((condition as { windowDays: number }).windowDays).toBe(0)
+  })
+
+  it('andCondition with non-empty array succeeds', () => {
+    expect(() => andCondition([countCondition(byTag('walk'), '>=', 1, 14)])).not.toThrow()
+    const condition = andCondition([countCondition(byTag('walk'), '>=', 1, 14)])
+    expect(condition.type).toBe('and')
+  })
+
+  it('orCondition with non-empty array succeeds', () => {
+    expect(() => orCondition([countCondition(byTag('walk'), '>=', 1, 14)])).not.toThrow()
+    const condition = orCondition([countCondition(byTag('walk'), '>=', 1, 14)])
+    expect(condition.type).toBe('or')
+  })
 })
 
 // ============================================================================
@@ -1175,12 +1205,12 @@ describe('Error Handling', () => {
 describe('Real-World Scenarios', () => {
   describe('Deconditioned State', () => {
     // < 7 walks in 14 days
-    const deconditionedCondition = countCondition(byTag('walk'), '<', 7, 14)
+    const makeCondition = () => countCondition(byTag('walk'), '<', 7, 14)
 
     it('0 walks is deconditioned', () => {
       const asOf = '2024-01-15' as LocalDate
       const store = createStore([])
-      expect(evaluateCondition(deconditionedCondition, store, asOf)).toBe(true)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(true)
     })
 
     it('6 walks is deconditioned', () => {
@@ -1191,7 +1221,7 @@ describe('Real-World Scenarios', () => {
         tags: ['walk'],
       }))
       const store = createStore(completions)
-      expect(evaluateCondition(deconditionedCondition, store, asOf)).toBe(true)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(true)
     })
 
     it('7 walks is not deconditioned', () => {
@@ -1202,13 +1232,13 @@ describe('Real-World Scenarios', () => {
         tags: ['walk'],
       }))
       const store = createStore(completions)
-      expect(evaluateCondition(deconditionedCondition, store, asOf)).toBe(false)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(false)
     })
   })
 
   describe('Conditioning State', () => {
     // 7+ walks AND < 4 weight sessions
-    const conditioningCondition = andCondition([
+    const makeCondition = () => andCondition([
       countCondition(byTag('walk'), '>=', 7, 14),
       countCondition(byTag('weights'), '<', 4, 14),
     ])
@@ -1221,7 +1251,7 @@ describe('Real-World Scenarios', () => {
         tags: ['walk'],
       }))
       const store = createStore(completions)
-      expect(evaluateCondition(conditioningCondition, store, asOf)).toBe(false)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(false)
     })
 
     it('7 walks, 0 weights - true', () => {
@@ -1232,7 +1262,7 @@ describe('Real-World Scenarios', () => {
         tags: ['walk'],
       }))
       const store = createStore(completions)
-      expect(evaluateCondition(conditioningCondition, store, asOf)).toBe(true)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(true)
     })
 
     it('7 walks, 3 weights - true', () => {
@@ -1248,7 +1278,7 @@ describe('Real-World Scenarios', () => {
         tags: ['weights'],
       }))
       const store = createStore([...walks, ...weights])
-      expect(evaluateCondition(conditioningCondition, store, asOf)).toBe(true)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(true)
     })
 
     it('7 walks, 4 weights - false (too many weights)', () => {
@@ -1264,20 +1294,20 @@ describe('Real-World Scenarios', () => {
         tags: ['weights'],
       }))
       const store = createStore([...walks, ...weights])
-      expect(evaluateCondition(conditioningCondition, store, asOf)).toBe(false)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(false)
     })
   })
 
   describe('Regression Check', () => {
     // No workout in 7+ days
-    const regressionCondition = daysSinceCondition(byTag('workout'), '>=', 7)
+    const makeCondition = () => daysSinceCondition(byTag('workout'), '>=', 7)
 
     it('worked out 3 days ago - not regressed', () => {
       const asOf = '2024-01-15' as LocalDate
       const store = createStore([
         { seriesId: 'a', date: addDays(asOf, -3), tags: ['workout'] },
       ])
-      expect(evaluateCondition(regressionCondition, store, asOf)).toBe(false)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(false)
     })
 
     it('worked out 7 days ago - regressed', () => {
@@ -1285,13 +1315,13 @@ describe('Real-World Scenarios', () => {
       const store = createStore([
         { seriesId: 'a', date: addDays(asOf, -7), tags: ['workout'] },
       ])
-      expect(evaluateCondition(regressionCondition, store, asOf)).toBe(true)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(true)
     })
 
     it('never worked out - regressed', () => {
       const asOf = '2024-01-15' as LocalDate
       const store = createStore([])
-      expect(evaluateCondition(regressionCondition, store, asOf)).toBe(true)
+      expect(evaluateCondition(makeCondition(), store, asOf)).toBe(true)
     })
   })
 })
