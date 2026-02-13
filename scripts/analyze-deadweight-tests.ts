@@ -73,11 +73,13 @@ const killerIds = new Set<string>()
 const coverIds = new Set<string>()
 const killCountByTest = new Map<string, number>()
 const uniqueKillCountByTest = new Map<string, number>()
+const killProfileByTest = new Map<string, Set<string>>()
 
 let totalMutants = 0
 let killedMutants = 0
 let survivedMutants = 0
 let noCoverageMutants = 0
+let noBailDetected = false
 
 for (const fileResult of Object.values(report.files)) {
   for (const mutant of fileResult.mutants) {
@@ -88,9 +90,18 @@ for (const fileResult of Object.values(report.files)) {
     else if (mutant.status === 'NoCoverage') noCoverageMutants++
 
     if (mutant.killedBy) {
+      if (mutant.killedBy.length > 1) noBailDetected = true
+
       for (const testId of mutant.killedBy) {
         killerIds.add(testId)
         killCountByTest.set(testId, (killCountByTest.get(testId) ?? 0) + 1)
+
+        let profile = killProfileByTest.get(testId)
+        if (!profile) {
+          profile = new Set<string>()
+          killProfileByTest.set(testId, profile)
+        }
+        profile.add(mutant.id)
       }
 
       // Unique kill: only one test killed this mutant
@@ -129,6 +140,62 @@ for (const [testId, info] of testRegistry) {
     tier2.push(info)
   } else {
     tier3.push(info)
+  }
+}
+
+// ============================================================================
+// Dominated-test detection
+// ============================================================================
+
+type DominatedInfo = {
+  test: TestInfo
+  kills: number
+  dominator: TestInfo
+  dominatorKills: number
+}
+
+const dominated: DominatedInfo[] = []
+
+// Only zero-unique-kill tier 1 tests can be dominated — tests with unique kills
+// have a mutant no other test kills, so no single test can be a strict superset.
+const candidates = tier1.filter(t => (uniqueKillCountByTest.get(t.id) ?? 0) === 0)
+
+// Build sorted list of potential dominators (all tier 1 tests with a kill profile)
+const dominatorPool = tier1
+  .filter(t => (killCountByTest.get(t.id) ?? 0) > 0)
+  .sort((a, b) => (killCountByTest.get(a.id) ?? 0) - (killCountByTest.get(b.id) ?? 0))
+
+for (const candidate of candidates) {
+  const candidateProfile = killProfileByTest.get(candidate.id)
+  if (!candidateProfile || candidateProfile.size === 0) continue
+
+  const candidateKills = candidateProfile.size
+
+  for (const potential of dominatorPool) {
+    if (potential.id === candidate.id) continue
+
+    const potentialProfile = killProfileByTest.get(potential.id)
+    if (!potentialProfile) continue
+    if (potentialProfile.size <= candidateKills) continue // Can't be strict superset
+
+    // Check if candidate's kills are a strict subset of potential's kills
+    let isSubset = true
+    for (const mutantId of candidateProfile) {
+      if (!potentialProfile.has(mutantId)) {
+        isSubset = false
+        break
+      }
+    }
+
+    if (isSubset) {
+      dominated.push({
+        test: candidate,
+        kills: candidateKills,
+        dominator: potential,
+        dominatorKills: potentialProfile.size,
+      })
+      break // First match is closest dominator (sorted by kill count)
+    }
   }
 }
 
@@ -197,8 +264,12 @@ if (tier3.length === 0) {
 console.log(`\n${'='.repeat(70)}`)
 console.log(`  TIER 2: COVERAGE-ONLY TESTS (${tier2.length})`)
 console.log(`  Executed mutated code but never caught a mutation.`)
-console.log(`  NOTE: First-kill bias inflates this tier. Many may be genuinely useful`)
-console.log(`  but another test ran first and got credit for the kill.`)
+if (noBailDetected) {
+  console.log(`  With disableBail, these results are exact.`)
+} else {
+  console.log(`  NOTE: First-kill bias inflates this tier. Many may be genuinely useful`)
+  console.log(`  but another test ran first and got credit for the kill.`)
+}
 console.log(`${'='.repeat(70)}\n`)
 
 if (tier2.length === 0) {
@@ -215,8 +286,12 @@ console.log(`\n${'='.repeat(70)}`)
 console.log(`  TIER 1: TESTS WITH ZERO UNIQUE KILLS (${zeroUniqueKills.length} of ${tier1.length} killers)`)
 console.log(`  These tests killed mutants, but every mutant they killed was also`)
 console.log(`  killed by another test. Possible redundancy candidates.`)
-console.log(`  NOTE: First-kill bias means this is an upper bound — some tests`)
-console.log(`  listed here may have unique kills that weren't recorded.`)
+if (noBailDetected) {
+  console.log(`  With disableBail, these counts are exact.`)
+} else {
+  console.log(`  NOTE: First-kill bias means this is an upper bound — some tests`)
+  console.log(`  listed here may have unique kills that weren't recorded.`)
+}
 console.log(`${'='.repeat(70)}\n`)
 
 if (zeroUniqueKills.length === 0) {
@@ -226,6 +301,34 @@ if (zeroUniqueKills.length === 0) {
     const kills = killCountByTest.get(t.id) ?? 0
     return ` (${kills} total kills, 0 unique)`
   })
+}
+
+// Dominated tests
+console.log(`\n${'='.repeat(70)}`)
+console.log(`  DOMINATED TESTS (${dominated.length} of ${candidates.length} zero-unique-kill tests)`)
+console.log(`  Test A's kill set is a strict subset of test B's.`)
+console.log(`  Removing A loses zero mutation coverage.`)
+console.log(`${'='.repeat(70)}\n`)
+
+if (dominated.length === 0) {
+  console.log('  (none)')
+} else {
+  const domGrouped = groupByFile(dominated.map(d => d.test))
+  const domSortedFiles = [...domGrouped.keys()].sort()
+  const domByTestId = new Map(dominated.map(d => [d.test.id, d]))
+
+  console.log(`  Summary: ${dominated.length} dominated across ${domSortedFiles.length} test file(s)\n`)
+
+  for (const file of domSortedFiles) {
+    const fileTests = domGrouped.get(file)!
+    console.log(`  ${file}: (${fileTests.length} dominated)`)
+    for (const t of fileTests) {
+      const info = domByTestId.get(t.id)!
+      const fileSuffix = info.dominator.file !== file ? ` [${info.dominator.file}]` : ''
+      console.log(`    - ${t.name} (${info.kills} kills)`)
+      console.log(`      \u2190 ${info.dominator.name} (${info.dominatorKills} kills)${fileSuffix}`)
+    }
+  }
 }
 
 console.log('')
