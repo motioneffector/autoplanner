@@ -1561,6 +1561,18 @@ describe('Segment 06: Completions', () => {
         expect(durations[0]).toBe(150);
       });
     });
+
+    describe('6.4 Mode: unknown type', () => {
+      it('throws on unrecognized mode type', async () => {
+        await expect(
+          getDurationsForAdaptive(adapter, {
+            seriesId: testSeriesId,
+            mode: { type: 'bogus' } as any,
+            asOf: date('2024-01-20'),
+          })
+        ).rejects.toThrow('Unknown adaptive duration mode: bogus');
+      });
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -300,10 +300,11 @@ export async function getDurationsForAdaptive(
 
   if (input.mode.type === 'lastN') {
     filtered = filtered.slice(0, input.mode.n)
-  } else {
-    // windowDays mode
+  } else if (input.mode.type === 'windowDays') {
     const start = windowStart(input.asOf, input.mode.days)
     filtered = filtered.filter(c => isInWindow(c.date, start, input.asOf))
+  } else {
+    throw new Error(`Unknown adaptive duration mode: ${(input.mode as { type: string }).type}`)
   }
 
   return filtered.map(c => c.durationMinutes).filter((d): d is number => d != null)
