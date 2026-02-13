@@ -3416,4 +3416,484 @@ describe('Segment 13: Reflow Algorithm', () => {
       expect(overlapConflicts).toStrictEqual([]);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MUTATION TARGET: OVERLAP BOUNDARY (<= vs <)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('Overlap Boundary Precision', () => {
+    it('checkNoOverlap: endA === startB is NOT overlap (adjacent)', () => {
+      // A: 09:00-10:00, B: 10:00-11:00 → no overlap
+      expect(checkNoOverlap(
+        datetime('2025-01-15T09:00:00'), minutes(60),
+        datetime('2025-01-15T10:00:00'), minutes(60)
+      )).toBe(true);
+    });
+
+    it('checkNoOverlap: endA one minute after startB IS overlap', () => {
+      // A: 09:00-10:01, B: 10:00-11:00 → overlap
+      expect(checkNoOverlap(
+        datetime('2025-01-15T09:00:00'), minutes(61),
+        datetime('2025-01-15T10:00:00'), minutes(60)
+      )).toBe(false);
+    });
+
+    it('checkNoOverlap: endB === startA is NOT overlap (reverse adjacent)', () => {
+      // B: 08:00-09:00, A: 09:00-10:00 → no overlap
+      expect(checkNoOverlap(
+        datetime('2025-01-15T09:00:00'), minutes(60),
+        datetime('2025-01-15T08:00:00'), minutes(60)
+      )).toBe(true);
+    });
+
+    it('checkNoOverlap: endB one minute after startA IS overlap (reverse)', () => {
+      // B: 08:00-09:01, A: 09:00-10:00 → overlap
+      expect(checkNoOverlap(
+        datetime('2025-01-15T09:00:00'), minutes(60),
+        datetime('2025-01-15T08:00:00'), minutes(61)
+      )).toBe(false);
+    });
+
+    it('checkNoOverlap: identical times is overlap', () => {
+      expect(checkNoOverlap(
+        datetime('2025-01-15T09:00:00'), minutes(60),
+        datetime('2025-01-15T09:00:00'), minutes(60)
+      )).toBe(false);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MUTATION TARGET: CHAIN CONSTRAINT BOUNDARY
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('Chain Constraint Boundary Precision', () => {
+    it('child at exact earliest boundary — satisfied', () => {
+      // Parent ends 10:00, distance 15, earlyWobble 10
+      // target = 10:15, earliest = 10:05
+      const result = checkChainConstraint({
+        parentScheduledEnd: datetime('2025-01-15T10:00:00'),
+        parentCompleted: false,
+        childStart: datetime('2025-01-15T10:05:00'), // exactly at earliest
+        chainDistance: 15,
+        earlyWobble: minutes(10),
+        lateWobble: minutes(5),
+      });
+      expect(result).toBe(true);
+    });
+
+    it('child 1 min before earliest — violated', () => {
+      const result = checkChainConstraint({
+        parentScheduledEnd: datetime('2025-01-15T10:00:00'),
+        parentCompleted: false,
+        childStart: datetime('2025-01-15T10:04:00'), // 1 min before earliest
+        chainDistance: 15,
+        earlyWobble: minutes(10),
+        lateWobble: minutes(5),
+      });
+      expect(result).toBe(false);
+    });
+
+    it('child at exact latest boundary — satisfied', () => {
+      // target = 10:15, latest = 10:20
+      const result = checkChainConstraint({
+        parentScheduledEnd: datetime('2025-01-15T10:00:00'),
+        parentCompleted: false,
+        childStart: datetime('2025-01-15T10:20:00'), // exactly at latest
+        chainDistance: 15,
+        earlyWobble: minutes(10),
+        lateWobble: minutes(5),
+      });
+      expect(result).toBe(true);
+    });
+
+    it('child 1 min after latest — violated', () => {
+      const result = checkChainConstraint({
+        parentScheduledEnd: datetime('2025-01-15T10:00:00'),
+        parentCompleted: false,
+        childStart: datetime('2025-01-15T10:21:00'), // 1 min after latest
+        chainDistance: 15,
+        earlyWobble: minutes(10),
+        lateWobble: minutes(5),
+      });
+      expect(result).toBe(false);
+    });
+
+    it('actual end used when completed — not scheduled end', () => {
+      // Scheduled end 10:00, actual end 09:30 (completed early)
+      // distance 15 → target 09:45, lateWobble 5 → latest 09:50
+      const result = checkChainConstraint({
+        parentScheduledEnd: datetime('2025-01-15T10:00:00'),
+        parentActualEnd: datetime('2025-01-15T09:30:00'),
+        parentCompleted: true,
+        childStart: datetime('2025-01-15T09:45:00'),
+        chainDistance: 15,
+        earlyWobble: minutes(0),
+        lateWobble: minutes(5),
+      });
+      expect(result).toBe(true);
+
+      // Same time with scheduled end would be outside range
+      const resultScheduled = checkChainConstraint({
+        parentScheduledEnd: datetime('2025-01-15T10:00:00'),
+        parentActualEnd: datetime('2025-01-15T09:30:00'),
+        parentCompleted: false, // not completed → uses scheduled end
+        childStart: datetime('2025-01-15T09:45:00'),
+        chainDistance: 15,
+        earlyWobble: minutes(0),
+        lateWobble: minutes(5),
+      });
+      // target would be 10:15, child at 09:45 is before earliest → false
+      expect(resultScheduled).toBe(false);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MUTATION TARGET: CAPACITY CHECK BOUNDARY
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('Capacity Check Boundary', () => {
+    it('totalMinutes exactly at window — backtracking attempted (solution found)', () => {
+      // Positive control: overlapping fixed items DO produce conflicts
+      const conflictInput = createReflowInput([
+        createBasicSeries('X', { fixed: true, duration: 30, idealTime: '2025-01-15T08:00:00' }),
+        createBasicSeries('Y', { fixed: true, duration: 30, idealTime: '2025-01-15T08:00:00' }),
+      ]);
+      const conflictResult = reflow(conflictInput);
+      expect(conflictResult.conflicts).toHaveLength(1);
+      expect(conflictResult.conflicts[0].type).toBe('overlap');
+
+      // Now test: 2 items of 30min each = 60min total, window 08:00-09:00 = 60min
+      const input = createReflowInput([
+        createBasicSeries('A', { duration: 30, timeWindowStart: '08:00', timeWindowEnd: '09:00', idealTime: '2025-01-15T08:00:00' }),
+        createBasicSeries('B', { duration: 30, timeWindowStart: '08:00', timeWindowEnd: '09:00', idealTime: '2025-01-15T08:30:00' }),
+      ]);
+
+      const result = reflow(input);
+      // Backtracking should find a valid non-overlapping assignment
+      expect(result.assignments).toHaveLength(2);
+      expect(result.conflicts).toHaveLength(0);
+      const aAssignment = result.assignments.find(a => (a.seriesId as string) === 'A');
+      const bAssignment = result.assignments.find(a => (a.seriesId as string) === 'B');
+      expect(aAssignment!.time).toBe(datetime('2025-01-15T08:00:00'));
+      expect(bAssignment!.time).toBe(datetime('2025-01-15T08:30:00'));
+    });
+
+    it('totalMinutes exceeds window — greedy fallback with conflicts', () => {
+      // 6 items of 15min each = 90min total, window 08:00-09:00 = 60min
+      // Domain includes 08:00..09:00 at 5-min steps. At most 5 non-overlapping
+      // placements (08:00, 08:15, 08:30, 08:45, 09:00), so 6th must overlap.
+      const input = createReflowInput([
+        createBasicSeries('A', { duration: 15, timeWindowStart: '08:00', timeWindowEnd: '09:00', idealTime: '2025-01-15T08:00:00' }),
+        createBasicSeries('B', { duration: 15, timeWindowStart: '08:00', timeWindowEnd: '09:00', idealTime: '2025-01-15T08:15:00' }),
+        createBasicSeries('C', { duration: 15, timeWindowStart: '08:00', timeWindowEnd: '09:00', idealTime: '2025-01-15T08:30:00' }),
+        createBasicSeries('D', { duration: 15, timeWindowStart: '08:00', timeWindowEnd: '09:00', idealTime: '2025-01-15T08:45:00' }),
+        createBasicSeries('E', { duration: 15, timeWindowStart: '08:00', timeWindowEnd: '09:00', idealTime: '2025-01-15T09:00:00' }),
+        createBasicSeries('F', { duration: 15, timeWindowStart: '08:00', timeWindowEnd: '09:00', idealTime: '2025-01-15T08:30:00' }),
+      ]);
+
+      const result = reflow(input);
+      // Greedy placement produces all 6 assignments but with overlaps
+      expect(result.assignments).toHaveLength(6);
+      // Verify all 6 series are present in assignments
+      const assignedIds = result.assignments.map(a => a.seriesId as string).sort();
+      expect(assignedIds).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+      // Exactly 1 overlap conflict: the 6th item forced into an occupied slot
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts[0].type).toBe('overlap');
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MUTATION TARGET: GENERATE INSTANCES FILTERING
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('Generate Instances Filtering', () => {
+    it('cancelled series excluded from instances', () => {
+      const input = createReflowInput([
+        createBasicSeries('Active', { cancelled: false }),
+        createBasicSeries('Cancelled', { cancelled: true }),
+      ]);
+
+      const instances = generateInstances(input);
+      const seriesIds = instances.map(i => i.seriesId as string);
+      expect(seriesIds).toContain('Active');
+      expect(seriesIds).not.toContain('Cancelled');
+    });
+
+    it('conditionSatisfied=false excluded from instances', () => {
+      const input = createReflowInput([
+        createBasicSeries('Satisfied', { conditionSatisfied: true }),
+        createBasicSeries('Unsatisfied', { conditionSatisfied: false }),
+      ]);
+
+      const instances = generateInstances(input);
+      const seriesIds = instances.map(i => i.seriesId as string);
+      expect(seriesIds).toContain('Satisfied');
+      expect(seriesIds).not.toContain('Unsatisfied');
+    });
+
+    it('rescheduledTo used for first instance ideal time', () => {
+      const input = createReflowInput([
+        createBasicSeries('Rescheduled', {
+          idealTime: '2025-01-15T09:00:00',
+          rescheduledTo: '2025-01-15T14:00:00',
+        }),
+      ]);
+
+      const instances = generateInstances(input);
+      expect(instances).toHaveLength(1);
+      expect(instances[0].idealTime).toBe(datetime('2025-01-15T14:00:00'));
+    });
+
+    it('multi-count series: only first gets rescheduledTo', () => {
+      const input = createReflowInput([
+        createBasicSeries('MultiCount', {
+          idealTime: '2025-01-15T09:00:00',
+          rescheduledTo: '2025-01-15T14:00:00',
+          count: 3,
+        }),
+      ]);
+
+      const instances = generateInstances(input);
+      expect(instances).toHaveLength(3);
+      expect(instances[0].idealTime).toBe(datetime('2025-01-15T14:00:00')); // rescheduled
+      // Second and third instances use normal idealTime pattern (next days, original time)
+      expect(instances[1].idealTime).toBe(datetime('2025-01-16T09:00:00'));
+      expect(instances[2].idealTime).toBe(datetime('2025-01-17T09:00:00'));
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MUTATION TARGET: DOMAIN COMPUTATION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('Domain Computation Boundary', () => {
+    it('fixed instance has single-slot domain', () => {
+      const inst: Instance = {
+        seriesId: seriesId('Fixed'),
+        fixed: true,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: false,
+      };
+
+      const domains = computeDomains([inst]);
+      expect(domains.get(inst)).toEqual([datetime('2025-01-15T09:00:00')]);
+    });
+
+    it('all-day instance excluded from domains', () => {
+      const inst: Instance = {
+        seriesId: seriesId('AllDay'),
+        fixed: false,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: true,
+      };
+
+      const domains = computeDomains([inst]);
+      expect(domains.has(inst)).toBe(false);
+    });
+
+    it('chain child excluded from domains', () => {
+      const inst: Instance = {
+        seriesId: seriesId('Child'),
+        fixed: false,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: false,
+        parentId: seriesId('Parent'),
+      };
+
+      const domains = computeDomains([inst]);
+      expect(domains.has(inst)).toBe(false);
+    });
+
+    it('time window boundary included', () => {
+      const inst: Instance = {
+        seriesId: seriesId('Windowed'),
+        fixed: false,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(30),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: false,
+        timeWindow: { start: '09:00:00' as LocalTime, end: '09:10:00' as LocalTime },
+      };
+
+      const domains = computeDomains([inst]);
+      const domain = domains.get(inst)!;
+      // Window 09:00-09:10 at 5-min increments → exactly 3 slots
+      expect(domain).toHaveLength(3);
+      expect(domain[0]).toBe(datetime('2025-01-15T09:00:00'));
+      expect(domain[1]).toBe(datetime('2025-01-15T09:05:00'));
+      expect(domain[2]).toBe(datetime('2025-01-15T09:10:00'));
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MUTATION TARGET: CHAIN TREE BUILDING
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('Chain Tree Edge Cases', () => {
+    it('buildChainTree with empty chains returns empty map', () => {
+      const inst: Instance = {
+        seriesId: seriesId('Solo'),
+        fixed: false,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: false,
+      };
+
+      const tree = buildChainTree([inst], []);
+      expect(tree.size).toBe(0);
+    });
+
+    it('buildChainTree with missing child instance skips chain', () => {
+      const parent: Instance = {
+        seriesId: seriesId('Parent'),
+        fixed: false,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: false,
+      };
+
+      const tree = buildChainTree([parent], [{
+        parentId: seriesId('Parent'),
+        childId: seriesId('MissingChild'),
+        distance: 15,
+        earlyWobble: 0,
+        lateWobble: 0,
+      }]);
+      // Child instance doesn't exist → chain ignored
+      expect(tree.size).toBe(0);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MUTATION TARGET: handleNoSolution CONFLICT DETECTION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('handleNoSolution Conflict Detection', () => {
+    it('noValidSlot conflict for empty domain', () => {
+      const inst = {
+        seriesId: seriesId('EmptyDomain'),
+        fixed: false,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: false,
+      } as Instance;
+
+      const domains = new Map<Instance, LocalDateTime[]>();
+      domains.set(inst, []); // empty domain
+
+      const result = handleNoSolution([inst], domains, []);
+      expect(result.conflicts.some(c => c.type === 'noValidSlot')).toBe(true);
+      expect(result.conflicts.find(c => c.type === 'noValidSlot')!.message).toContain('EmptyDomain');
+    });
+
+    it('constraintViolation conflict when mustBeBefore violated', () => {
+      const A = {
+        seriesId: seriesId('A'),
+        fixed: true,
+        idealTime: datetime('2025-01-15T11:00:00'),
+        duration: minutes(60),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: false,
+      } as Instance;
+      const B = {
+        seriesId: seriesId('B'),
+        fixed: true,
+        idealTime: datetime('2025-01-15T09:00:00'),
+        duration: minutes(60),
+        daysBefore: 0,
+        daysAfter: 0,
+        allDay: false,
+      } as Instance;
+
+      const constraints = [{ type: 'mustBeBefore' as const, first: A, second: B }];
+      const result = handleNoSolution([A, B], new Map(), constraints);
+
+      // A at 11:00 must be before B at 09:00 → impossible → constraint violation
+      expect(result.conflicts.some(c => c.type === 'constraintViolation')).toBe(true);
+    });
+
+    it('workload score returns 0 for unknown date', () => {
+      const workload = new Map<string, number>();
+      workload.set('2025-01-15', 480);
+
+      const score = calculateWorkloadScore(date('2025-01-20'), workload);
+      expect(score).toBe(0);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MUTATION TARGET: CHAIN SHADOW DEPTH LIMIT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('Chain Shadow Depth Limit', () => {
+    it('chainShadowClear returns true at max depth (permissive)', () => {
+      // A single child that would be impossible to place (occupied range blocks it)
+      const children: ChainNode[] = [{
+        instance: {
+          seriesId: seriesId('BlockedChild'),
+          fixed: false,
+          idealTime: datetime('2025-01-15T12:00:00'),
+          duration: minutes(15),
+          daysBefore: 0,
+          daysAfter: 0,
+          allDay: false,
+        },
+        distance: 5,
+        earlyWobble: 0,
+        lateWobble: 0,
+        children: [],
+      }];
+
+      // Block the entire day so child can't fit anywhere
+      const occupiedRanges = [{ start: '2025-01-15T00:00:00', end: '2025-01-15T23:59:00' }];
+
+      // At shallow depth, child can't fit → false
+      const shallow = chainShadowClear(
+        datetime('2025-01-15T09:00:00'),
+        60,
+        children,
+        occupiedRanges,
+        0
+      );
+      expect(shallow).toBe(false);
+
+      // At depth 7 (one below MAX_CHAIN_SHADOW_DEPTH), still checks → false
+      const justBelow = chainShadowClear(
+        datetime('2025-01-15T09:00:00'),
+        60,
+        children,
+        occupiedRanges,
+        7
+      );
+      expect(justBelow).toBe(false);
+
+      // At depth >= MAX_CHAIN_SHADOW_DEPTH (8), permissive → true
+      const deep = chainShadowClear(
+        datetime('2025-01-15T09:00:00'),
+        60,
+        children,
+        occupiedRanges,
+        8
+      );
+      expect(deep).toBe(true);
+    });
+  });
 });

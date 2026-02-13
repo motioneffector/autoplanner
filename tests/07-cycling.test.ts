@@ -768,6 +768,250 @@ describe('Segment 07: Cycling', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 8B: ERROR PATH COVERAGE (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('8B. Error Path Coverage', () => {
+    describe('advanceCycling error paths', () => {
+      it('nonexistent series returns NotFoundError with seriesId', async () => {
+        const result = await advanceCycling(adapter, 'ghost-series-id');
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('NotFoundError');
+          expect(result.error.message).toContain('ghost-series-id');
+        }
+      });
+
+      it('series without cycling returns NoCyclingError with seriesId', async () => {
+        const seriesId = await createSeries(adapter, {
+          title: 'No Cycling',
+          startDate: date('2024-01-01'),
+        }) as SeriesId;
+
+        const result = await advanceCycling(adapter, seriesId);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('NoCyclingError');
+          expect(result.error.message).toContain(seriesId);
+        }
+      });
+
+      it('gapLeap=false returns GapLeapDisabledError with message', async () => {
+        const seriesId = await createSeries(adapter, {
+          title: 'No GapLeap',
+          startDate: date('2024-01-01'),
+          cycling: {
+            items: ['A', 'B'],
+            mode: 'sequential',
+            gapLeap: false,
+          },
+        }) as SeriesId;
+
+        const result = await advanceCycling(adapter, seriesId);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('GapLeapDisabledError');
+          expect(result.error.message).toContain('gapLeap');
+        }
+      });
+    });
+
+    describe('resetCycling error paths', () => {
+      it('nonexistent series returns NotFoundError with seriesId', async () => {
+        const result = await resetCycling(adapter, 'ghost-reset-id');
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('NotFoundError');
+          expect(result.error.message).toContain('ghost-reset-id');
+        }
+      });
+
+      it('series without cycling returns NoCyclingError with seriesId', async () => {
+        const seriesId = await createSeries(adapter, {
+          title: 'No Cycling Reset',
+          startDate: date('2024-01-01'),
+        }) as SeriesId;
+
+        const result = await resetCycling(adapter, seriesId);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('NoCyclingError');
+          expect(result.error.message).toContain(seriesId);
+        }
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 8C: NULL COALESCING DEFAULTS (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('8C. Null Coalescing Defaults', () => {
+    it('sequential gapLeap=true with undefined currentIndex defaults to item 0', () => {
+      const config: CyclingConfig = {
+        items: ['First', 'Second', 'Third'],
+        mode: 'sequential',
+        gapLeap: true,
+        // currentIndex deliberately omitted
+      };
+      const item = getCyclingItem(config, { instanceNumber: 99 });
+      expect(item).toBe('First'); // (undefined ?? 0) % 3 = 0 → 'First'
+    });
+
+    it('random gapLeap=true with undefined currentIndex uses seed 0', () => {
+      const config: CyclingConfig = {
+        items: ['A', 'B', 'C'],
+        mode: 'random',
+        gapLeap: true,
+        // currentIndex deliberately omitted → seed = undefined ?? 0 = 0
+      };
+      const withUndefined = getCyclingItem(config, { instanceNumber: 42 });
+
+      const configExplicit: CyclingConfig = {
+        items: ['A', 'B', 'C'],
+        mode: 'random',
+        gapLeap: true,
+        currentIndex: 0, // explicitly 0
+      };
+      const withExplicit = getCyclingItem(configExplicit, { instanceNumber: 42 });
+
+      expect(withUndefined).toBe(withExplicit);
+      // Also verify the actual value — seededIndex(0, 3) = 1 → items[1] = 'B'
+      expect(withUndefined).toBe('B');
+    });
+
+    it('advanceCycling with undefined currentIndex starts from 0', async () => {
+      const seriesId = await createSeries(adapter, {
+        title: 'Undefined Index',
+        startDate: date('2024-01-01'),
+        cycling: {
+          items: ['A', 'B', 'C'],
+          mode: 'sequential',
+          gapLeap: true,
+          currentIndex: 2, // Start at 2 so we can distinguish from ?? 0 fallback
+        },
+      }) as SeriesId;
+
+      // Positive control: advance from index 2 → (2+1)%3 = 0
+      const controlResult = await advanceCycling(adapter, seriesId);
+      expect(controlResult.ok).toBe(true);
+      if (controlResult.ok) {
+        expect(controlResult.value.currentIndex).toBe(0); // (2+1)%3 = 0
+      }
+
+      // Now bypass createSeries normalization: set cycling WITHOUT currentIndex
+      // This tests cycling.ts line 86: `const currentIndex = cycling.currentIndex ?? 0`
+      await adapter.updateSeries(seriesId, {
+        cycling: {
+          items: ['A', 'B', 'C'],
+          mode: 'sequential',
+          gapLeap: true,
+          // currentIndex deliberately omitted → undefined in series.cycling
+        },
+      } as any);
+
+      // advance from (undefined ?? 0) → newIndex = (0 + 1) % 3 = 1
+      // NOT (0+1)%3=1 from the old 0 — the old index was 0 from control advance
+      // If ?? 0 fallback is broken, it would use some other value
+      const result = await advanceCycling(adapter, seriesId);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.currentIndex).toBe(1); // (0+1)%3 = 1 from ?? 0 fallback
+      }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 8D: DUAL-UPDATE VERIFICATION (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('8D. Dual-Update Verification', () => {
+    it('advanceCycling updates both series record and cycling config', async () => {
+      const seriesId = await createSeries(adapter, {
+        title: 'Dual Update',
+        startDate: date('2024-01-01'),
+        cycling: {
+          items: ['A', 'B', 'C'],
+          mode: 'sequential',
+          gapLeap: true,
+          currentIndex: 0,
+        },
+      }) as SeriesId;
+
+      await advanceCycling(adapter, seriesId);
+
+      // Verify series record
+      const series = await adapter.getSeries(seriesId);
+      expect((series as any)?.cycling?.currentIndex).toBe(1);
+
+      // Verify cycling config table
+      const config = await adapter.getCyclingConfig(seriesId);
+      expect(config?.currentIndex).toBe(1);
+    });
+
+    it('resetCycling updates both series record and cycling config', async () => {
+      const seriesId = await createSeries(adapter, {
+        title: 'Dual Reset',
+        startDate: date('2024-01-01'),
+        cycling: {
+          items: ['A', 'B', 'C'],
+          mode: 'sequential',
+          gapLeap: true,
+          currentIndex: 2,
+        },
+      }) as SeriesId;
+
+      // Verify before-state has non-zero index
+      const seriesBefore = await adapter.getSeries(seriesId);
+      expect((seriesBefore as any)?.cycling?.currentIndex).toBe(2);
+      const configBefore = await adapter.getCyclingConfig(seriesId);
+      expect(configBefore?.currentIndex).toBe(2);
+
+      await resetCycling(adapter, seriesId);
+
+      // Verify series record reset — was 2, now should be 0
+      const series = await adapter.getSeries(seriesId);
+      const seriesIndex = (series as any)?.cycling?.currentIndex;
+      expect(seriesIndex).not.toBe(2);
+      expect(seriesIndex).toEqual(0);
+
+      // Verify cycling config table reset — was 2, now should be 0
+      const config = await adapter.getCyclingConfig(seriesId);
+      expect(config).not.toBeNull();
+      expect(config!.currentIndex).not.toBe(2);
+      expect(config!.currentIndex).toEqual(0);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 8E: INSTANCE NUMBER EDGE CASES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('8E. Instance Number Edge Cases', () => {
+    it('getInstanceNumber returns -1 for date not in list', () => {
+      const instanceDates = [
+        date('2024-01-01'),
+        date('2024-01-02'),
+        date('2024-01-03'),
+      ];
+      const result = getInstanceNumber(date('2024-01-05'), instanceDates);
+      expect(result).toBe(-1);
+    });
+
+    it('getInstanceNumber with unsorted input sorts correctly', () => {
+      const instanceDates = [
+        date('2024-01-03'),
+        date('2024-01-01'),
+        date('2024-01-02'),
+      ];
+      // After sorting: ['2024-01-01', '2024-01-02', '2024-01-03']
+      expect(getInstanceNumber(date('2024-01-01'), instanceDates)).toBe(0);
+      expect(getInstanceNumber(date('2024-01-02'), instanceDates)).toBe(1);
+      expect(getInstanceNumber(date('2024-01-03'), instanceDates)).toBe(2);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // SECTION 9: INVARIANTS
   // ═══════════════════════════════════════════════════════════════════════════
 

@@ -60,7 +60,7 @@ describe('Segment 12: Relational Constraints', () => {
       startDate: date('2024-01-01'),
       pattern: { type: 'daily' },
       time: datetime('2024-01-01T09:00:00'),
-      durationMinutes: 60,
+      duration: 30,
       tags,
     }) as SeriesId;
   }
@@ -1226,6 +1226,315 @@ describe('Segment 12: Relational Constraints', () => {
       }, date('2024-01-15'));
 
       expect(satisfied).toBe(true); // Empty source = trivially satisfied
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 10: DATE BOUNDARY TESTS (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('10. Date Boundary Tests', () => {
+    it('instance on exact startDate exists', async () => {
+      const boundedId = await createSeries(adapter, {
+        title: 'Bounded',
+        startDate: date('2024-01-15'),
+        endDate: date('2024-01-20'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-15T09:00:00'),
+        duration: 60,
+      }) as SeriesId;
+      // Control series that exists on all dates (daily from 2024-01-01)
+      const alwaysId = await createTestSeries('Always');
+
+      // mustBeOnSameDay: source=always (exists on 2024-01-15), dest=bounded
+      // If bounded HAS instance: both exist → true (satisfied)
+      // If bounded has NO instance: source exists, dest absent → false (violated)
+      const satisfied = await checkConstraint(adapter, {
+        type: 'mustBeOnSameDay',
+        source: { type: 'seriesId', seriesId: alwaysId },
+        dest: { type: 'seriesId', seriesId: boundedId },
+      }, date('2024-01-15'));
+
+      expect(satisfied).toBe(true); // Bounded HAS instance on startDate
+    });
+
+    it('instance one day before startDate does not exist', async () => {
+      const boundedId = await createSeries(adapter, {
+        title: 'Bounded',
+        startDate: date('2024-01-15'),
+        endDate: date('2024-01-20'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-15T09:00:00'),
+        duration: 60,
+      }) as SeriesId;
+      // Control series that exists on all dates including 2024-01-14
+      const alwaysId = await createTestSeries('Always');
+
+      // mustBeOnSameDay: source=always (exists on 2024-01-14), dest=bounded (should NOT exist)
+      // If bounded has NO instance: source exists, dest absent → false (violated)
+      // If bounded HAS instance (bug): both exist → true
+      const violated = await checkConstraint(adapter, {
+        type: 'mustBeOnSameDay',
+        source: { type: 'seriesId', seriesId: alwaysId },
+        dest: { type: 'seriesId', seriesId: boundedId },
+      }, date('2024-01-14'));
+
+      expect(violated).toBe(false); // Bounded has NO instance before startDate
+    });
+
+    it('instance on exclusive endDate does not exist', async () => {
+      const boundedId = await createSeries(adapter, {
+        title: 'Bounded',
+        startDate: date('2024-01-15'),
+        endDate: date('2024-01-20'), // exclusive
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-15T09:00:00'),
+        duration: 60,
+      }) as SeriesId;
+      // Control series that exists on all dates including 2024-01-20
+      const alwaysId = await createTestSeries('Always');
+
+      // mustBeOnSameDay: source=always (exists on 2024-01-20), dest=bounded (should NOT exist)
+      // If bounded has NO instance: source exists, dest absent → false (violated)
+      // If bounded HAS instance (endDate bug): both exist → true
+      const violated = await checkConstraint(adapter, {
+        type: 'mustBeOnSameDay',
+        source: { type: 'seriesId', seriesId: alwaysId },
+        dest: { type: 'seriesId', seriesId: boundedId },
+      }, date('2024-01-20'));
+
+      expect(violated).toBe(false); // Bounded has NO instance on exclusive endDate
+    });
+
+    it('instance one day before endDate exists', async () => {
+      const boundedId = await createSeries(adapter, {
+        title: 'Bounded',
+        startDate: date('2024-01-15'),
+        endDate: date('2024-01-20'), // exclusive
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-15T09:00:00'),
+        duration: 60,
+      }) as SeriesId;
+      // Control series that exists on all dates
+      const alwaysId = await createTestSeries('Always');
+
+      // mustBeOnSameDay: source=always (exists on 2024-01-19), dest=bounded
+      // If bounded HAS instance: both exist → true (satisfied)
+      // If bounded has NO instance (endDate bug): source exists, dest absent → false
+      const satisfied = await checkConstraint(adapter, {
+        type: 'mustBeOnSameDay',
+        source: { type: 'seriesId', seriesId: alwaysId },
+        dest: { type: 'seriesId', seriesId: boundedId },
+      }, date('2024-01-19'));
+
+      expect(satisfied).toBe(true); // Bounded HAS instance one day before endDate
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 11: CANCELLED INSTANCE EXCLUSION (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('11. Cancelled Instance Exclusion', () => {
+    it('cancelled source instance treated as absent', async () => {
+      const { cancelInstance } = await import('../src/instance-exceptions');
+
+      const seriesA = await createSeries(adapter, {
+        title: 'A',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T09:00:00'),
+        duration: 60,
+      }) as SeriesId;
+      const seriesB = await createTestSeries('B');
+
+      // Before cancel: cantBeOnSameDay with both A and B existing → violated (false)
+      const beforeCancel = await checkConstraint(adapter, {
+        type: 'cantBeOnSameDay',
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, date('2024-01-15'));
+      expect(beforeCancel).toBe(false); // Both exist → can't-be-on-same-day violated
+
+      // Cancel A on Jan 15
+      await cancelInstance(adapter, seriesA, date('2024-01-15'));
+
+      // After cancel: cantBeOnSameDay with A cancelled → empty source → trivially satisfied
+      const afterCancel = await checkConstraint(adapter, {
+        type: 'cantBeOnSameDay',
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, date('2024-01-15'));
+      expect(afterCancel).toBe(true); // A cancelled → absent → trivially satisfied
+    });
+
+    it('cancelled dest instance treated as absent for cantBeOnSameDay', async () => {
+      const { cancelInstance } = await import('../src/instance-exceptions');
+
+      const seriesA = await createTestSeries('A');
+      const seriesB = await createSeries(adapter, {
+        title: 'B',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T10:00:00'),
+        duration: 60,
+      }) as SeriesId;
+
+      // Cancel B on Jan 15
+      await cancelInstance(adapter, seriesB, date('2024-01-15'));
+
+      // cantBeOnSameDay: dest cancelled → no dest instance → satisfied
+      const satisfied = await checkConstraint(adapter, {
+        type: 'cantBeOnSameDay',
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, date('2024-01-15'));
+
+      expect(satisfied).toBe(true);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 12: VALIDATION & EDGE CASES (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('12. Validation & Edge Cases', () => {
+    it('withinMinutes negative rejected with message', async () => {
+      const seriesA = await createTestSeries('A');
+      const seriesB = await createTestSeries('B');
+
+      const result = await addConstraint(adapter, {
+        type: 'mustBeWithin',
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+        withinMinutes: -1,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('ValidationError');
+        expect(result.error.message).toContain('>= 0');
+      }
+    });
+
+    it('withinMinutes undefined rejected for mustBeWithin', async () => {
+      const seriesA = await createTestSeries('A');
+      const seriesB = await createTestSeries('B');
+
+      const result = await addConstraint(adapter, {
+        type: 'mustBeWithin',
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+        // withinMinutes deliberately omitted
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('ValidationError');
+      }
+    });
+
+    it('mustBeBefore at same start time — violated', async () => {
+      const seriesA = await createSeries(adapter, {
+        title: 'A',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T09:00:00'),
+        duration: 60,
+      }) as SeriesId;
+      const seriesB = await createSeries(adapter, {
+        title: 'B',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T09:00:00'), // Same time
+        duration: 60,
+      }) as SeriesId;
+
+      const satisfied = await checkConstraint(adapter, {
+        type: 'mustBeBefore',
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, date('2024-01-15'));
+
+      // Same start time → not strictly before → violated
+      expect(satisfied).toBe(false);
+    });
+
+    it('mustBeAfter at same start time — violated', async () => {
+      const seriesA = await createSeries(adapter, {
+        title: 'A',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T09:00:00'),
+        duration: 60,
+      }) as SeriesId;
+      const seriesB = await createSeries(adapter, {
+        title: 'B',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T09:00:00'), // Same time
+        duration: 60,
+      }) as SeriesId;
+
+      const satisfied = await checkConstraint(adapter, {
+        type: 'mustBeAfter',
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, date('2024-01-15'));
+
+      // Same start time → not strictly after → violated
+      expect(satisfied).toBe(false);
+    });
+
+    it('violation date range exclusive end', async () => {
+      const seriesA = await createSeries(adapter, {
+        title: 'A',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T11:00:00'),
+      }) as SeriesId;
+      const seriesB = await createSeries(adapter, {
+        title: 'B',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T09:00:00'),
+      }) as SeriesId;
+
+      // Range [15, 17) → should check 15, 16 (not 17)
+      const violations = await getConstraintViolations(adapter, {
+        type: 'mustBeBefore',
+        source: { type: 'seriesId', seriesId: seriesA },
+        dest: { type: 'seriesId', seriesId: seriesB },
+      }, { start: date('2024-01-15'), end: date('2024-01-17') });
+
+      expect(violations).toHaveLength(2); // Jan 15, Jan 16
+      const dates = violations.map(v => v.date);
+      expect(dates).toContain(date('2024-01-15'));
+      expect(dates).toContain(date('2024-01-16'));
+    });
+
+    it('all-day source excluded from mustBeBefore (intra-day)', async () => {
+      const allDayId = await createSeries(adapter, {
+        title: 'AllDay',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        allDay: true,
+      }) as SeriesId;
+      const timedId = await createSeries(adapter, {
+        title: 'Timed',
+        startDate: date('2024-01-01'),
+        pattern: { type: 'daily' },
+        time: datetime('2024-01-01T09:00:00'),
+        duration: 60,
+      }) as SeriesId;
+
+      const satisfied = await checkConstraint(adapter, {
+        type: 'mustBeBefore',
+        source: { type: 'seriesId', seriesId: allDayId },
+        dest: { type: 'seriesId', seriesId: timedId },
+      }, date('2024-01-15'));
+
+      expect(satisfied).toBe(true); // All-day excluded from intra-day
     });
   });
 });

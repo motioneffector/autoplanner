@@ -67,7 +67,7 @@ describe('Segment 11: Links (Chains)', () => {
       startDate: date('2024-01-01'),
       pattern: { type: 'daily' },
       time: datetime('2024-01-01T09:00:00'),
-      durationMinutes: 30,
+      duration: 30,
     }) as SeriesId;
   }
 
@@ -1348,4 +1348,354 @@ describe('Segment 11: Links (Chains)', () => {
       });
     });
   });
-});
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 13: ERROR MESSAGE ASSERTIONS (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('13. Error Message Assertions', () => {
+    describe('linkSeries error messages', () => {
+      it('negative targetDistance includes >= 0', async () => {
+        const parentId = await createTestSeries('Parent');
+        const childId = await createTestSeries('Child');
+
+        const result = await linkSeries(adapter, {
+          parentSeriesId: parentId,
+          childSeriesId: childId,
+          targetDistance: -1,
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('ValidationError');
+          expect(result.error.message).toContain('>= 0');
+        }
+      });
+
+      it('self-link message mentions itself', async () => {
+        const seriesId = await createTestSeries('Series');
+
+        const result = await linkSeries(adapter, {
+          parentSeriesId: seriesId,
+          childSeriesId: seriesId,
+          targetDistance: 15,
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('SelfLinkError');
+          expect(result.error.message).toContain('itself');
+        }
+      });
+
+      it('parent not found message contains parent ID', async () => {
+        const childId = await createTestSeries('Child');
+
+        const result = await linkSeries(adapter, {
+          parentSeriesId: 'nonexistent-parent' as SeriesId,
+          childSeriesId: childId,
+          targetDistance: 15,
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('NotFoundError');
+          expect(result.error.message).toContain('nonexistent-parent');
+        }
+      });
+
+      it('child not found message contains child ID', async () => {
+        const parentId = await createTestSeries('Parent');
+
+        const result = await linkSeries(adapter, {
+          parentSeriesId: parentId,
+          childSeriesId: 'nonexistent-child' as SeriesId,
+          targetDistance: 15,
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('NotFoundError');
+          expect(result.error.message).toContain('nonexistent-child');
+        }
+      });
+
+      it('already linked message contains child ID', async () => {
+        const parent1Id = await createTestSeries('Parent1');
+        const parent2Id = await createTestSeries('Parent2');
+        const childId = await createTestSeries('Child');
+
+        await linkSeries(adapter, { parentSeriesId: parent1Id, childSeriesId: childId, targetDistance: 15 });
+
+        const result = await linkSeries(adapter, {
+          parentSeriesId: parent2Id,
+          childSeriesId: childId,
+          targetDistance: 10,
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('AlreadyLinkedError');
+          expect(result.error.message).toContain(childId);
+        }
+      });
+
+      it('cycle detection message mentions cycle', async () => {
+        const aId = await createTestSeries('A');
+        const bId = await createTestSeries('B');
+
+        await linkSeries(adapter, { parentSeriesId: aId, childSeriesId: bId, targetDistance: 15 });
+
+        const result = await linkSeries(adapter, {
+          parentSeriesId: bId,
+          childSeriesId: aId,
+          targetDistance: 15,
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('CycleDetectedError');
+          expect(result.error.message).toContain('cycle');
+        }
+      });
+
+      it('chain depth exceeded message mentions 32', async () => {
+        const series: SeriesId[] = [];
+        for (let i = 0; i < 34; i++) {
+          series.push(await createTestSeries(`Series${i}`));
+        }
+        for (let i = 0; i < 32; i++) {
+          await linkSeries(adapter, { parentSeriesId: series[i], childSeriesId: series[i + 1], targetDistance: 1 });
+        }
+
+        const result = await linkSeries(adapter, {
+          parentSeriesId: series[32],
+          childSeriesId: series[33],
+          targetDistance: 1,
+        });
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('ChainDepthExceededError');
+          expect(result.error.message).toContain('32');
+        }
+      });
+    });
+
+    describe('unlinkSeries error messages', () => {
+      it('no link message contains child ID', async () => {
+        const childId = await createTestSeries('Child');
+
+        const result = await unlinkSeries(adapter, childId);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('NoLinkError');
+          expect(result.error.message).toContain(childId);
+        }
+      });
+    });
+
+    describe('updateLink error messages', () => {
+      it('link not found message contains link ID', async () => {
+        const result = await updateLink(adapter, 'ghost-link-id' as LinkId, { targetDistance: 30 });
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('NotFoundError');
+          expect(result.error.message).toContain('ghost-link-id');
+        }
+      });
+
+      it('cannot change parentSeriesId', async () => {
+        const parentId = await createTestSeries('Parent');
+        const childId = await createTestSeries('Child');
+
+        const createResult = await linkSeries(adapter, {
+          parentSeriesId: parentId,
+          childSeriesId: childId,
+          targetDistance: 15,
+        });
+        expect(createResult.ok).toBe(true);
+        if (!createResult.ok) throw new Error('setup failed');
+
+        const result = await updateLink(adapter, createResult.value.id, {
+          parentSeriesId: 'other' as any,
+        } as any);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('ValidationError');
+          expect(result.error.message).toContain('parentSeriesId');
+        }
+      });
+
+      it('cannot change childSeriesId', async () => {
+        const parentId = await createTestSeries('Parent');
+        const childId = await createTestSeries('Child');
+
+        const createResult = await linkSeries(adapter, {
+          parentSeriesId: parentId,
+          childSeriesId: childId,
+          targetDistance: 15,
+        });
+        expect(createResult.ok).toBe(true);
+        if (!createResult.ok) throw new Error('setup failed');
+
+        const result = await updateLink(adapter, createResult.value.id, {
+          childSeriesId: 'other' as any,
+        } as any);
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error.type).toBe('ValidationError');
+          expect(result.error.message).toContain('childSeriesId');
+        }
+      });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 14: CONFLICT BOUNDARY TESTS (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('14. Conflict Boundary Tests', () => {
+    it('proposed time exactly at earliest boundary — no conflict', async () => {
+      const parentId = await createTestSeries('Parent');
+      const childId = await createTestSeries('Child');
+
+      const linkResult = await linkSeries(adapter, {
+        parentSeriesId: parentId,
+        childSeriesId: childId,
+        targetDistance: 15,
+        earlyWobble: 5,
+        lateWobble: 10,
+      });
+      expect(linkResult.ok).toBe(true); // link creation must succeed
+
+      // Parent ends 09:30, target 09:45, earliest = 09:40
+      const conflicts = await detectConflicts(adapter, childId, date('2024-01-15'), {
+        proposedTime: datetime('2024-01-15T09:40:00'), // exactly at earliest
+      });
+      expect(conflicts.some(c => c.type === 'chainBoundsViolated')).toBe(false);
+    });
+
+    it('proposed time exactly at latest boundary — no conflict', async () => {
+      const parentId = await createTestSeries('Parent');
+      const childId = await createTestSeries('Child');
+
+      const linkResult = await linkSeries(adapter, {
+        parentSeriesId: parentId,
+        childSeriesId: childId,
+        targetDistance: 15,
+        earlyWobble: 5,
+        lateWobble: 10,
+      });
+      expect(linkResult.ok).toBe(true); // link creation must succeed
+
+      // latest = 09:55
+      const conflicts = await detectConflicts(adapter, childId, date('2024-01-15'), {
+        proposedTime: datetime('2024-01-15T09:55:00'), // exactly at latest
+      });
+      expect(conflicts.some(c => c.type === 'chainBoundsViolated')).toBe(false);
+    });
+
+    it('proposed time 1 min before earliest — conflict', async () => {
+      const parentId = await createTestSeries('Parent');
+      const childId = await createTestSeries('Child');
+
+      await linkSeries(adapter, {
+        parentSeriesId: parentId,
+        childSeriesId: childId,
+        targetDistance: 15,
+        earlyWobble: 5,
+        lateWobble: 10,
+      });
+
+      // earliest = 09:40, so 09:39 is outside
+      const conflicts = await detectConflicts(adapter, childId, date('2024-01-15'), {
+        proposedTime: datetime('2024-01-15T09:39:00'),
+      });
+      expect(conflicts.some(c => c.type === 'chainBoundsViolated')).toBe(true);
+    });
+
+    it('proposed time 1 min after latest — conflict', async () => {
+      const parentId = await createTestSeries('Parent');
+      const childId = await createTestSeries('Child');
+
+      await linkSeries(adapter, {
+        parentSeriesId: parentId,
+        childSeriesId: childId,
+        targetDistance: 15,
+        earlyWobble: 5,
+        lateWobble: 10,
+      });
+
+      // latest = 09:55, so 09:56 is outside
+      const conflicts = await detectConflicts(adapter, childId, date('2024-01-15'), {
+        proposedTime: datetime('2024-01-15T09:56:00'),
+      });
+      expect(conflicts.some(c => c.type === 'chainBoundsViolated')).toBe(true);
+    });
+
+    it('detectConflicts on non-linked series returns no conflicts', async () => {
+      // Positive control: linked series with out-of-bounds time DOES produce conflicts
+      const parentId = await createTestSeries('ControlParent');
+      const childId = await createTestSeries('ControlChild');
+      await linkSeries(adapter, {
+        parentSeriesId: parentId,
+        childSeriesId: childId,
+        targetDistance: 15,
+        earlyWobble: 5,
+        lateWobble: 5,
+      });
+      const linkedConflicts = await detectConflicts(adapter, childId, date('2024-01-15'), {
+        proposedTime: datetime('2024-01-15T23:00:00'),
+      });
+      expect(linkedConflicts).toHaveLength(1);
+      expect(linkedConflicts[0].type).toBe('chainBoundsViolated');
+
+      // Now test: non-linked series returns empty — contrasts with positive control above
+      const seriesId = await createTestSeries('Independent');
+      const conflicts = await detectConflicts(adapter, seriesId, date('2024-01-15'), {
+        proposedTime: datetime('2024-01-15T09:00:00'),
+      });
+      expect(conflicts).toHaveLength(0);
+    });
+
+    it('earlyWobble/lateWobble default to 0 when omitted', async () => {
+      const parentId = await createTestSeries('Parent');
+      const childId = await createTestSeries('Child');
+
+      await linkSeries(adapter, {
+        parentSeriesId: parentId,
+        childSeriesId: childId,
+        targetDistance: 15,
+        // earlyWobble and lateWobble omitted → default to 0
+      });
+
+      const window = await getChildValidWindow(adapter, childId, date('2024-01-15'));
+      // Parent ends 09:30, target 09:45, no wobble → earliest = latest = 09:45
+      expect(window.earliest).toBe(datetime('2024-01-15T09:45:00'));
+      expect(window.latest).toBe(datetime('2024-01-15T09:45:00'));
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION 15: THROW PATH COVERAGE (Mutation Targets)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('15. Throw Path Coverage', () => {
+    it('calculateChildTarget throws for unlinked child with message', async () => {
+      const seriesId = await createTestSeries('Unlinked');
+
+      await expect(calculateChildTarget(adapter, seriesId, date('2024-01-15')))
+        .rejects.toThrow(/No link found/);
+    });
+
+    it('getChildValidWindow throws for unlinked child with message', async () => {
+      const seriesId = await createTestSeries('Unlinked');
+
+      await expect(getChildValidWindow(adapter, seriesId, date('2024-01-15')))
+        .rejects.toThrow(/No link found/);
+    });
+  });
+}); // end Segment 11

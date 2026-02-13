@@ -2035,3 +2035,457 @@ describe('Invariants', () => {
     expect(allWeekdays.find(w => w.pattern_id === 'p1')).toBeUndefined()
   })
 })
+
+// ============================================================================
+// ERROR MESSAGE ASSERTIONS (Mutation Targets)
+// ============================================================================
+
+describe('Error Message Assertions', () => {
+  it('DuplicateKeyError message contains series ID', async () => {
+    await adapter.createSeries({
+      id: 'dup-test',
+      title: 'First',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+
+    try {
+      await adapter.createSeries({
+        id: 'dup-test',
+        title: 'Second',
+        createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+      })
+      expect.unreachable('Should have thrown DuplicateKeyError')
+    } catch (e) {
+      expect(e).toBeInstanceOf(DuplicateKeyError)
+      expect((e as Error).message).toContain('dup-test')
+    }
+  })
+
+  it('NotFoundError on update contains series ID', async () => {
+    try {
+      await adapter.updateSeries('ghost-series', { title: 'New' })
+      expect.unreachable('Should have thrown NotFoundError')
+    } catch (e) {
+      expect(e).toBeInstanceOf(NotFoundError)
+      expect((e as Error).message).toContain('ghost-series')
+    }
+  })
+
+  it('ForeignKeyError on delete with completions contains series ID', async () => {
+    await adapter.createSeries({
+      id: 'fk-test',
+      title: 'FK Test',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createCompletion({
+      id: 'comp-1',
+      seriesId: 'fk-test',
+      instanceDate: '2024-01-15' as LocalDate,
+      date: '2024-01-15' as LocalDate,
+    })
+
+    try {
+      await adapter.deleteSeries('fk-test')
+      expect.unreachable('Should have thrown ForeignKeyError')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ForeignKeyError)
+      expect((e as Error).message).toContain('fk-test')
+    }
+  })
+
+  it('ForeignKeyError on delete with linked children contains series ID', async () => {
+    await adapter.createSeries({
+      id: 'parent-fk',
+      title: 'Parent',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createSeries({
+      id: 'child-fk',
+      title: 'Child',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createLink({
+      id: 'link-fk',
+      parentSeriesId: 'parent-fk',
+      childSeriesId: 'child-fk',
+      targetDistance: 15,
+      earlyWobble: 0,
+      lateWobble: 0,
+    })
+
+    try {
+      await adapter.deleteSeries('parent-fk')
+      expect.unreachable('Should have thrown ForeignKeyError')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ForeignKeyError)
+      expect((e as Error).message).toContain('parent-fk')
+    }
+  })
+
+  it('ForeignKeyError on pattern with invalid series', async () => {
+    try {
+      await adapter.createPattern({
+        id: 'pat-1',
+        seriesId: 'no-such-series',
+        type: 'daily',
+        conditionId: null,
+      })
+      expect.unreachable('Should have thrown ForeignKeyError')
+    } catch (e) {
+      expect(e).toBeInstanceOf(ForeignKeyError)
+      expect((e as Error).message).toContain('no-such-series')
+    }
+  })
+
+  it('DuplicateKeyError on duplicate pattern', async () => {
+    await adapter.createSeries({
+      id: 'pat-dup-series',
+      title: 'Series',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createPattern({
+      id: 'pat-dup',
+      seriesId: 'pat-dup-series',
+      type: 'daily',
+      conditionId: null,
+    })
+
+    try {
+      await adapter.createPattern({
+        id: 'pat-dup',
+        seriesId: 'pat-dup-series',
+        type: 'weekly',
+        conditionId: null,
+      })
+      expect.unreachable('Should have thrown DuplicateKeyError')
+    } catch (e) {
+      expect(e).toBeInstanceOf(DuplicateKeyError)
+      expect((e as Error).message).toContain('pat-dup')
+    }
+  })
+})
+
+// ============================================================================
+// RANGE BOUNDARY TESTS (Mutation Targets)
+// ============================================================================
+
+describe('Range Boundary Tests', () => {
+  it('getExceptionsInRange — start boundary inclusive', async () => {
+    await adapter.createSeries({
+      id: 'series-range',
+      title: 'Range Test',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createInstanceException({
+      id: 'exc-boundary',
+      seriesId: 'series-range',
+      originalDate: '2024-01-15' as LocalDate,
+      type: 'cancel',
+    })
+
+    // start = '2024-01-15' → inclusive, should include
+    const inRange = await adapter.getExceptionsInRange(
+      'series-range',
+      '2024-01-15' as LocalDate,
+      '2024-01-16' as LocalDate
+    )
+    expect(inRange).toHaveLength(1)
+    expect(inRange[0].id).toBe('exc-boundary')
+  })
+
+  it('getExceptionsInRange — end boundary exclusive', async () => {
+    await adapter.createSeries({
+      id: 'series-range-end',
+      title: 'Range End Test',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createInstanceException({
+      id: 'exc-end',
+      seriesId: 'series-range-end',
+      originalDate: '2024-01-18' as LocalDate,
+      type: 'cancel',
+    })
+
+    // end = '2024-01-18' → exclusive, should NOT include
+    const inRange = await adapter.getExceptionsInRange(
+      'series-range-end',
+      '2024-01-15' as LocalDate,
+      '2024-01-18' as LocalDate
+    )
+    expect(inRange.map(e => e.id)).not.toContain('exc-end')
+  })
+
+  it('getExceptionsInRange — day before end included', async () => {
+    await adapter.createSeries({
+      id: 'series-range-be',
+      title: 'Range Before End Test',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createInstanceException({
+      id: 'exc-before-end',
+      seriesId: 'series-range-be',
+      originalDate: '2024-01-17' as LocalDate,
+      type: 'cancel',
+    })
+
+    const inRange = await adapter.getExceptionsInRange(
+      'series-range-be',
+      '2024-01-15' as LocalDate,
+      '2024-01-18' as LocalDate
+    )
+    expect(inRange).toHaveLength(1)
+    expect(inRange[0].id).toBe('exc-before-end')
+  })
+})
+
+// ============================================================================
+// CAMEL-TO-SNAKE ALIAS TESTS (Mutation Targets)
+// ============================================================================
+
+describe('CamelCase to snake_case Aliases', () => {
+  it('exception properties have snake_case aliases', async () => {
+    await adapter.createSeries({
+      id: 'alias-exc-series',
+      title: 'Alias Test',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createInstanceException({
+      id: 'alias-exc',
+      seriesId: 'alias-exc-series',
+      originalDate: '2024-01-15' as LocalDate,
+      type: 'reschedule',
+      newDate: '2024-01-16' as LocalDate,
+      newTime: '2024-01-16T10:00:00' as LocalDateTime,
+    })
+
+    const exc = await adapter.getInstanceException('alias-exc-series', '2024-01-15' as LocalDate)
+    expect(exc).not.toBeNull()
+    // Check both camelCase and snake_case exist
+    expect(exc!.seriesId).toBe('alias-exc-series')
+    expect((exc as any).series_id).toBe('alias-exc-series')
+    expect(exc!.originalDate).toBe('2024-01-15')
+    expect((exc as any).original_date).toBe('2024-01-15')
+    expect(exc!.newDate).toBe('2024-01-16')
+    expect((exc as any).new_date).toBe('2024-01-16')
+    expect(exc!.newTime).toBe('2024-01-16T10:00:00')
+    expect((exc as any).new_time).toBe('2024-01-16T10:00:00')
+  })
+
+  it('completion properties have snake_case aliases', async () => {
+    await adapter.createSeries({
+      id: 'comp-alias-series',
+      title: 'Test',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createCompletion({
+      id: 'comp-alias',
+      seriesId: 'comp-alias-series',
+      instanceDate: '2024-01-15' as LocalDate,
+      date: '2024-01-15' as LocalDate,
+      startTime: '2024-01-15T09:00:00' as LocalDateTime,
+      endTime: '2024-01-15T09:30:00' as LocalDateTime,
+      durationMinutes: 30,
+    })
+
+    const comp = await adapter.getCompletion('comp-alias')
+    expect(comp).not.toBeNull()
+    expect(comp!.seriesId).toBe('comp-alias-series')
+    expect((comp as any).series_id).toBe('comp-alias-series')
+    expect(comp!.instanceDate).toBe('2024-01-15')
+    expect((comp as any).instance_date).toBe('2024-01-15')
+    expect(comp!.durationMinutes).toBe(30)
+    expect((comp as any).duration_minutes).toBe(30)
+  })
+
+  it('link properties have snake_case aliases', async () => {
+    await adapter.createSeries({
+      id: 'link-alias-parent',
+      title: 'Parent',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createSeries({
+      id: 'link-alias-child',
+      title: 'Child',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createLink({
+      id: 'link-alias',
+      parentSeriesId: 'link-alias-parent',
+      childSeriesId: 'link-alias-child',
+      targetDistance: 15,
+      earlyWobble: 5,
+      lateWobble: 10,
+    })
+
+    const link = await adapter.getLink('link-alias')
+    expect(link).not.toBeNull()
+    expect(link!.parentSeriesId).toBe('link-alias-parent')
+    expect((link as any).parent_series_id).toBe('link-alias-parent')
+    expect(link!.childSeriesId).toBe('link-alias-child')
+    expect((link as any).child_series_id).toBe('link-alias-child')
+    expect(link!.targetDistance).toBe(15)
+    expect((link as any).target_distance).toBe(15)
+    expect(link!.earlyWobble).toBe(5)
+    expect((link as any).early_wobble).toBe(5)
+  })
+})
+
+// ============================================================================
+// TRANSACTION DEPTH BOUNDARY (Mutation Targets)
+// ============================================================================
+
+describe('Transaction Depth Boundary', () => {
+  it('outer transaction snapshot taken only at depth 0', async () => {
+    // Create series outside transaction
+    await adapter.createSeries({
+      id: 'tx-depth-test',
+      title: 'Before TX',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+
+    // Inner transaction fails → outer also rolls back
+    await expect(adapter.transaction(async () => {
+      await adapter.updateSeries('tx-depth-test', { title: 'In TX' })
+
+      // Verify change is visible inside transaction
+      const during = await adapter.getSeries('tx-depth-test')
+      expect(during!.title).toBe('In TX')
+
+      throw new Error('deliberate rollback')
+    })).rejects.toThrow('deliberate rollback')
+
+    // After rollback, original state restored
+    const after = await adapter.getSeries('tx-depth-test')
+    expect(after!.title).toBe('Before TX')
+  })
+
+  it('nested transaction does not snapshot again', async () => {
+    await adapter.createSeries({
+      id: 'nested-tx-test',
+      title: 'Original',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+
+    await expect(adapter.transaction(async () => {
+      await adapter.updateSeries('nested-tx-test', { title: 'Outer' })
+
+      // Nested transaction
+      await adapter.transaction(async () => {
+        await adapter.updateSeries('nested-tx-test', { title: 'Inner' })
+      })
+
+      // After inner succeeds, we should see Inner
+      const afterInner = await adapter.getSeries('nested-tx-test')
+      expect(afterInner!.title).toBe('Inner')
+
+      throw new Error('outer rollback')
+    })).rejects.toThrow('outer rollback')
+
+    // Entire outer+inner rolled back to Original
+    const after = await adapter.getSeries('nested-tx-test')
+    expect(after!.title).toBe('Original')
+  })
+})
+
+// ============================================================================
+// CASCADE GRANULARITY (Mutation Targets)
+// ============================================================================
+
+describe('Cascade Granularity', () => {
+  it('series delete cascades cycling config and items', async () => {
+    await adapter.createSeries({
+      id: 'cascade-cycling',
+      title: 'Cycling Series',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+
+    await adapter.setCyclingConfig('cascade-cycling', {
+      seriesId: 'cascade-cycling',
+      currentIndex: 0,
+      gapLeap: false,
+      mode: 'sequential',
+    })
+    await adapter.setCyclingItems('cascade-cycling', [
+      { seriesId: 'cascade-cycling', position: 0, title: 'A', duration: 30 },
+      { seriesId: 'cascade-cycling', position: 1, title: 'B', duration: 30 },
+    ])
+
+    // Verify config and items exist before delete
+    const configBefore = await adapter.getCyclingConfig('cascade-cycling')
+    expect(configBefore).not.toBeNull()
+    expect(configBefore!.mode).toBe('sequential')
+
+    const itemsBefore = await adapter.getCyclingItems('cascade-cycling')
+    expect(itemsBefore).toHaveLength(2)
+    expect(itemsBefore[0].title).toBe('A')
+
+    await adapter.deleteSeries('cascade-cycling')
+
+    // Config and items cascade-deleted
+    const configAfter = await adapter.getCyclingConfig('cascade-cycling')
+    expect(configAfter).toBeNull()
+
+    const itemsAfter = await adapter.getCyclingItems('cascade-cycling')
+    expect(itemsAfter).toHaveLength(0)
+  })
+
+  it('series delete cascades adaptive duration', async () => {
+    await adapter.createSeries({
+      id: 'cascade-adaptive',
+      title: 'Adaptive Series',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+
+    await adapter.setAdaptiveDuration('cascade-adaptive', {
+      seriesId: 'cascade-adaptive',
+      fallbackDuration: 30,
+      bufferPercent: 10,
+      lastN: 5,
+      windowDays: 14,
+    })
+
+    const before = await adapter.getAdaptiveDuration('cascade-adaptive')
+    expect(before).not.toBeNull()
+    expect(before!.seriesId).toBe('cascade-adaptive')
+    expect(before!.fallbackDuration).toBe(30)
+    expect(before!.bufferPercent).toBe(10)
+    expect(before!.lastN).toBe(5)
+
+    await adapter.deleteSeries('cascade-adaptive')
+
+    const after = await adapter.getAdaptiveDuration('cascade-adaptive')
+    expect(after).toBeNull()
+  })
+
+  it('series delete cascades child links but not parent links', async () => {
+    await adapter.createSeries({
+      id: 'cascade-parent',
+      title: 'Parent',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createSeries({
+      id: 'cascade-child',
+      title: 'Child',
+      createdAt: '2024-01-01T00:00:00' as LocalDateTime,
+    })
+    await adapter.createLink({
+      id: 'cascade-link',
+      parentSeriesId: 'cascade-parent',
+      childSeriesId: 'cascade-child',
+      targetDistance: 15,
+      earlyWobble: 0,
+      lateWobble: 0,
+    })
+
+    // Deleting child cascades the link
+    await adapter.deleteSeries('cascade-child')
+
+    const link = await adapter.getLink('cascade-link')
+    expect(link).toBeNull()
+
+    // Parent still exists
+    const parent = await adapter.getSeries('cascade-parent')
+    expect(parent).not.toBeNull()
+    expect(parent!.title).toBe('Parent')
+  })
+})
