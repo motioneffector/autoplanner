@@ -139,6 +139,11 @@ describe('Parsing Functions', () => {
       expect(result.ok).toBe(false)
     })
 
+    // Regex anchor tests — kills Stryker mutant removing ^ from date regex
+    it('rejects date with leading characters', () => {
+      expect(parseDate('abc2024-03-15').ok).toBe(false)
+    })
+
     // Month length boundaries
     it('accepts Jan 31', () => {
       expect(parseDate('2024-01-31').ok).toBe(true)
@@ -223,6 +228,15 @@ describe('Parsing Functions', () => {
       expect(result.ok).toBe(true)
       if (result.ok) expect(result.value).toBe('14:30:00')
     })
+
+    // Regex anchor tests — kills Stryker mutants removing ^ and $ from time regex
+    it('rejects time with leading characters', () => {
+      expect(parseTime('abc14:30:00').ok).toBe(false)
+    })
+
+    it('rejects time with trailing characters', () => {
+      expect(parseTime('14:30:00xyz').ok).toBe(false)
+    })
   })
 
   describe('parseDateTime', () => {
@@ -277,6 +291,31 @@ describe('Formatting Functions', () => {
     it('pads single-digit day', () => {
       const date = makeDate(2024, 1, 5)
       expect(formatDate(date)).toBe('2024-01-05')
+    })
+
+    // pad4 boundary tests — kills 6 Stryker mutants on lines 60-62
+    it('pads single-digit year with three zeros', () => {
+      expect(makeDate(5, 6, 15)).toBe('0005-06-15')
+    })
+
+    it('pads year 10 with two zeros (boundary: n=10 must NOT get 3 zeros)', () => {
+      expect(makeDate(10, 1, 1)).toBe('0010-01-01')
+    })
+
+    it('pads two-digit year with two zeros', () => {
+      expect(makeDate(50, 3, 15)).toBe('0050-03-15')
+    })
+
+    it('pads year 100 with one zero (boundary: n=100 must NOT get 2 zeros)', () => {
+      expect(makeDate(100, 1, 1)).toBe('0100-01-01')
+    })
+
+    it('pads three-digit year with one zero', () => {
+      expect(makeDate(500, 7, 4)).toBe('0500-07-04')
+    })
+
+    it('year 1000 gets no leading zeros (boundary: n=1000 must NOT get 1 zero)', () => {
+      expect(makeDate(1000, 1, 1)).toBe('1000-01-01')
     })
   })
 
@@ -1143,6 +1182,49 @@ describe('Error Handling', () => {
     if (!result.ok) {
       expect(result.error.message.toLowerCase()).toMatch(/month|invalid/)
     }
+  })
+
+  // Error message content tests — kills 7 Stryker string-literal mutants
+  it('date format error includes input string', () => {
+    const result = parseDate('not-a-date')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('not-a-date')
+  })
+
+  it('invalid day error includes input string', () => {
+    const result = parseDate('2024-02-30')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('2024-02-30')
+  })
+
+  it('time format error includes input string', () => {
+    const result = parseTime('not-a-time')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('not-a-time')
+  })
+
+  it('invalid hour error includes input string', () => {
+    const result = parseTime('24:00:00')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('24:00:00')
+  })
+
+  it('invalid minute error includes input string', () => {
+    const result = parseTime('12:60:00')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('12:60:00')
+  })
+
+  it('invalid second error includes input string', () => {
+    const result = parseTime('12:30:60')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('12:30:60')
+  })
+
+  it('datetime format error includes input string', () => {
+    const result = parseDateTime('no-T-separator')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error.message).toContain('no-T-separator')
   })
 })
 

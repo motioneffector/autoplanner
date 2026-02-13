@@ -197,6 +197,8 @@ describe('Segment 10: Reminders', () => {
 
         const reminder = await getReminder(adapter, createResult.value.id);
         expect(reminder!.minutesBefore).toBe(15);
+        // Tag must remain unchanged when only minutesBefore is updated
+        expect(reminder!.tag).toBe('test');
       });
 
       it('update tag', async () => {
@@ -212,6 +214,8 @@ describe('Segment 10: Reminders', () => {
 
         const reminder = await getReminder(adapter, createResult.value.id);
         expect(reminder!.tag).toBe('urgent');
+        // minutesBefore must remain unchanged when only tag is updated
+        expect(reminder!.minutesBefore).toBe(10);
       });
     });
 
@@ -553,6 +557,105 @@ describe('Segment 10: Reminders', () => {
       });
     });
 
+    describe('2.4a Bounded Series Range', () => {
+      it('respects series endDate (exclusive) when narrowing range', async () => {
+        // Create a bounded series: Jan 1 to Jan 5 (exclusive), daily at 09:00
+        const boundedId = await createSeries(adapter, {
+          title: 'Bounded Series',
+          startDate: date('2024-01-01'),
+          endDate: date('2024-01-05'), // exclusive: last instance Jan 4
+          pattern: { type: 'daily' },
+          time: datetime('2024-01-01T09:00:00'),
+        }) as SeriesId;
+
+        await createReminder(adapter, {
+          seriesId: boundedId,
+          minutesBefore: 15,
+          tag: 'bounded',
+        });
+
+        // Query with a wider range than the series
+        const pending = await getPendingReminders(adapter, {
+          asOf: datetime('2024-01-10T12:00:00'),
+          range: { start: date('2024-01-01'), end: date('2024-01-10') },
+        });
+
+        const boundedPending = pending.filter(p => p.seriesId === boundedId);
+        const dates = boundedPending.map(p => p.instanceDate).sort();
+
+        // Should include Jan 1-4 but NOT Jan 5 (endDate is exclusive)
+        expect(dates).toContain(date('2024-01-01'));
+        expect(dates).toContain(date('2024-01-04'));
+        expect(dates).not.toContain(date('2024-01-05'));
+      });
+
+      it('series startDate after query start narrows range', async () => {
+        // Series starts Jan 5, but we query from Jan 1
+        const lateStartId = await createSeries(adapter, {
+          title: 'Late Start Series',
+          startDate: date('2024-01-05'),
+          pattern: { type: 'daily' },
+          time: datetime('2024-01-05T09:00:00'),
+        }) as SeriesId;
+
+        await createReminder(adapter, {
+          seriesId: lateStartId,
+          minutesBefore: 0,
+          tag: 'late-start',
+        });
+
+        const pending = await getPendingReminders(adapter, {
+          asOf: datetime('2024-01-10T12:00:00'),
+          range: { start: date('2024-01-01'), end: date('2024-01-10') },
+        });
+
+        const lateStartPending = pending.filter(p => p.seriesId === lateStartId);
+        const dates = lateStartPending.map(p => p.instanceDate).sort();
+
+        // Should NOT include Jan 1-4 (before series start)
+        expect(dates).not.toContain(date('2024-01-01'));
+        expect(dates).not.toContain(date('2024-01-04'));
+        // Should include Jan 5+ (within series)
+        expect(dates).toContain(date('2024-01-05'));
+      });
+
+      it('zero-width effective range produces no reminders', async () => {
+        // Series starts Jan 10, but we query Jan 1–Jan 5
+        // effectiveStart = max(Jan 10, Jan 1) = Jan 10
+        // effectiveEnd = min(no endDate → Jan 5, Jan 5) = Jan 5
+        // effectiveStart (Jan 10) >= effectiveEnd (Jan 5) → skip
+        const lateSeriesId = await createSeries(adapter, {
+          title: 'Late Series',
+          startDate: date('2024-01-10'),
+          pattern: { type: 'daily' },
+          time: datetime('2024-01-10T09:00:00'),
+        }) as SeriesId;
+
+        await createReminder(adapter, {
+          seriesId: lateSeriesId,
+          minutesBefore: 0,
+          tag: 'zero-width',
+        });
+
+        // Prove the reminder works in a valid range
+        const validPending = await getPendingReminders(adapter, {
+          asOf: datetime('2024-01-10T12:00:00'),
+          range: { start: date('2024-01-10'), end: date('2024-01-11') },
+        });
+        const validForSeries = validPending.filter(p => p.seriesId === lateSeriesId);
+        expect(validForSeries).toHaveLength(1);
+        expect(validForSeries[0].tag).toBe('zero-width');
+
+        // Now query a range where series.startDate is after range end
+        const pending = await getPendingReminders(adapter, {
+          asOf: datetime('2024-01-10T12:00:00'),
+          range: { start: date('2024-01-01'), end: date('2024-01-05') },
+        });
+
+        expect(pending.some(p => p.seriesId === lateSeriesId)).toBe(false);
+      });
+    });
+
     describe('2.4 Multiple Reminders', () => {
       it('multiple due at same time', async () => {
         await createReminder(adapter, { seriesId: testSeriesId, minutesBefore: 15, tag: 'a' });
@@ -610,7 +713,9 @@ describe('Segment 10: Reminders', () => {
         const after = Date.now();
 
         expect(result.ok).toBe(true);
-        if (result.ok && result.value.acknowledgedAt) {
+        if (result.ok) {
+          // acknowledgedAt must be a valid ISO datetime string
+          expect(result.value.acknowledgedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
           const ackTime = new Date(result.value.acknowledgedAt).getTime();
           expect(ackTime).toBeGreaterThanOrEqual(before);
           expect(ackTime).toBeLessThanOrEqual(after);
@@ -1155,6 +1260,10 @@ describe('Segment 10: Reminders', () => {
       });
 
       expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('ValidationError');
+        expect(result.error.message).toContain('minutesBefore');
+      }
     });
 
     it('INV 2: tag non-empty', async () => {
@@ -1165,6 +1274,10 @@ describe('Segment 10: Reminders', () => {
       });
 
       expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('ValidationError');
+        expect(result.error.message).toContain('tag');
+      }
     });
 
     it('INV 3: reminder references series', async () => {
@@ -1175,6 +1288,10 @@ describe('Segment 10: Reminders', () => {
       });
 
       expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('NotFoundError');
+        expect(result.error.message).toContain('non-existent-series');
+      }
     });
 
     it('INV 4: ack references reminder', async () => {
@@ -1185,6 +1302,10 @@ describe('Segment 10: Reminders', () => {
       );
 
       expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('NotFoundError');
+        expect(result.error.message).toContain('non-existent-reminder');
+      }
     });
 
     it('INV 5: auto-purge old acks', async () => {

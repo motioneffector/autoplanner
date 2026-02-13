@@ -521,6 +521,21 @@ describe('Precondition Validation (Create)', () => {
       await expect(createSeries(adapter, input)).rejects.toThrow(/adaptive fallback must be >= 1/)
     })
 
+    it('adaptive duration fallback exactly 1 accepted (boundary)', async () => {
+      const input: SeriesInput = {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: {
+          type: 'adaptive',
+          fallback: 1,
+          bufferPercent: 25,
+        },
+      }
+      const id = await createSeries(adapter, input)
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
+    })
+
     it('adaptive min >= max rejected', async () => {
       const input: SeriesInput = {
         title: 'Test',
@@ -535,6 +550,38 @@ describe('Precondition Validation (Create)', () => {
         },
       }
       await expect(createSeries(adapter, input)).rejects.toThrow(/adaptive min must be < max/)
+    })
+
+    it('adaptive min === max rejected (boundary)', async () => {
+      const input: SeriesInput = {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: {
+          type: 'adaptive',
+          fallback: 30,
+          bufferPercent: 25,
+          min: 30,
+          max: 30,
+        },
+      }
+      await expect(createSeries(adapter, input)).rejects.toThrow(/adaptive min must be < max/)
+    })
+
+    it('adaptive min only (no max) accepted', async () => {
+      const input: SeriesInput = {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: {
+          type: 'adaptive',
+          fallback: 30,
+          bufferPercent: 25,
+          min: 10,
+        },
+      }
+      const id = await createSeries(adapter, input)
+      expect(id).toMatch(/^[0-9a-f-]{36}$/)
     })
 
     it('adaptive min < max accepted', async () => {
@@ -648,6 +695,22 @@ describe('Precondition Validation (Create)', () => {
       await expect(createSeries(adapter, input)).rejects.toThrow(/wiggle earliest must be < latest/)
     })
 
+    it('timeWindow earliest === latest rejected (boundary)', async () => {
+      const input: SeriesInput = {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        wiggle: {
+          daysBefore: 0,
+          daysAfter: 0,
+          earliest: '09:00' as LocalTime,
+          latest: '09:00' as LocalTime,
+        },
+      }
+      await expect(createSeries(adapter, input)).rejects.toThrow(/wiggle earliest must be < latest/)
+    })
+
     it('fixed with non-zero wiggle rejected', async () => {
       const input: SeriesInput = {
         title: 'Test',
@@ -721,6 +784,116 @@ describe('Precondition Validation (Create)', () => {
       }
       const id = await createSeries(adapter, input)
       expect(id).toMatch(/^[0-9a-f-]{36}$/)
+    })
+
+    it('reminder label stored as empty string', async () => {
+      const id = await createSeries(adapter, {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        reminders: [{ minutes: 15 }],
+      })
+      const reminders = await adapter.getRemindersBySeries(id)
+      expect(reminders).toHaveLength(1)
+      expect(reminders[0].label).toBe('')
+    })
+  })
+
+  describe('Cycling Validation', () => {
+    it('empty cycling items rejected', async () => {
+      const input: SeriesInput = {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        cycling: { items: [], gapLeap: false },
+      }
+      await expect(createSeries(adapter, input)).rejects.toThrow(/Cycling items must not be empty/)
+    })
+
+    it('cycling mode defaults to sequential when omitted', async () => {
+      const id = await createSeries(adapter, {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        cycling: { items: ['A', 'B', 'C'], gapLeap: false },
+      })
+      // Check cycling config storage
+      const config = await adapter.getCyclingConfig(id)
+      expect(config).not.toBeNull()
+      expect(config!.mode).toBe('sequential')
+      // Also verify on the series record itself (dual-default at lines 311 and 349)
+      const series = await getSeries(adapter, id)
+      expect((series as any)?.cycling?.mode).toBe('sequential')
+    })
+
+    it('cycling currentIndex defaults to 0 when omitted', async () => {
+      const id = await createSeries(adapter, {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        cycling: { items: ['A', 'B'], gapLeap: true },
+      })
+      // Check cycling config storage
+      const config = await adapter.getCyclingConfig(id)
+      expect(config).not.toBeNull()
+      expect(config!.currentIndex).toBe(0)
+      // Also verify on the series record itself (dual-default at lines 313 and 347)
+      const series = await getSeries(adapter, id)
+      expect((series as any)?.cycling?.currentIndex).toBe(0)
+    })
+
+    it('cycling gapLeap stored correctly when true', async () => {
+      const id = await createSeries(adapter, {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        cycling: { items: ['X'], gapLeap: true },
+      })
+      const config = await adapter.getCyclingConfig(id)
+      expect(config!.gapLeap).toBe(true)
+    })
+
+    it('cycling gapLeap stored correctly when false', async () => {
+      const id = await createSeries(adapter, {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        cycling: { items: ['X'], gapLeap: false },
+      })
+      const config = await adapter.getCyclingConfig(id)
+      expect(config!.gapLeap).toBe(false)
+    })
+  })
+
+  describe('Fixed + Wiggle Conflict', () => {
+    it('fixed with daysAfter non-zero rejected', async () => {
+      const input: SeriesInput = {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        fixed: true,
+        wiggle: { daysBefore: 0, daysAfter: 1 },
+      }
+      await expect(createSeries(adapter, input)).rejects.toThrow(/fixed series cannot have non-zero wiggle/)
+    })
+
+    it('fixed with both daysBefore and daysAfter non-zero rejected', async () => {
+      const input: SeriesInput = {
+        title: 'Test',
+        startDate: '2024-01-15' as LocalDate,
+        timeOfDay: '09:00' as LocalTime,
+        duration: 30,
+        fixed: true,
+        wiggle: { daysBefore: 2, daysAfter: 3 },
+      }
+      await expect(createSeries(adapter, input)).rejects.toThrow(/fixed series cannot have non-zero wiggle/)
     })
   })
 })

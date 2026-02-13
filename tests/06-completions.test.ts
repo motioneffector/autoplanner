@@ -93,6 +93,8 @@ describe('Segment 06: Completions', () => {
         expect(completion?.id).toBe(logResult.value.id);
         expect(completion?.seriesId).toBe(testSeriesId);
         expect(completion?.date).toBe(date('2024-01-15'));
+        expect(completion?.startTime).toBe(datetime('2024-01-15T09:00:00'));
+        expect(completion?.endTime).toBe(datetime('2024-01-15T09:30:00'));
         expect(completion?.durationMinutes).toBe(30);
       });
 
@@ -163,6 +165,7 @@ describe('Segment 06: Completions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('NotFoundError');
+          expect(result.error.message).toContain('non-existent-series-id');
         }
       });
 
@@ -187,6 +190,7 @@ describe('Segment 06: Completions', () => {
         expect(second.ok).toBe(false);
         if (!second.ok) {
           expect(second.error.type).toBe('DuplicateCompletionError');
+          expect(second.error.message).toContain('2024-01-15');
         }
       });
 
@@ -201,6 +205,7 @@ describe('Segment 06: Completions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('InvalidTimeRangeError');
+          expect(result.error.message).toContain('startTime');
         }
       });
 
@@ -230,6 +235,7 @@ describe('Segment 06: Completions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('ValidationError');
+          expect(result.error.message).toContain('not-a-date');
         }
       });
 
@@ -244,6 +250,7 @@ describe('Segment 06: Completions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('ValidationError');
+          expect(result.error.message).toContain('not-a-datetime');
         }
       });
 
@@ -258,6 +265,7 @@ describe('Segment 06: Completions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('ValidationError');
+          expect(result.error.message).toContain('not-a-datetime');
         }
       });
     });
@@ -424,6 +432,30 @@ describe('Segment 06: Completions', () => {
         expect(completions[0].seriesId).toBe(testSeriesId);
         expect(completions[1].date).toBe(date('2024-01-11'));
         expect(completions[2].date).toBe(date('2024-01-10'));
+      });
+
+      it('sort order with 5 completions in scrambled insertion order', async () => {
+        // Insert in order: 3, 5, 1, 4, 2 — forces real sorting
+        const dates = ['2024-01-13', '2024-01-15', '2024-01-11', '2024-01-14', '2024-01-12'];
+        for (const d of dates) {
+          await logCompletion(adapter, {
+            seriesId: testSeriesId,
+            instanceDate: date(d),
+            startTime: datetime(`${d}T09:00:00`),
+            endTime: datetime(`${d}T09:30:00`),
+          });
+        }
+
+        const completions = await getCompletionsBySeries(adapter, testSeriesId);
+        expect(completions).toHaveLength(5);
+        // Must be descending: 15, 14, 13, 12, 11
+        expect(completions.map(c => c.date)).toEqual([
+          date('2024-01-15'),
+          date('2024-01-14'),
+          date('2024-01-13'),
+          date('2024-01-12'),
+          date('2024-01-11'),
+        ]);
       });
 
       it('returns empty for series with no completions', async () => {

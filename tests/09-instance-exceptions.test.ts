@@ -147,6 +147,7 @@ describe('Segment 09: Instance Exceptions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('NotFoundError');
+          expect(result.error.message).toContain('non-existent-series');
         }
       });
 
@@ -168,6 +169,7 @@ describe('Segment 09: Instance Exceptions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('NonExistentInstanceError');
+          expect(result.error.message).toContain('2024-01-16');
         }
       });
 
@@ -180,6 +182,7 @@ describe('Segment 09: Instance Exceptions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('AlreadyCancelledError');
+          expect(result.error.message).toContain('2024-01-15');
         }
       });
     });
@@ -289,6 +292,7 @@ describe('Segment 09: Instance Exceptions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('NotFoundError');
+          expect(result.error.message).toContain('non-existent-series');
         }
       });
 
@@ -311,6 +315,7 @@ describe('Segment 09: Instance Exceptions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('NonExistentInstanceError');
+          expect(result.error.message).toContain('2024-01-16');
         }
       });
 
@@ -328,6 +333,7 @@ describe('Segment 09: Instance Exceptions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('CancelledInstanceError');
+          expect(result.error.message).toContain('2024-01-15');
         }
       });
 
@@ -342,6 +348,7 @@ describe('Segment 09: Instance Exceptions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('ValidationError');
+          expect(result.error.message).toContain('invalid-datetime');
         }
       });
     });
@@ -466,6 +473,7 @@ describe('Segment 09: Instance Exceptions', () => {
         expect(result.ok).toBe(false);
         if (!result.ok) {
           expect(result.error.type).toBe('NoExceptionError');
+          expect(result.error.message).toContain('2024-01-15');
         }
       });
     });
@@ -696,6 +704,51 @@ describe('Segment 09: Instance Exceptions', () => {
 
       expect(schedule.some(i => i.date === date('2024-01-10'))).toBe(false);
       expect(schedule.some(i => i.date === date('2024-01-09'))).toBe(true);
+    });
+
+    it('B12: cannot cancel on exclusive endDate', async () => {
+      // endDate is exclusive — no instance exists on endDate itself
+      const boundedId = await createSeries(adapter, {
+        title: 'Bounded Series',
+        startDate: date('2024-01-01'),
+        endDate: date('2024-01-11'), // exclusive: last valid day is Jan 10
+        pattern: { type: 'daily' },
+      }) as SeriesId;
+
+      // Prove instance on Jan 10 (day before endDate) IS valid
+      const validResult = await cancelInstance(adapter, boundedId, date('2024-01-10'));
+      expect(validResult.ok).toBe(true);
+
+      // Cancel on the endDate itself should fail — no instance exists
+      const result = await cancelInstance(adapter, boundedId, date('2024-01-11'));
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe('NonExistentInstanceError');
+      }
+    });
+
+    it('B13: cancel one-time series instance', async () => {
+      // One-time series: no patterns, no count, no endDate → inferred count=1
+      const oneTimeId = await createSeries(adapter, {
+        title: 'One-Time Task',
+        startDate: date('2024-03-15'),
+      }) as SeriesId;
+
+      // Negative proof: cancelling on wrong date must fail
+      const badResult = await cancelInstance(adapter, oneTimeId, date('2024-03-16'));
+      expect(badResult.ok).toBe(false);
+      if (!badResult.ok) {
+        expect(badResult.error.type).toBe('NonExistentInstanceError');
+      }
+
+      // Positive proof: cancelling on the startDate succeeds
+      const result = await cancelInstance(adapter, oneTimeId, date('2024-03-15'));
+      expect(result.ok).toBe(true);
+
+      // Verify the exception was created
+      const exception = await getException(adapter, oneTimeId, date('2024-03-15'));
+      expect(exception).not.toBeNull();
+      expect(exception!.type).toBe('cancelled');
     });
 
     it('B3: reschedule same day different time', async () => {
