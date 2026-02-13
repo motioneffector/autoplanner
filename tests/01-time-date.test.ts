@@ -1088,6 +1088,10 @@ describe('Comparison Operations', () => {
       expect(dateEquals(a, b)).toBe(dateEquals(b, a))
     })
 
+    it('dateEquals false for different dates', () => {
+      expect(dateEquals('2024-03-15' as LocalDate, '2024-03-16' as LocalDate)).toBe(false)
+    })
+
     // LAW 49: dateBefore antisymmetric
     it('LAW 49: dateBefore antisymmetric', () => {
       const a = '2024-03-14' as LocalDate
