@@ -3,6 +3,7 @@
   "testRunner": "vitest",
   "mutate": ["src/**/*.ts", "!src/index.ts"],
   "reporters": ["progress", "clear-text", "html", "json"],
+  "disableBail": true,
   "concurrency": 8,
   "dryRunTimeoutMinutes": 10,
   "timeoutMS": 60000,
