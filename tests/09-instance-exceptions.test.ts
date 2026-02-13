@@ -22,9 +22,12 @@ import {
 } from '../src/series-crud';
 import {
   expandPattern,
+  type DateRange,
 } from '../src/pattern-expansion';
 import {
   getSchedule,
+  expandSchedule,
+  type ExpandScheduleInput,
 } from '../src/schedule';
 import {
   createMockAdapter,
@@ -516,7 +519,7 @@ describe('Segment 09: Instance Exceptions', () => {
       ].sort());
     });
 
-    it('range query inclusive', async () => {
+    it('range query returns exceptions within exclusive-end range', async () => {
       await cancelInstance(adapter, testSeriesId, date('2024-01-10'));
       await cancelInstance(adapter, testSeriesId, date('2024-01-15'));
       await cancelInstance(adapter, testSeriesId, date('2024-01-20'));
@@ -725,7 +728,7 @@ describe('Segment 09: Instance Exceptions', () => {
       expect(result.ok).toBe(true);
     });
 
-    it('B5: reschedule across year boundary', async () => {
+    it('B10: reschedule across year boundary', async () => {
       const yearEndId = await createSeries(adapter, {
         title: 'Year End Series',
         startDate: date('2023-12-01'),
@@ -754,7 +757,71 @@ describe('Segment 09: Instance Exceptions', () => {
       expect(schedule.some(i => i.date === targetDate)).toBe(false);
     });
 
-    it('B7: exception on non-pattern date', async () => {
+    it('B7: rescheduled instance at exact range.end is excluded (exclusive end)', async () => {
+      const targetDate = date('2024-01-15');
+      // Reschedule to Feb 1 — then query [Jan 1, Feb 1) where Feb 1 is exclusive end
+      const newTime = datetime('2024-02-01T09:00:00');
+
+      await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
+
+      const schedule = await getSchedule(adapter, {
+        seriesId: testSeriesId,
+        range: { start: date('2024-01-01'), end: date('2024-02-01') },
+      });
+
+      // Feb 1 is the exclusive end — rescheduled instance should NOT appear
+      expect(schedule.some(i => i.date === date('2024-02-01'))).toBe(false);
+      // Original date should also be gone (it was rescheduled away)
+      expect(schedule.some(i => i.date === targetDate)).toBe(false);
+    });
+
+    it('B8: rescheduled instance one day before range.end is included', async () => {
+      const targetDate = date('2024-01-15');
+      // Reschedule to Jan 31 — then query [Jan 1, Feb 1) where Jan 31 is inside
+      const newTime = datetime('2024-01-31T09:00:00');
+
+      await rescheduleInstance(adapter, testSeriesId, targetDate, newTime);
+
+      const schedule = await getSchedule(adapter, {
+        seriesId: testSeriesId,
+        range: { start: date('2024-01-01'), end: date('2024-02-01') },
+      });
+
+      // Jan 31 is inside [Jan 1, Feb 1) — rescheduled instance SHOULD appear
+      expect(schedule.some(i => i.date === date('2024-01-31'))).toBe(true);
+    });
+
+    it('B9: expandSchedule returns empty when zero-width range (exclusive end)', () => {
+      const input: ExpandScheduleInput = {
+        seriesId: 'test-series',
+        timeOfDay: '09:00:00',
+        startDate: date('2024-01-01'),
+        patterns: [{
+          id: 'p1',
+          seriesId: 'test-series',
+          type: 'daily',
+          conditionId: null,
+        }],
+        exceptions: [],
+      };
+
+      // Prove data exists: one-day range [Jan 15, Jan 16) produces one instance
+      const oneDayResult = expandSchedule(input, {
+        start: date('2024-01-15'),
+        end: date('2024-01-16'),
+      });
+      expect(oneDayResult).toHaveLength(1);
+      expect(oneDayResult[0]!.date).toBe(date('2024-01-15'));
+
+      // Zero-width range [Jan 15, Jan 15) is empty — exclusive end convention
+      const zeroWidthResult = expandSchedule(input, {
+        start: date('2024-01-15'),
+        end: date('2024-01-15'),
+      });
+      expect(zeroWidthResult).toHaveLength(0);
+    });
+
+    it('B11: exception on non-pattern date', async () => {
       // Create weekly series (only Mondays)
       const weeklyId = await createSeries(adapter, {
         title: 'Weekly Series',

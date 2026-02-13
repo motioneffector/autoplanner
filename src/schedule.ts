@@ -49,7 +49,7 @@ export function expandSchedule(input: ExpandScheduleInput, range: DateRange): Sc
   const effectiveEnd =
     input.endDate && input.endDate < range.end ? input.endDate : range.end
 
-  if (effectiveStart > effectiveEnd) return []
+  if (effectiveStart >= effectiveEnd) return []
 
   // Expand patterns
   const allDates = new Set<LocalDate>()
@@ -86,7 +86,7 @@ export function expandSchedule(input: ExpandScheduleInput, range: DateRange): Sc
         const newTime = exception.newTime as LocalDateTime
         const newDate = dateOf(newTime)
         // Only include if new date is in the query range
-        if (newDate >= range.start && newDate <= range.end) {
+        if (newDate >= range.start && newDate < range.end) {
           instances.push({
             date: newDate,
             time: newTime,

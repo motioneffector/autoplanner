@@ -3556,18 +3556,32 @@ describe('Segment 14: Public API', () => {
   // ============================================================================
 
   describe('Date Range Validation', () => {
-    it('getSchedule with same start and end returns empty (zero-width range)', async () => {
+    it('returns empty when start equals end (zero-width range)', async () => {
       const planner = createAutoplanner(createValidConfig());
+      // Two fixed series at the same time → overlap conflict
       await planner.createSeries({
-        title: 'Daily',
-        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30 }],
+        title: 'Daily A',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30, fixed: true }],
+        startDate: date('2025-01-06'),
+      });
+      await planner.createSeries({
+        title: 'Daily B',
+        patterns: [{ type: 'daily', time: time('09:00:00'), duration: 30, fixed: true }],
         startDate: date('2025-01-06'),
       });
 
+      // Prove both instances and conflicts exist with a normal range
+      const proof = await planner.getSchedule(date('2025-01-06'), date('2025-01-07'));
+      expect(proof.instances).toHaveLength(2);
+      expect(proof.instances[0]!).toMatchObject({ title: 'Daily A', date: '2025-01-06' });
+      expect(proof.instances[1]!).toMatchObject({ title: 'Daily B', date: '2025-01-06' });
+      expect(proof.conflicts).toHaveLength(1);
+      expect(proof.conflicts[0]!.type).toBe('overlap');
+
       // Zero-width range [Jan 6, Jan 6) is empty — exclusive end
       const result = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
-      expect(result.instances).toHaveLength(0);
-      expect(result.conflicts).toHaveLength(0);
+      expect(result.instances.length).toBe(0);
+      expect(result.conflicts.length).toBe(0);
     });
 
     it('getSchedule with end before start throws ValidationError with dates in message', async () => {
@@ -3596,7 +3610,7 @@ describe('Segment 14: Public API', () => {
       expect(result.instances[1]!).toMatchObject({ title: 'Daily', date: '2025-01-07' });
     });
 
-    it('zero-width range returns empty on repeated calls', async () => {
+    it('returns empty when zero-width range called repeatedly', async () => {
       const planner = createAutoplanner(createValidConfig());
       await planner.createSeries({
         title: 'Daily',
@@ -3604,13 +3618,19 @@ describe('Segment 14: Public API', () => {
         startDate: date('2025-01-06'),
       });
 
+      // Prove data exists with a normal range
+      const proof = await planner.getSchedule(date('2025-01-06'), date('2025-01-07'));
+      expect(proof.instances).toHaveLength(1);
+      expect(proof.instances[0]!).toMatchObject({ title: 'Daily', date: '2025-01-06' });
+
+      // Zero-width returns empty consistently
       const result1 = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
       const result2 = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
-      expect(result1.instances).toHaveLength(0);
-      expect(result2.instances).toHaveLength(0);
+      expect(result1.instances).toEqual([]);
+      expect(result2.instances).toEqual([]);
     });
 
-    it('zero-width range differs from explicit +1 day range', async () => {
+    it('returns empty when zero-width but non-empty when +1 day range', async () => {
       const planner = createAutoplanner(createValidConfig());
       await planner.createSeries({
         title: 'Daily',
@@ -3618,11 +3638,14 @@ describe('Segment 14: Public API', () => {
         startDate: date('2025-01-06'),
       });
 
-      const zeroWidth = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
+      // Prove data exists: one-day range produces result
       const oneDay = await planner.getSchedule(date('2025-01-06'), date('2025-01-07'));
-      expect(zeroWidth.instances).toHaveLength(0);
       expect(oneDay.instances).toHaveLength(1);
       expect(oneDay.instances[0]!).toMatchObject({ title: 'Daily', date: '2025-01-06' });
+
+      // Zero-width range on same date produces nothing
+      const zeroWidth = await planner.getSchedule(date('2025-01-06'), date('2025-01-06'));
+      expect(zeroWidth.instances).toEqual([]);
     });
   });
 

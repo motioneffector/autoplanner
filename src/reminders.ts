@@ -150,7 +150,7 @@ export async function getPendingReminders(
         ? series.endDate
         : opts.range.end
 
-    if (effectiveStart > effectiveEnd) continue
+    if (effectiveStart >= effectiveEnd) continue
 
     // Expand patterns to get instance dates
     const patterns = await adapter.getPatternsBySeries(seriesId)
