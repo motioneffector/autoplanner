@@ -1246,3 +1246,414 @@ describe('Known Answer Tests', () => {
     expect(result.size).toBe(12)
   })
 })
+
+// ============================================================================
+// MUTATION TARGETS: toExpandablePattern (L470-542 entirely NoCoverage)
+// ============================================================================
+
+import { toExpandablePattern } from '../src/pattern-expansion'
+
+describe('toExpandablePattern', () => {
+  const ss = '2024-06-15' as LocalDate // seriesStart: June 15 (a Saturday)
+
+  it('converts daily', () => {
+    const result = toExpandablePattern({ type: 'daily' }, ss)
+    expect(result).toEqual({ type: 'daily' })
+  })
+
+  it('converts everyNDays with explicit n', () => {
+    const result = toExpandablePattern({ type: 'everyNDays', n: 5 }, ss)
+    expect(result).toEqual({ type: 'everyNDays', n: 5 })
+  })
+
+  it('everyNDays defaults to n=2 when n missing', () => {
+    const result = toExpandablePattern({ type: 'everyNDays' }, ss)
+    expect(result).toEqual({ type: 'everyNDays', n: 2 })
+  })
+
+  it('everyNDays defaults to n=2 when n is 0 (falsy)', () => {
+    const result = toExpandablePattern({ type: 'everyNDays', n: 0 }, ss)
+    expect(result).toEqual({ type: 'everyNDays', n: 2 })
+  })
+
+  it('converts weekly with daysOfWeek array of numbers', () => {
+    const result = toExpandablePattern({ type: 'weekly', daysOfWeek: [1, 3, 5] }, ss)
+    expect(result.type).toBe('weekdays')
+    expect((result as any).days).toEqual(['mon', 'wed', 'fri'])
+  })
+
+  it('converts weekly with daysOfWeek array of strings', () => {
+    const result = toExpandablePattern({ type: 'weekly', daysOfWeek: ['monday', 'wednesday'] }, ss)
+    expect(result.type).toBe('weekdays')
+    expect((result as any).days).toEqual(['mon', 'wed'])
+  })
+
+  it('converts weekly with single dayOfWeek number', () => {
+    const result = toExpandablePattern({ type: 'weekly', dayOfWeek: 4 }, ss)
+    expect(result.type).toBe('weekdays')
+    expect((result as any).days).toEqual(['thu'])
+  })
+
+  it('converts weekly with single dayOfWeek string', () => {
+    const result = toExpandablePattern({ type: 'weekly', dayOfWeek: 'friday' }, ss)
+    expect(result.type).toBe('weekdays')
+    expect((result as any).days).toEqual(['fri'])
+  })
+
+  it('converts weekly with no days to plain weekly', () => {
+    const result = toExpandablePattern({ type: 'weekly' }, ss)
+    expect(result).toEqual({ type: 'weekly' })
+  })
+
+  it('converts everyNWeeks with numeric weekday', () => {
+    const result = toExpandablePattern({ type: 'everyNWeeks', n: 3, weekday: 2 }, ss)
+    expect(result).toEqual({ type: 'everyNWeeks', n: 3, weekday: 'tue' })
+  })
+
+  it('converts everyNWeeks with string weekday', () => {
+    const result = toExpandablePattern({ type: 'everyNWeeks', n: 2, weekday: 'fri' }, ss)
+    expect(result).toEqual({ type: 'everyNWeeks', n: 2, weekday: 'fri' })
+  })
+
+  it('everyNWeeks without weekday omits it', () => {
+    const result = toExpandablePattern({ type: 'everyNWeeks', n: 4 }, ss)
+    expect(result).toEqual({ type: 'everyNWeeks', n: 4 })
+  })
+
+  it('everyNWeeks defaults n to 2 when missing', () => {
+    const result = toExpandablePattern({ type: 'everyNWeeks' }, ss)
+    expect(result).toEqual({ type: 'everyNWeeks', n: 2 })
+  })
+
+  it('converts weekdays with numeric daysOfWeek', () => {
+    const result = toExpandablePattern({ type: 'weekdays', daysOfWeek: [0, 6] }, ss)
+    expect(result.type).toBe('weekdays')
+    expect((result as any).days).toEqual(['sun', 'sat'])
+  })
+
+  it('converts weekdays with string daysOfWeek', () => {
+    const result = toExpandablePattern({ type: 'weekdays', daysOfWeek: ['mon', 'fri'] }, ss)
+    expect(result.type).toBe('weekdays')
+    expect((result as any).days).toEqual(['mon', 'fri'])
+  })
+
+  it('weekdays with no daysOfWeek produces empty days', () => {
+    const positive = toExpandablePattern({ type: 'weekdays', daysOfWeek: [1, 3] }, ss)
+    expect((positive as any).days).toHaveLength(2)
+    expect((positive as any).days[0]).toEqual('mon')
+    expect((positive as any).days[1]).toEqual('wed')
+
+    const result = toExpandablePattern({ type: 'weekdays' }, ss)
+    expect(result).toEqual({ type: 'weekdays', days: [] })
+  })
+
+  it('converts nthWeekdayOfMonth with numeric weekday', () => {
+    const result = toExpandablePattern({ type: 'nthWeekdayOfMonth', n: 2, weekday: 4 }, ss)
+    expect(result).toEqual({ type: 'nthWeekdayOfMonth', n: 2, weekday: 'thu' })
+  })
+
+  it('converts nthWeekdayOfMonth with string weekday', () => {
+    const result = toExpandablePattern({ type: 'nthWeekdayOfMonth', n: 1, weekday: 'mon' }, ss)
+    expect(result).toEqual({ type: 'nthWeekdayOfMonth', n: 1, weekday: 'mon' })
+  })
+
+  it('converts lastWeekdayOfMonth with numeric weekday', () => {
+    const result = toExpandablePattern({ type: 'lastWeekdayOfMonth', weekday: 5 }, ss)
+    expect(result).toEqual({ type: 'lastWeekdayOfMonth', weekday: 'fri' })
+  })
+
+  it('converts nthToLastWeekdayOfMonth with numeric weekday', () => {
+    const result = toExpandablePattern({ type: 'nthToLastWeekdayOfMonth', n: 2, weekday: 3 }, ss)
+    expect(result).toEqual({ type: 'nthToLastWeekdayOfMonth', n: 2, weekday: 'wed' })
+  })
+
+  it('converts lastDayOfMonth', () => {
+    const result = toExpandablePattern({ type: 'lastDayOfMonth' }, ss)
+    expect(result).toEqual({ type: 'lastDayOfMonth' })
+  })
+
+  it('monthly defaults day to seriesStart day', () => {
+    const result = toExpandablePattern({ type: 'monthly' }, ss)
+    expect(result).toEqual({ type: 'monthly', day: 15 }) // dayOf('2024-06-15') = 15
+  })
+
+  it('monthly uses explicit day', () => {
+    const result = toExpandablePattern({ type: 'monthly', day: 28 }, ss)
+    expect(result).toEqual({ type: 'monthly', day: 28 })
+  })
+
+  it('monthly uses dayOfMonth when day missing', () => {
+    const result = toExpandablePattern({ type: 'monthly', dayOfMonth: 10 }, ss)
+    expect(result).toEqual({ type: 'monthly', day: 10 })
+  })
+
+  it('yearly defaults month and day to seriesStart', () => {
+    const result = toExpandablePattern({ type: 'yearly' }, ss)
+    expect(result).toEqual({ type: 'yearly', month: 6, day: 15 }) // monthOf=6, dayOf=15
+  })
+
+  it('yearly uses explicit month and day', () => {
+    const result = toExpandablePattern({ type: 'yearly', month: 12, day: 25 }, ss)
+    expect(result).toEqual({ type: 'yearly', month: 12, day: 25 })
+  })
+
+  it('yearly uses dayOfMonth when day missing', () => {
+    const result = toExpandablePattern({ type: 'yearly', month: 3, dayOfMonth: 1 }, ss)
+    expect(result).toEqual({ type: 'yearly', month: 3, day: 1 })
+  })
+
+  it('unknown type passes through as-is', () => {
+    const pat = { type: 'customThing', foo: 42 }
+    const result = toExpandablePattern(pat, ss)
+    expect(result).toBe(pat) // same reference
+  })
+
+  // numToWeekday edge cases via daysOfWeek number conversion
+  it('numToWeekday: 0 maps to sun', () => {
+    const result = toExpandablePattern({ type: 'weekly', daysOfWeek: [0] }, ss)
+    expect((result as any).days[0]).toBe('sun')
+  })
+
+  it('numToWeekday: 7 wraps to sun', () => {
+    const result = toExpandablePattern({ type: 'weekly', daysOfWeek: [7] }, ss)
+    expect((result as any).days[0]).toBe('sun')
+  })
+
+  it('numToWeekday: 6 maps to sat', () => {
+    const result = toExpandablePattern({ type: 'weekly', daysOfWeek: [6] }, ss)
+    expect((result as any).days[0]).toBe('sat')
+  })
+
+  // dayNameToWeekday edge cases
+  it('dayNameToWeekday: full names normalized', () => {
+    const result = toExpandablePattern({ type: 'weekly', daysOfWeek: ['TUESDAY', 'Saturday'] }, ss)
+    expect((result as any).days).toEqual(['tue', 'sat'])
+  })
+})
+
+// ============================================================================
+// MUTATION TARGETS: Boundary tests per pattern type
+// ============================================================================
+
+describe('Pattern Boundary Tests', () => {
+  // Zero-width range [date, date) should always return empty
+  it('daily: zero-width range returns empty', () => {
+    const d = '2024-01-15' as LocalDate
+    const range: DateRange = { start: d, end: d }
+    const result = expandPattern(daily(), range, d)
+    expect(result.size).toBe(0)
+  })
+
+  it('everyNDays: zero-width range returns empty', () => {
+    const d = '2024-01-15' as LocalDate
+    const range: DateRange = { start: d, end: d }
+    const result = expandPattern(everyNDays(3), range, d)
+    expect(result.size).toBe(0)
+  })
+
+  // Exact range.end exclusion: instance on range.end must NOT be included
+  it('daily: instance on range.end excluded', () => {
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-03' as LocalDate }
+    const result = expandPattern(daily(), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(2)
+    expect(result.has('2024-01-01' as LocalDate)).toBe(true)
+    expect(result.has('2024-01-02' as LocalDate)).toBe(true)
+    expect(result.has('2024-01-03' as LocalDate)).toBe(false)
+  })
+
+  it('monthly: instance exactly on range.end excluded', () => {
+    // monthly(15), range [Jan 1, Jan 15) → Jan 15 is range.end, should be excluded
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-15' as LocalDate }
+    const result = expandPattern(monthly(15), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(0)
+  })
+
+  it('monthly: instance one day before range.end included', () => {
+    // monthly(14), range [Jan 1, Jan 15) → Jan 14 should be included
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-15' as LocalDate }
+    const result = expandPattern(monthly(14), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-01-14' as LocalDate)).toBe(true)
+  })
+
+  it('monthly(1): instance exactly on range.start included', () => {
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-02-01' as LocalDate }
+    const result = expandPattern(monthly(1), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-01-01' as LocalDate)).toBe(true)
+  })
+
+  it('yearly: instance exactly on range.end excluded', () => {
+    // yearly(1, 1), range [2024-01-01, 2025-01-01) → 2024-01-01 included, 2025-01-01 excluded
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2025-01-01' as LocalDate }
+    const result = expandPattern(yearly(1, 1), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-01-01' as LocalDate)).toBe(true)
+    expect(result.has('2025-01-01' as LocalDate)).toBe(false)
+  })
+
+  it('yearly(2, 29): no match in non-leap year', () => {
+    const range: DateRange = { start: '2023-01-01' as LocalDate, end: '2023-12-31' as LocalDate }
+    const result = expandPattern(yearly(2, 29), range, '2023-01-01' as LocalDate)
+    expect(result.size).toBe(0)
+  })
+
+  it('yearly(2, 29): matches in leap year', () => {
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-12-31' as LocalDate }
+    const result = expandPattern(yearly(2, 29), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-02-29' as LocalDate)).toBe(true)
+  })
+
+  it('yearly(12, 31): year-end boundary', () => {
+    // range [2024-01-01, 2025-01-01) includes 2024-12-31 but not 2025-12-31
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2025-01-01' as LocalDate }
+    const result = expandPattern(yearly(12, 31), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-12-31' as LocalDate)).toBe(true)
+  })
+
+  it('nthWeekdayOfMonth: 5th occurrence absent returns no match', () => {
+    // Feb 2023 only has 4 Mondays
+    const range: DateRange = { start: '2023-02-01' as LocalDate, end: '2023-03-01' as LocalDate }
+    const result = expandPattern(nthWeekdayOfMonth(5, 'mon'), range, '2023-01-01' as LocalDate)
+    expect(result.size).toBe(0)
+  })
+
+  it('nthWeekdayOfMonth: exact range.end boundary excluded', () => {
+    // 2024-01-12 is the 2nd Friday of Jan 2024
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-12' as LocalDate }
+    const result = expandPattern(nthWeekdayOfMonth(2, 'fri'), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(0) // Jan 12 === range.end (exclusive)
+  })
+
+  it('lastWeekdayOfMonth: boundary exclusion', () => {
+    // Last Friday of Jan 2024 is Jan 26
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-26' as LocalDate }
+    const result = expandPattern(lastWeekdayOfMonth('fri'), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(0) // Jan 26 === range.end
+  })
+
+  it('lastWeekdayOfMonth: included when before range.end', () => {
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-27' as LocalDate }
+    const result = expandPattern(lastWeekdayOfMonth('fri'), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-01-26' as LocalDate)).toBe(true)
+  })
+
+  it('nthToLastWeekdayOfMonth: 2nd-to-last Friday boundary', () => {
+    // Last Fri of Jan 2024 = Jan 26, 2nd-to-last = Jan 19
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-19' as LocalDate }
+    const result = expandPattern(nthToLastWeekdayOfMonth(2, 'fri'), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(0) // Jan 19 === range.end
+  })
+
+  it('nthToLastWeekdayOfMonth: included when before range.end', () => {
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-20' as LocalDate }
+    const result = expandPattern(nthToLastWeekdayOfMonth(2, 'fri'), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-01-19' as LocalDate)).toBe(true)
+  })
+
+  it('lastDayOfMonth: exactly on range.end excluded', () => {
+    // Last day of Jan = Jan 31
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-31' as LocalDate }
+    const result = expandPattern(lastDayOfMonth(), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(0) // Jan 31 === range.end
+  })
+
+  it('lastDayOfMonth: included when range.end is after', () => {
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-02-01' as LocalDate }
+    const result = expandPattern(lastDayOfMonth(), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-01-31' as LocalDate)).toBe(true)
+  })
+
+  // seriesStart === range.start boundary
+  it('weekdays: seriesStart equals range.start uses range.start', () => {
+    // 2024-01-01 is a Monday
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-02' as LocalDate }
+    const result = expandPattern(weekdays(['mon']), range, '2024-01-01' as LocalDate)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-01-01' as LocalDate)).toBe(true)
+  })
+
+  // everyNDays: boundary with offset arithmetic
+  it('everyNDays(3): first instance on range.start', () => {
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-04' as LocalDate }
+    const result = expandPattern(everyNDays(3), range, '2024-01-01' as LocalDate)
+    // seriesStart = range.start, gap=0, rem=0, offset=0 → first instance on Jan 1
+    // Jan 1 + 3 = Jan 4 which is range.end (excluded)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-01-01' as LocalDate)).toBe(true)
+    expect(result.has('2024-01-04' as LocalDate)).toBe(false)
+  })
+})
+
+// ============================================================================
+// MUTATION TARGETS: weekly/daysOfWeek through expandInner (L164-174 NoCoverage)
+// ============================================================================
+
+describe('Weekly with daysOfWeek through expandInner', () => {
+  it('weekly pattern with daysOfWeek expands via dayMap', () => {
+    // Construct the pattern object directly (not via weekdays() constructor)
+    // to exercise the weekly case in expandInner L164-174
+    const pat: Pattern = { type: 'weekly', daysOfWeek: ['monday', 'wednesday', 'friday'] } as any
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-08' as LocalDate }
+    const result = expandPattern(pat, range, '2024-01-01' as LocalDate)
+    // 2024-01-01 Mon, 01-03 Wed, 01-05 Fri = 3 days
+    expect(result.size).toBe(3)
+    expect(result.has('2024-01-01' as LocalDate)).toBe(true) // Monday
+    expect(result.has('2024-01-03' as LocalDate)).toBe(true) // Wednesday
+    expect(result.has('2024-01-05' as LocalDate)).toBe(true) // Friday
+  })
+
+  it('weekly pattern with short-form daysOfWeek', () => {
+    const pat: Pattern = { type: 'weekly', daysOfWeek: ['mon', 'thu', 'sat'] } as any
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-08' as LocalDate }
+    const result = expandPattern(pat, range, '2024-01-01' as LocalDate)
+    // Mon 01-01, Thu 01-04, Sat 01-06
+    expect(result.size).toBe(3)
+    expect(result.has('2024-01-01' as LocalDate)).toBe(true)
+    expect(result.has('2024-01-04' as LocalDate)).toBe(true)
+    expect(result.has('2024-01-06' as LocalDate)).toBe(true)
+  })
+
+  it('weekly pattern without daysOfWeek falls through to everyNWeeks', () => {
+    // weekly() with no daysOfWeek → falls through to everyNWeeksCore(1, dayOfWeek(seriesStart))
+    // seriesStart = 2024-01-01 (Monday) → produces every Monday
+    const range: DateRange = { start: '2024-01-01' as LocalDate, end: '2024-01-15' as LocalDate }
+    const result = expandPattern(weekly(), range, '2024-01-01' as LocalDate)
+    // Mondays: Jan 1, 8 = 2 days
+    expect(result.size).toBe(2)
+    expect(result.has('2024-01-01' as LocalDate)).toBe(true)
+    expect(result.has('2024-01-08' as LocalDate)).toBe(true)
+  })
+})
+
+// ============================================================================
+// MUTATION TARGETS: everyNWeeksCore else branch (L259-264 NoCoverage)
+// ============================================================================
+
+describe('everyNWeeks anchor-before-start branch', () => {
+  it('everyNWeeks where anchor is before range.start', () => {
+    // seriesStart = 2024-01-01 (Monday), weekday = mon → anchor = 2024-01-01
+    // range starts 2024-03-01 → anchor (Jan 1) < start (Mar 1) → enters else branch
+    const range: DateRange = { start: '2024-03-01' as LocalDate, end: '2024-03-15' as LocalDate }
+    const result = expandPattern(everyNWeeks(2, 'mon'), range, '2024-01-01' as LocalDate)
+    // Every 2 weeks from Mon Jan 1: Jan 1, 15, 29, Feb 12, 26, Mar 11
+    // In range [Mar 1, Mar 15): Mar 11 only
+    expect(result.size).toBe(1)
+    expect(result.has('2024-03-11' as LocalDate)).toBe(true)
+  })
+
+  it('everyNWeeks(1) anchor before start produces correct weekly', () => {
+    // seriesStart = 2024-01-01 (Mon), range [2024-02-01, 2024-02-08)
+    // anchor = Jan 1, start = Feb 1 (Thu) → anchor < start → else branch
+    const range: DateRange = { start: '2024-02-01' as LocalDate, end: '2024-02-08' as LocalDate }
+    const result = expandPattern(everyNWeeks(1, 'mon'), range, '2024-01-01' as LocalDate)
+    // Weekly Mondays from Jan 1: Feb 5 is in range [Feb 1, Feb 8)
+    expect(result.size).toBe(1)
+    expect(result.has('2024-02-05' as LocalDate)).toBe(true)
+  })
+})

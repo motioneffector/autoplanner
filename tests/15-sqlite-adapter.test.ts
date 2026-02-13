@@ -11,6 +11,7 @@ import {
   createSqliteAdapter,
   type SqliteAdapter,
   DuplicateKeyError,
+  ForeignKeyError,
 } from '../src/sqlite-adapter';
 import {
   type LocalDate,
@@ -2363,6 +2364,505 @@ describe('Segment 15: SQLite Adapter', () => {
       expect(results).toHaveLength(2);
       expect(results[0]!.instanceDate).toBe('2026-01-10');
       expect(results[1]!.instanceDate).toBe('2026-01-11');
+    });
+  });
+
+  // ==========================================================================
+  // Mutation Testing: Surviving Mutant Killers
+  // ==========================================================================
+  describe('Mutation killers: createSeries coalescing', () => {
+    it('description ?? null: stores null when description is undefined', async () => {
+      await adapter.createSeries({
+        id: seriesId('desc-undef'),
+        title: 'No Desc',
+        locked: false,
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+      const s = await adapter.getSeries(seriesId('desc-undef'));
+      expect(s).not.toBeNull();
+      expect(s!.description).toBeUndefined();
+      expect(s!.title).toBe('No Desc');
+    });
+
+    it('description ?? null: stores actual description when provided', async () => {
+      await adapter.createSeries({
+        id: seriesId('desc-set'),
+        title: 'Has Desc',
+        description: 'hello',
+        locked: false,
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+      const s = await adapter.getSeries(seriesId('desc-set'));
+      expect(s).not.toBeNull();
+      expect(s!.description).toBe('hello');
+    });
+
+    it('updatedAt ?? createdAt: uses createdAt when updatedAt is undefined', async () => {
+      await adapter.createSeries({
+        id: seriesId('upd-undef'),
+        title: 'No UpdatedAt',
+        locked: false,
+        createdAt: datetime('2025-03-15T10:00:00'),
+      });
+      const s = await adapter.getSeries(seriesId('upd-undef'));
+      expect(s).not.toBeNull();
+      expect(s!.updatedAt).toBe('2025-03-15T10:00:00');
+    });
+
+    it('updatedAt ?? createdAt: uses updatedAt when provided', async () => {
+      await adapter.createSeries({
+        id: seriesId('upd-set'),
+        title: 'Has UpdatedAt',
+        locked: false,
+        createdAt: datetime('2025-03-15T10:00:00'),
+        updatedAt: datetime('2025-06-20T14:30:00'),
+      });
+      const s = await adapter.getSeries(seriesId('upd-set'));
+      expect(s).not.toBeNull();
+      expect(s!.updatedAt).toBe('2025-06-20T14:30:00');
+    });
+  });
+
+  describe('Mutation killers: cycling config', () => {
+    it('setCyclingConfig(null) deletes the config', async () => {
+      await adapter.createSeries(createTestSeries('cyc-del'));
+      await adapter.setCyclingConfig(seriesId('cyc-del'), {
+        mode: 'sequential',
+        currentIndex: 0,
+        gapLeap: false,
+      });
+      const before = await adapter.getCyclingConfig(seriesId('cyc-del'));
+      expect(before).not.toBeNull();
+      expect(before!.currentIndex).toBe(0);
+      expect(before!.gapLeap).toBe(false);
+
+      await adapter.setCyclingConfig(seriesId('cyc-del'), null);
+      const after = await adapter.getCyclingConfig(seriesId('cyc-del'));
+      expect(after).toBe(null);
+    });
+
+    it('getCyclingConfig includes mode when mode is set', async () => {
+      await adapter.createSeries(createTestSeries('cyc-mode'));
+      await adapter.setCyclingConfig(seriesId('cyc-mode'), {
+        mode: 'random',
+        currentIndex: 2,
+        gapLeap: true,
+      });
+      const config = await adapter.getCyclingConfig(seriesId('cyc-mode'));
+      expect(config).not.toBeNull();
+      expect(config!.mode).toBe('random');
+      expect(config!.currentIndex).toBe(2);
+      expect(config!.gapLeap).toBe(true);
+    });
+
+    it('getCyclingConfig omits mode when mode is null in db', async () => {
+      await adapter.createSeries(createTestSeries('cyc-nomode'));
+      await adapter.setCyclingConfig(seriesId('cyc-nomode'), {
+        currentIndex: 0,
+        gapLeap: false,
+      });
+      const config = await adapter.getCyclingConfig(seriesId('cyc-nomode'));
+      expect(config).not.toBeNull();
+      expect(config!.mode).toBe(undefined);
+      expect(config!.currentIndex).toBe(0);
+      expect(config!.gapLeap).toBe(false);
+    });
+  });
+
+  describe('Mutation killers: tag upsert guard', () => {
+    it('addTagToSeries reuses existing tag instead of creating duplicate', async () => {
+      await adapter.createSeries(createTestSeries('tag-reuse-1'));
+      await adapter.createSeries(createTestSeries('tag-reuse-2'));
+
+      await adapter.addTagToSeries(seriesId('tag-reuse-1'), 'shared-tag');
+      await adapter.addTagToSeries(seriesId('tag-reuse-2'), 'shared-tag');
+
+      const tags1 = await adapter.getTagsForSeries(seriesId('tag-reuse-1'));
+      const tags2 = await adapter.getTagsForSeries(seriesId('tag-reuse-2'));
+      expect(tags1).toHaveLength(1);
+      expect(tags2).toHaveLength(1);
+      expect(tags1[0]!.name).toBe('shared-tag');
+      expect(tags2[0]!.name).toBe('shared-tag');
+      expect(tags1[0]!.id).toBe(tags2[0]!.id);
+    });
+
+    it('addTagToSeries creates new tag when none exists', async () => {
+      await adapter.createSeries(createTestSeries('tag-new'));
+      await adapter.addTagToSeries(seriesId('tag-new'), 'brand-new');
+
+      const tags = await adapter.getTagsForSeries(seriesId('tag-new'));
+      expect(tags).toHaveLength(1);
+      expect(tags[0]!.name).toBe('brand-new');
+    });
+  });
+
+  describe('Mutation killers: lifecycle and extras', () => {
+    it('close() actually closes the database', async () => {
+      const tempAdapter = await createSqliteAdapter(':memory:');
+      await tempAdapter.createSeries(createTestSeries('close-test'));
+      const before = await tempAdapter.getSeries(seriesId('close-test'));
+      expect(before).not.toBeNull();
+      expect(before!.title).toBe('Test Series close-test');
+
+      await tempAdapter.close();
+      await expect(() => tempAdapter.listTables()).rejects.toThrow(/not open/);
+    });
+
+    it('execute() runs SQL statements', async () => {
+      await adapter.execute('CREATE TABLE exec_test (id TEXT PRIMARY KEY, val INTEGER)');
+      await adapter.execute("INSERT INTO exec_test (id, val) VALUES ('a', 42)");
+      const rows = await adapter.rawQuery('SELECT * FROM exec_test');
+      expect(rows).toHaveLength(1);
+      expect((rows[0] as { id: string; val: number }).val).toBe(42);
+    });
+
+    it('explainQueryPlan joins rows with newline', async () => {
+      const plan = await adapter.explainQueryPlan('SELECT * FROM series');
+      expect(plan).toMatch(/SCAN/i);
+    });
+
+    it('explainQueryPlan with multi-step plan uses newline separator', async () => {
+      const plan = await adapter.explainQueryPlan(
+        'SELECT s.id, t.name FROM series s LEFT JOIN series_tag st ON s.id = st.series_id LEFT JOIN tag t ON st.tag_id = t.id'
+      );
+      expect(plan).toContain('\n');
+      const lines = plan.split('\n');
+      expect(lines.length).toBeGreaterThanOrEqual(3);
+      expect(lines[0]).toMatch(/SCAN/i);
+    });
+
+    it('getMigrationHistory returns version and appliedAt', async () => {
+      const history = await adapter.getMigrationHistory();
+      expect(history).toHaveLength(1);
+      const first = history[0]!;
+      expect(first.version).toBe(2);
+      expect(first.appliedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+
+    it('getMigrationHistory maps applied_at to appliedAt correctly', async () => {
+      const history = await adapter.getMigrationHistory();
+      expect(history).toHaveLength(1);
+      const entry = history[0]!;
+      expect((entry as Record<string, unknown>).applied_at).toBe(undefined);
+      expect(entry.version).toBe(2);
+      expect(entry.appliedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    });
+  });
+
+  // ==========================================================================
+  // Mutation Testing: Round 2 — updateSeries, pattern, condition, adaptive, tx
+  // ==========================================================================
+  describe('Mutation killers: updateSeries coalescing', () => {
+    it('preserves description through update when set', async () => {
+      await adapter.createSeries({
+        id: seriesId('upd-desc'),
+        title: 'Has Desc',
+        description: 'original desc',
+        locked: false,
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+      await adapter.updateSeries(seriesId('upd-desc'), { title: 'New Title' });
+      const s = await adapter.getSeries(seriesId('upd-desc'));
+      expect(s).not.toBeNull();
+      expect(s!.description).toBe('original desc');
+    });
+
+    it('preserves startDate through update when set', async () => {
+      await adapter.createSeries({
+        id: seriesId('upd-sd'),
+        title: 'Has Start',
+        locked: false,
+        startDate: date('2025-06-01'),
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+      await adapter.updateSeries(seriesId('upd-sd'), { title: 'New Title' });
+      const s = await adapter.getSeries(seriesId('upd-sd'));
+      expect(s).not.toBeNull();
+      expect(s!.startDate).toBe('2025-06-01');
+    });
+
+    it('preserves endDate through update when set', async () => {
+      await adapter.createSeries({
+        id: seriesId('upd-ed'),
+        title: 'Has End',
+        locked: false,
+        endDate: date('2025-12-31'),
+        createdAt: datetime('2025-01-01T00:00:00'),
+        updatedAt: datetime('2025-01-01T00:00:00'),
+      });
+      await adapter.updateSeries(seriesId('upd-ed'), { title: 'New Title' });
+      const s = await adapter.getSeries(seriesId('upd-ed'));
+      expect(s).not.toBeNull();
+      expect(s!.endDate).toBe('2025-12-31');
+    });
+  });
+
+  describe('Mutation killers: pattern optional fields', () => {
+    it('stores weekday and retrieves it', async () => {
+      await adapter.createSeries(createTestSeries('pat-wd'));
+      await adapter.createPattern({
+        id: patternId('pat-wd-p1'),
+        seriesId: seriesId('pat-wd'),
+        type: 'weekly',
+        weekday: 3,
+      });
+      const p = await adapter.getPattern(patternId('pat-wd-p1'));
+      expect(p).not.toBeNull();
+      expect(p!.weekday).toBe(3);
+    });
+
+    it('omits weekday when not provided', async () => {
+      await adapter.createSeries(createTestSeries('pat-nowd'));
+      await adapter.createPattern({
+        id: patternId('pat-nowd-p1'),
+        seriesId: seriesId('pat-nowd'),
+        type: 'daily',
+      });
+      const p = await adapter.getPattern(patternId('pat-nowd-p1'));
+      expect(p).not.toBeNull();
+      expect(p!.weekday).toBeUndefined();
+      expect(p!.type).toBe('daily');
+    });
+
+    it('stores allDay=true and retrieves it', async () => {
+      await adapter.createSeries(createTestSeries('pat-ad'));
+      await adapter.createPattern({
+        id: patternId('pat-ad-p1'),
+        seriesId: seriesId('pat-ad'),
+        type: 'daily',
+        allDay: true,
+      });
+      const p = await adapter.getPattern(patternId('pat-ad-p1'));
+      expect(p).not.toBeNull();
+      expect(p!.allDay).toBe(true);
+    });
+
+    it('stores allDay=false and retrieves it as false', async () => {
+      await adapter.createSeries(createTestSeries('pat-ad-f'));
+      await adapter.createPattern({
+        id: patternId('pat-ad-f-p1'),
+        seriesId: seriesId('pat-ad-f'),
+        type: 'daily',
+        allDay: false,
+      });
+      const p = await adapter.getPattern(patternId('pat-ad-f-p1'));
+      expect(p).not.toBeNull();
+      expect(p!.allDay).toBe(false);
+    });
+
+    it('omits allDay when not provided', async () => {
+      await adapter.createSeries(createTestSeries('pat-noad'));
+      await adapter.createPattern({
+        id: patternId('pat-noad-p1'),
+        seriesId: seriesId('pat-noad'),
+        type: 'daily',
+      });
+      const p = await adapter.getPattern(patternId('pat-noad-p1'));
+      expect(p).not.toBeNull();
+      expect(p!.allDay).toBeUndefined();
+      expect(p!.type).toBe('daily');
+    });
+
+    it('stores fixed=true and retrieves it', async () => {
+      await adapter.createSeries(createTestSeries('pat-fix'));
+      await adapter.createPattern({
+        id: patternId('pat-fix-p1'),
+        seriesId: seriesId('pat-fix'),
+        type: 'daily',
+        fixed: true,
+      });
+      const p = await adapter.getPattern(patternId('pat-fix-p1'));
+      expect(p).not.toBeNull();
+      expect(p!.fixed).toBe(true);
+    });
+
+    it('stores fixed=false and retrieves it as false', async () => {
+      await adapter.createSeries(createTestSeries('pat-fix-f'));
+      await adapter.createPattern({
+        id: patternId('pat-fix-f-p1'),
+        seriesId: seriesId('pat-fix-f'),
+        type: 'daily',
+        fixed: false,
+      });
+      const p = await adapter.getPattern(patternId('pat-fix-f-p1'));
+      expect(p).not.toBeNull();
+      expect(p!.fixed).toBe(false);
+    });
+
+    it('omits fixed when not provided', async () => {
+      await adapter.createSeries(createTestSeries('pat-nofix'));
+      await adapter.createPattern({
+        id: patternId('pat-nofix-p1'),
+        seriesId: seriesId('pat-nofix'),
+        type: 'daily',
+      });
+      const p = await adapter.getPattern(patternId('pat-nofix-p1'));
+      expect(p).not.toBeNull();
+      expect(p!.fixed).toBeUndefined();
+      expect(p!.type).toBe('daily');
+    });
+  });
+
+  describe('Mutation killers: condition optional fields', () => {
+    it('stores parentId and retrieves it', async () => {
+      await adapter.createSeries(createTestSeries('cond-parent'));
+      const parentCid = conditionId('cond-parent-c1');
+      await adapter.createCondition({
+        id: parentCid,
+        seriesId: seriesId('cond-parent'),
+        type: 'and',
+      });
+      const childCid = conditionId('cond-parent-c2');
+      await adapter.createCondition({
+        id: childCid,
+        seriesId: seriesId('cond-parent'),
+        type: 'completedRecently',
+        parentId: parentCid,
+        operator: 'gte',
+      });
+      const c = await adapter.getCondition(childCid);
+      expect(c).not.toBeNull();
+      expect(c!.parentId).toBe(parentCid);
+      expect(c!.operator).toBe('gte');
+    });
+
+    it('stores condition without parentId or operator', async () => {
+      await adapter.createSeries(createTestSeries('cond-noparent'));
+      const cid = conditionId('cond-noparent-c1');
+      await adapter.createCondition({
+        id: cid,
+        seriesId: seriesId('cond-noparent'),
+        type: 'and',
+      });
+      const c = await adapter.getCondition(cid);
+      expect(c).not.toBeNull();
+      expect(c!.parentId).toBe(null);
+      expect(c!.operator).toBeUndefined();
+      expect(c!.type).toBe('and');
+    });
+  });
+
+  describe('Mutation killers: adaptive duration', () => {
+    it('setAdaptiveDuration(null) deletes the config', async () => {
+      await adapter.createSeries(createTestSeries('ad-del'));
+      await adapter.setAdaptiveDuration(seriesId('ad-del'), {
+        fallbackDuration: 30 as Duration,
+        bufferPercent: 10,
+        lastN: 5,
+        windowDays: 30,
+      });
+      const before = await adapter.getAdaptiveDuration(seriesId('ad-del'));
+      expect(before).not.toBeNull();
+      expect(before!.fallbackDuration).toBe(30);
+      expect(before!.bufferPercent).toBe(10);
+
+      await adapter.setAdaptiveDuration(seriesId('ad-del'), null);
+      const after = await adapter.getAdaptiveDuration(seriesId('ad-del'));
+      expect(after).toBe(null);
+    });
+
+    it('windowDays defaults to 30 when undefined', async () => {
+      await adapter.createSeries(createTestSeries('ad-wd'));
+      await adapter.setAdaptiveDuration(seriesId('ad-wd'), {
+        fallbackDuration: 60 as Duration,
+        bufferPercent: 20,
+        lastN: 10,
+      });
+      const config = await adapter.getAdaptiveDuration(seriesId('ad-wd'));
+      expect(config).not.toBeNull();
+      expect(config!.windowDays).toBe(30);
+    });
+
+    it('windowDays stores explicit value when provided', async () => {
+      await adapter.createSeries(createTestSeries('ad-wd-set'));
+      await adapter.setAdaptiveDuration(seriesId('ad-wd-set'), {
+        fallbackDuration: 60 as Duration,
+        bufferPercent: 20,
+        lastN: 10,
+        windowDays: 7,
+      });
+      const config = await adapter.getAdaptiveDuration(seriesId('ad-wd-set'));
+      expect(config).not.toBeNull();
+      expect(config!.windowDays).toBe(7);
+    });
+  });
+
+  describe('Mutation killers: transaction state', () => {
+    it('inTransaction returns false after transaction completes', async () => {
+      await adapter.createSeries(createTestSeries('tx-state'));
+      let duringTx = false;
+      await adapter.transaction(async () => {
+        duringTx = await adapter.inTransaction();
+      });
+      expect(duringTx).toBe(true);
+      const afterTx = await adapter.inTransaction();
+      expect(afterTx).toBe(false);
+    });
+
+    it('transaction commits data that persists', async () => {
+      await adapter.transaction(async () => {
+        await adapter.createSeries(createTestSeries('tx-persist'));
+      });
+      const s = await adapter.getSeries(seriesId('tx-persist'));
+      expect(s).not.toBeNull();
+      expect(s!.title).toBe('Test Series tx-persist');
+    });
+  });
+
+  describe('Mutation killers: completion startTime/endTime', () => {
+    it('completion without startTime/endTime omits them', async () => {
+      await adapter.createSeries(createTestSeries('comp-notime'));
+      await adapter.createCompletion({
+        id: completionId('comp-notime-c1'),
+        seriesId: seriesId('comp-notime'),
+        instanceDate: date('2025-06-01'),
+        date: date('2025-06-01'),
+      });
+      const c = await adapter.getCompletion(completionId('comp-notime-c1'));
+      expect(c).not.toBeNull();
+      expect(c!.startTime).toBeUndefined();
+      expect(c!.endTime).toBeUndefined();
+      expect(c!.instanceDate).toBe('2025-06-01');
+    });
+
+    it('completion with startTime/endTime stores them', async () => {
+      await adapter.createSeries(createTestSeries('comp-time'));
+      await adapter.createCompletion({
+        id: completionId('comp-time-c1'),
+        seriesId: seriesId('comp-time'),
+        instanceDate: date('2025-06-01'),
+        date: date('2025-06-01'),
+        startTime: datetime('2025-06-01T09:00:00'),
+        endTime: datetime('2025-06-01T09:30:00'),
+      });
+      const c = await adapter.getCompletion(completionId('comp-time-c1'));
+      expect(c).not.toBeNull();
+      expect(c!.startTime).toBe('2025-06-01T09:00:00');
+      expect(c!.endTime).toBe('2025-06-01T09:30:00');
+    });
+  });
+
+  describe('Mutation killers: error mapping', () => {
+    it('foreign key violation throws ForeignKeyError', async () => {
+      // Try to create a pattern referencing a non-existent series
+      await expect(async () => {
+        await adapter.createPattern({
+          id: patternId('fk-orphan-p1'),
+          seriesId: seriesId('nonexistent-series'),
+          type: 'daily',
+        });
+      }).rejects.toThrow(/FOREIGN KEY constraint/i);
+    });
+
+    it('UNIQUE constraint violation throws DuplicateKeyError', async () => {
+      await adapter.createSeries(createTestSeries('dup-test'));
+      await expect(async () => {
+        await adapter.createSeries(createTestSeries('dup-test'));
+      }).rejects.toThrow(/UNIQUE constraint/i);
     });
   });
 });

@@ -1240,4 +1240,354 @@ describe('Segment 09: Instance Exceptions', () => {
       });
     });
   });
+
+  // ==========================================================================
+  // 10. Mutation Testing: expandSchedule boundary killers
+  // ==========================================================================
+  describe('10. expandSchedule mutation killers', () => {
+    describe('effective range: series startDate/endDate intersection', () => {
+      it('series.startDate narrows range when after range.start', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'sd-narrow',
+          timeOfDay: '09:00:00',
+          startDate: date('2024-01-05'),
+          patterns: [{ id: 'p1', seriesId: 'sd-narrow', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-10'),
+        });
+        // Series starts Jan 5, so Jan 1-4 should be excluded
+        expect(result.length).toBe(5); // Jan 5-9
+        expect(result[0]!.date).toBe(date('2024-01-05'));
+        expect(result[4]!.date).toBe(date('2024-01-09'));
+      });
+
+      it('series.startDate exactly at range.start uses range.start', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'sd-exact',
+          timeOfDay: '09:00:00',
+          startDate: date('2024-01-01'),
+          patterns: [{ id: 'p1', seriesId: 'sd-exact', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-04'),
+        });
+        expect(result.length).toBe(3);
+        expect(result[0]!.date).toBe(date('2024-01-01'));
+      });
+
+      it('series.endDate narrows range when before range.end', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'ed-narrow',
+          timeOfDay: '09:00:00',
+          startDate: date('2024-01-01'),
+          endDate: date('2024-01-06'),
+          patterns: [{ id: 'p1', seriesId: 'ed-narrow', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-10'),
+        });
+        // endDate is exclusive: [Jan 1, Jan 6) = Jan 1-5
+        expect(result.length).toBe(5);
+        expect(result[4]!.date).toBe(date('2024-01-05'));
+      });
+
+      it('series.endDate exactly at range.end uses range.end', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'ed-exact',
+          timeOfDay: '09:00:00',
+          startDate: date('2024-01-01'),
+          endDate: date('2024-01-10'),
+          patterns: [{ id: 'p1', seriesId: 'ed-exact', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-10'),
+        });
+        // Both end at Jan 10 (exclusive), so 9 instances: Jan 1-9
+        expect(result.length).toBe(9);
+        expect(result[0]!.date).toBe(date('2024-01-01'));
+        expect(result[8]!.date).toBe(date('2024-01-09'));
+        expect(result[0]!.seriesId).toBe('ed-exact');
+      });
+
+      it('series.endDate past range.end uses range.end', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'ed-past',
+          timeOfDay: '09:00:00',
+          startDate: date('2024-01-01'),
+          endDate: date('2024-12-31'),
+          patterns: [{ id: 'p1', seriesId: 'ed-past', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-04'),
+        });
+        // range.end is tighter, so only 3 instances: Jan 1-3
+        expect(result.length).toBe(3);
+        expect(result[0]!.date).toBe(date('2024-01-01'));
+        expect(result[2]!.date).toBe(date('2024-01-03'));
+        expect(result[0]!.seriesId).toBe('ed-past');
+      });
+
+      it('empty range when startDate >= endDate (series fully outside range)', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'outside',
+          timeOfDay: '09:00:00',
+          startDate: date('2024-06-01'),
+          endDate: date('2024-06-30'),
+          patterns: [{ id: 'p1', seriesId: 'outside', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const inRange = expandSchedule(input, {
+          start: date('2024-06-01'),
+          end: date('2024-06-03'),
+        });
+        expect(inRange.length).toBe(2);
+        expect(inRange[0]!.date).toBe(date('2024-06-01'));
+
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-02-01'),
+        });
+        expect(result.length).toBe(0);
+      });
+    });
+
+    describe('allDay vs explicit timeOfDay', () => {
+      it('allDay produces time at midnight', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'allday-test',
+          timeOfDay: 'allDay',
+          startDate: date('2024-01-01'),
+          patterns: [{ id: 'p1', seriesId: 'allday-test', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-02'),
+        });
+        expect(result.length).toBe(1);
+        expect(result[0]!.time).toBe('2024-01-01T00:00:00');
+      });
+
+      it('explicit timeOfDay uses that time', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'time-test',
+          timeOfDay: '14:30:00',
+          startDate: date('2024-01-01'),
+          patterns: [{ id: 'p1', seriesId: 'time-test', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-02'),
+        });
+        expect(result.length).toBe(1);
+        expect(result[0]!.time).toBe('2024-01-01T14:30:00');
+      });
+
+      it('undefined timeOfDay defaults to 09:00:00', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'default-time',
+          startDate: date('2024-01-01'),
+          patterns: [{ id: 'p1', seriesId: 'default-time', type: 'daily', conditionId: null }],
+          exceptions: [],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-02'),
+        });
+        expect(result.length).toBe(1);
+        expect(result[0]!.time).toBe('2024-01-01T09:00:00');
+      });
+    });
+
+    describe('sort correctness with rescheduled instances', () => {
+      it('rescheduled instance sorted into correct position', () => {
+        // Daily series Jan 1-5, reschedule Jan 3 to Jan 1 (earlier)
+        const input: ExpandScheduleInput = {
+          seriesId: 'sort-test',
+          timeOfDay: '10:00:00',
+          startDate: date('2024-01-01'),
+          patterns: [{ id: 'p1', seriesId: 'sort-test', type: 'daily', conditionId: null }],
+          exceptions: [{
+            id: 'e1',
+            seriesId: 'sort-test',
+            originalDate: '2024-01-03' as LocalDate,
+            type: 'rescheduled',
+            newDate: '2024-01-01' as LocalDate,
+            newTime: '2024-01-01T08:00:00' as LocalDateTime,
+          }],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-06'),
+        });
+        // Jan 1 (regular), Jan 1 (rescheduled from Jan 3), Jan 2, Jan 4, Jan 5
+        // Sorted: both Jan 1 first, then Jan 2, Jan 4, Jan 5
+        expect(result.length).toBe(5);
+        expect(result[0]!.date).toBe(date('2024-01-01'));
+        expect(result[1]!.date).toBe(date('2024-01-01'));
+        expect(result[2]!.date).toBe(date('2024-01-02'));
+        // Sort stability: verify the dates are in order
+        for (let i = 1; i < result.length; i++) {
+          expect(result[i]!.date >= result[i - 1]!.date).toBe(true);
+        }
+      });
+
+      it('rescheduled to later date appears in correct sorted position', () => {
+        // Daily series Jan 1-5, reschedule Jan 2 to Jan 4
+        const input: ExpandScheduleInput = {
+          seriesId: 'sort-later',
+          timeOfDay: '10:00:00',
+          startDate: date('2024-01-01'),
+          patterns: [{ id: 'p1', seriesId: 'sort-later', type: 'daily', conditionId: null }],
+          exceptions: [{
+            id: 'e1',
+            seriesId: 'sort-later',
+            originalDate: '2024-01-02' as LocalDate,
+            type: 'rescheduled',
+            newDate: '2024-01-04' as LocalDate,
+            newTime: '2024-01-04T15:00:00' as LocalDateTime,
+          }],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-06'),
+        });
+        // Jan 1, Jan 3, Jan 4 (regular), Jan 4 (rescheduled), Jan 5
+        const dates = result.map(r => r.date);
+        expect(dates[0]).toBe(date('2024-01-01'));
+        // Verify sorted
+        for (let i = 1; i < dates.length; i++) {
+          expect(dates[i]! >= dates[i - 1]!).toBe(true);
+        }
+      });
+    });
+
+    describe('combined cancelled + rescheduled exceptions', () => {
+      it('cancelled excluded, rescheduled included at new time', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'mixed-exc',
+          timeOfDay: '09:00:00',
+          startDate: date('2024-01-01'),
+          patterns: [{ id: 'p1', seriesId: 'mixed-exc', type: 'daily', conditionId: null }],
+          exceptions: [
+            {
+              id: 'e1', seriesId: 'mixed-exc',
+              originalDate: '2024-01-02' as LocalDate,
+              type: 'cancelled',
+            },
+            {
+              id: 'e2', seriesId: 'mixed-exc',
+              originalDate: '2024-01-03' as LocalDate,
+              type: 'rescheduled',
+              newDate: '2024-01-03' as LocalDate,
+              newTime: '2024-01-03T14:00:00' as LocalDateTime,
+            },
+          ],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-01'),
+          end: date('2024-01-05'),
+        });
+        // Jan 1, Jan 3 (rescheduled), Jan 4 — Jan 2 cancelled
+        expect(result.length).toBe(3);
+        expect(result[0]!.date).toBe(date('2024-01-01'));
+        expect(result[0]!.time).toBe('2024-01-01T09:00:00');
+        expect(result[1]!.date).toBe(date('2024-01-03'));
+        expect(result[1]!.time).toBe('2024-01-03T14:00:00');
+        expect(result[2]!.date).toBe(date('2024-01-04'));
+        expect(result[2]!.time).toBe('2024-01-04T09:00:00');
+      });
+    });
+
+    describe('rescheduled instance range boundary', () => {
+      it('rescheduled to before range.start is excluded', () => {
+        const input: ExpandScheduleInput = {
+          seriesId: 'resch-before',
+          timeOfDay: '09:00:00',
+          startDate: date('2024-01-01'),
+          patterns: [{ id: 'p1', seriesId: 'resch-before', type: 'daily', conditionId: null }],
+          exceptions: [{
+            id: 'e1', seriesId: 'resch-before',
+            originalDate: '2024-01-15' as LocalDate,
+            type: 'rescheduled',
+            newDate: '2024-01-09' as LocalDate,
+            newTime: '2024-01-09T10:00:00' as LocalDateTime,
+          }],
+        };
+        const result = expandSchedule(input, {
+          start: date('2024-01-10'),
+          end: date('2024-01-20'),
+        });
+        // Jan 15 is in range but rescheduled to Jan 9 (before range) — excluded
+        const dates = result.map(r => r.date);
+        expect(dates).not.toContain(date('2024-01-09'));
+        expect(dates).not.toContain(date('2024-01-15'));
+      });
+    });
+
+    describe('getSchedule with non-existent series', () => {
+      it('returns empty array for non-existent series', async () => {
+        const realResult = await getSchedule(adapter, {
+          seriesId: testSeriesId,
+          range: { start: date('2024-01-01'), end: date('2024-01-03') },
+        });
+        expect(realResult.length).toBe(2);
+        expect(realResult[0]!.date).toBe(date('2024-01-01'));
+
+        const result = await getSchedule(adapter, {
+          seriesId: 'totally-fake-series-id',
+          range: { start: date('2024-01-01'), end: date('2024-02-01') },
+        });
+        expect(result).toEqual([]);
+      });
+    });
+
+    describe('getSchedule passes series fields correctly', () => {
+      it('series with startDate/endDate constrains range via getSchedule', async () => {
+        const sid = await createSeries(adapter, {
+          title: 'Bounded Series',
+          startDate: date('2024-01-05'),
+          endDate: date('2024-01-10'),
+          pattern: { type: 'daily', time: '09:00:00' },
+        }) as SeriesId;
+
+        const result = await getSchedule(adapter, {
+          seriesId: sid,
+          range: { start: date('2024-01-01'), end: date('2024-01-15') },
+        });
+        // Series is [Jan 5, Jan 10) = Jan 5-9 = 5 instances
+        expect(result.length).toBe(5);
+        expect(result[0]!.date).toBe(date('2024-01-05'));
+        expect(result[4]!.date).toBe(date('2024-01-09'));
+      });
+
+      it('series with allDay timeOfDay produces midnight times', async () => {
+        // Create a series and set its timeOfDay via adapter
+        const sid = await createSeries(adapter, {
+          title: 'AllDay Series',
+          startDate: date('2024-01-01'),
+          pattern: { type: 'daily', allDay: true },
+        }) as SeriesId;
+
+        const result = await getSchedule(adapter, {
+          seriesId: sid,
+          range: { start: date('2024-01-01'), end: date('2024-01-02') },
+        });
+        expect(result.length).toBe(1);
+        expect(result[0]!.time).toBe('2024-01-01T00:00:00');
+      });
+    });
+  });
 });
