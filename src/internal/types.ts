@@ -7,7 +7,7 @@
 
 import type { LocalDate, LocalDateTime } from '../time-date'
 import type {
-  FullSeries, StoredConstraint, ConstraintInput, ConditionNode,
+  FullSeries, StoredConstraint,
 } from '../public-api'
 
 // ============================================================================
@@ -93,7 +93,3 @@ export type ReminderReader = {
   getBySeriesId(seriesId: string): string[]
 }
 
-// Re-export for convenience
-export type {
-  FullSeries, StoredConstraint, ConstraintInput, ConditionNode,
-}
