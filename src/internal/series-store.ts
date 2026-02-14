@@ -5,16 +5,15 @@
  * Handles CRUD, tag management, and adapter persistence.
  */
 
-import type { LocalDate, LocalDateTime } from '../time-date'
+import type { LocalDate } from '../time-date'
 import { makeDate, makeTime, makeDateTime } from '../time-date'
 import type { Adapter } from '../adapter'
 import { persistConditionTree } from '../series-assembly'
 import {
   ValidationError, NotFoundError, LockedSeriesError,
-  CompletionsExistError, LinkedChildrenExistError,
 } from '../errors'
-import type { FullSeries, EnrichedPattern, CreateSeriesInput, CyclingInput } from '../public-api'
-import type { SeriesReader, CompletionReader, LinkReader } from './types'
+import type { FullSeries, EnrichedPattern, CreateSeriesInput } from '../public-api'
+import type { SeriesReader } from './types'
 import { uuid } from './helpers'
 
 type SeriesStoreDeps = {
@@ -22,6 +21,10 @@ type SeriesStoreDeps = {
   persistNewSeries: (data: FullSeries) => Promise<void>
   loadFullSeries: (id: string) => Promise<FullSeries | null>
   loadAllFullSeries: () => Promise<FullSeries[]>
+}
+
+function copyFullSeries(s: FullSeries): FullSeries {
+  return structuredClone(s)
 }
 
 export function createSeriesStore(deps: SeriesStoreDeps) {
@@ -35,10 +38,10 @@ export function createSeriesStore(deps: SeriesStoreDeps) {
   const reader: SeriesReader = {
     get(id: string): FullSeries | undefined {
       const s = seriesCache.get(id)
-      return s ? { ...s } : undefined
+      return s ? copyFullSeries(s) : undefined
     },
     getAll(): FullSeries[] {
-      return [...seriesCache.values()].map(s => ({ ...s }))
+      return [...seriesCache.values()].map(s => copyFullSeries(s))
     },
     getByTag(tag: string): string[] {
       return [...(tagCache.get(tag) || [])]
@@ -48,8 +51,13 @@ export function createSeriesStore(deps: SeriesStoreDeps) {
   // ========== Cache-aware loading ==========
 
   async function getFullSeries(id: string): Promise<FullSeries | null> {
-    if (seriesCache.has(id)) return { ...seriesCache.get(id)! }
-    return loadFullSeries(id)
+    if (seriesCache.has(id)) return copyFullSeries(seriesCache.get(id)!)
+    const loaded = await loadFullSeries(id)
+    if (loaded) {
+      seriesCache.set(id, copyFullSeries(loaded))
+      return copyFullSeries(loaded)
+    }
+    return null
   }
 
   async function updatePersistedSeries(id: string, changes: Record<string, unknown>): Promise<void> {
@@ -88,7 +96,7 @@ export function createSeriesStore(deps: SeriesStoreDeps) {
     }
 
     await persistNewSeries(seriesData)
-    seriesCache.set(id, { ...seriesData })
+    seriesCache.set(id, copyFullSeries(seriesData))
 
     if (input.tags && Array.isArray(input.tags)) {
       for (const tag of input.tags) {
@@ -102,7 +110,17 @@ export function createSeriesStore(deps: SeriesStoreDeps) {
 
   async function getAllSeries(): Promise<FullSeries[]> {
     const all = await loadAllFullSeries()
-    return all.filter(s => s && s.id).map(s => ({ ...s }))
+    const result: FullSeries[] = []
+    for (const s of all) {
+      if (!s || !s.id) continue
+      if (seriesCache.has(s.id)) {
+        result.push(copyFullSeries(seriesCache.get(s.id)!))
+      } else {
+        seriesCache.set(s.id, copyFullSeries(s))
+        result.push(copyFullSeries(s))
+      }
+    }
+    return result
   }
 
   async function getSeriesByTag(tag: string): Promise<FullSeries[]> {
@@ -209,21 +227,29 @@ export function createSeriesStore(deps: SeriesStoreDeps) {
       } as import('../adapter').AdaptiveDurationConfig)
     }
 
-    seriesCache.set(id, { ...updated } as FullSeries)
+    seriesCache.set(id, copyFullSeries(updated as FullSeries))
   }
 
   async function lock(id: string): Promise<void> {
     const s = await getFullSeries(id)
     if (!s) throw new NotFoundError(`Series ${id} not found`)
     await updatePersistedSeries(id, { locked: true })
-    if (seriesCache.has(id)) seriesCache.set(id, { ...seriesCache.get(id)!, locked: true })
+    if (seriesCache.has(id)) {
+      const copy = copyFullSeries(seriesCache.get(id)!)
+      copy.locked = true
+      seriesCache.set(id, copy)
+    }
   }
 
   async function unlock(id: string): Promise<void> {
     const s = await getFullSeries(id)
     if (!s) throw new NotFoundError(`Series ${id} not found`)
     await updatePersistedSeries(id, { locked: false })
-    if (seriesCache.has(id)) seriesCache.set(id, { ...seriesCache.get(id)!, locked: false })
+    if (seriesCache.has(id)) {
+      const copy = copyFullSeries(seriesCache.get(id)!)
+      copy.locked = false
+      seriesCache.set(id, copy)
+    }
   }
 
   async function deleteSeries(id: string): Promise<void> {
@@ -236,7 +262,7 @@ export function createSeriesStore(deps: SeriesStoreDeps) {
   async function hydrate(): Promise<void> {
     const allSeries = await loadAllFullSeries()
     for (const s of allSeries) {
-      seriesCache.set(s.id, { ...s })
+      seriesCache.set(s.id, copyFullSeries(s))
       if (s.tags && Array.isArray(s.tags)) {
         for (const tag of s.tags) {
           if (!tagCache.has(tag)) tagCache.set(tag, [])
@@ -248,16 +274,31 @@ export function createSeriesStore(deps: SeriesStoreDeps) {
     }
   }
 
-  // ========== Split helpers ==========
+  // ========== Split ==========
 
-  function setCached(id: string, series: FullSeries): void {
-    seriesCache.set(id, { ...series })
-  }
+  async function handleSplit(
+    originalId: string,
+    splitDate: LocalDate,
+    newSeries: FullSeries,
+  ): Promise<void> {
+    // Update original's endDate
+    await updatePersistedSeries(originalId, { endDate: splitDate })
+    const original = seriesCache.get(originalId)
+    if (!original) throw new NotFoundError(`Series ${originalId} not in cache during split`)
+    const updatedOriginal = copyFullSeries(original)
+    updatedOriginal.endDate = splitDate
+    seriesCache.set(originalId, updatedOriginal)
 
-  function addToTagCache(id: string, tags: string[]): void {
-    for (const tag of tags) {
-      if (!tagCache.has(tag)) tagCache.set(tag, [])
-      if (!tagCache.get(tag)!.includes(id)) tagCache.get(tag)!.push(id)
+    // Persist and cache new series
+    await persistNewSeries(newSeries)
+    seriesCache.set(newSeries.id, copyFullSeries(newSeries))
+
+    // Update tag cache for new series
+    if (newSeries.tags && Array.isArray(newSeries.tags)) {
+      for (const tag of newSeries.tags) {
+        if (!tagCache.has(tag)) tagCache.set(tag, [])
+        if (!tagCache.get(tag)!.includes(newSeries.id)) tagCache.get(tag)!.push(newSeries.id)
+      }
     }
   }
 
@@ -272,9 +313,6 @@ export function createSeriesStore(deps: SeriesStoreDeps) {
     unlock,
     delete: deleteSeries,
     hydrate,
-    updatePersistedSeries,
-    persistNewSeries,
-    setCached,
-    addToTagCache,
+    handleSplit,
   }
 }
