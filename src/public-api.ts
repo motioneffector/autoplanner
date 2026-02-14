@@ -5,23 +5,31 @@
  * Handles initialization, validation, event emission, and timezone handling.
  */
 
-import type { LocalDate, LocalTime, LocalDateTime, Weekday } from './time-date'
+import type { LocalDate, LocalTime, LocalDateTime } from './time-date'
 import type { Duration } from './core'
 import {
-  addDays, dayOfWeek, makeDate, makeTime, makeDateTime,
-  yearOf, monthOf, dayOf, hourOf, minuteOf, secondOf,
-  dateOf, timeOf, daysBetween, weekdayToIndex, daysInMonth,
+  addDays, makeDate, makeTime, makeDateTime,
+  hourOf, minuteOf, secondOf,
+  dateOf, timeOf, daysBetween,
 } from './time-date'
-import { expandPattern, toExpandablePattern, type Pattern } from './pattern-expansion'
 import type { Adapter, Completion } from './adapter'
 import {
   loadFullSeries as _loadFullSeries,
   loadAllFullSeries as _loadAllFullSeries,
   persistNewSeries as _persistNewSeries,
-  persistConditionTree,
 } from './series-assembly'
 import { reflow, type ReflowInput } from './reflow'
 import type { SeriesId } from './types'
+import { createSeriesStore } from './internal/series-store'
+import { createCompletionTracker } from './internal/completion-tracker'
+import { createExceptionStore } from './internal/exception-store'
+import type { InternalLink, InternalReminder, InvalidationScope } from './internal/types'
+import {
+  uuid, isValidTimezone, dayOfWeekNum,
+  normalizeTime, resolveTimeForDate,
+  getPatternDates, simpleHash,
+  addMinutesToTime, subtractMinutes,
+} from './internal/helpers'
 
 // ============================================================================
 // Error Classes
@@ -200,38 +208,7 @@ export type FullSeries = {
   reminderOffsets?: number[]
 }
 
-type InternalCompletion = {
-  id: string
-  seriesId: string
-  date: LocalDate
-  instanceDate: LocalDate
-  startTime?: LocalDateTime
-  endTime?: LocalDateTime
-}
-
-type InternalException = {
-  seriesId: string
-  date: LocalDate
-  type: 'cancelled' | 'rescheduled'
-  newTime?: LocalDateTime
-}
-
-type InternalLink = {
-  parentId: string
-  childId: string
-  distance: number
-  earlyWobble?: number
-  lateWobble?: number
-}
-
 export type StoredConstraint = ConstraintInput & { id: string }
-
-type InternalReminder = {
-  id: string
-  seriesId: string
-  type: string
-  offset?: number
-}
 
 export type Autoplanner = {
   createSeries(input: CreateSeriesInput): Promise<string>
@@ -283,251 +260,6 @@ export type Autoplanner = {
 // Helpers
 // ============================================================================
 
-const WEEKDAY_NAMES: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
-function numToWeekday(n: number): Weekday {
-  return WEEKDAY_NAMES[((n % 7) + 7) % 7]!
-}
-
-function dayOfWeekNum(date: LocalDate): number {
-  const w = dayOfWeek(date)
-  return WEEKDAY_NAMES.indexOf(w)
-}
-
-function uuid(): string {
-  return crypto.randomUUID()
-}
-
-function isValidTimezone(tz: string): boolean {
-  try {
-    Intl.DateTimeFormat('en-US', { timeZone: tz })
-    return true
-  } catch {
-    return false
-  }
-}
-
-function formatInTz(epochMs: number, tz: string) {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    year: 'numeric', month: 'numeric', day: 'numeric',
-    hour: 'numeric', minute: 'numeric', second: 'numeric',
-    hour12: false,
-  })
-  const parts = fmt.formatToParts(new Date(epochMs))
-  const get = (type: string) => parseInt(parts.find(p => p.type === type)!.value)
-  return {
-    year: get('year'), month: get('month'), day: get('day'),
-    hour: get('hour') % 24, minute: get('minute'), second: get('second'),
-  }
-}
-
-function normalizeTime(t: LocalTime): LocalTime {
-  const s = t as string
-  // Handle short formats: '8:30' → '08:30:00', '08:30' → '08:30:00'
-  const parts = s.split(':')
-  const h = (parts[0] || '00').padStart(2, '0')
-  const m = (parts[1] || '00').padStart(2, '0')
-  const sec = (parts[2] || '00').padStart(2, '0')
-  return `${h}:${m}:${sec}` as LocalTime
-}
-
-function resolveTimeForDate(dateStr: LocalDate, timeStr: LocalTime, tz: string): LocalTime {
-  const normalized = normalizeTime(timeStr)
-  if (tz === 'UTC') return normalized
-
-  const y = yearOf(dateStr)
-  const mo = monthOf(dateStr)
-  const d = dayOf(dateStr)
-  const [hS, mS, sS] = (normalized as string).split(':') as [string, string, string]
-  const h = parseInt(hS), m = parseInt(mS), s = parseInt(sS || '0')
-  if (isNaN(h) || isNaN(m) || isNaN(s)) throw new Error(`Non-numeric time components in '${normalized}'`)
-
-  // Get offset at noon (safe from DST edges)
-  const noonEpoch = Date.UTC(y, mo - 1, d, 12, 0, 0)
-  const noonLocal = formatInTz(noonEpoch, tz)
-  const offsetHours = 12 - noonLocal.hour
-
-  // Estimate epoch for target time
-  const targetEpoch = Date.UTC(y, mo - 1, d, h + offsetHours, m, s)
-  const resolved = formatInTz(targetEpoch, tz)
-
-  if (resolved.hour === h && resolved.minute === m && resolved.day === d) {
-    return normalized
-  }
-
-  // Try ±1 hour offset adjustment
-  for (const adj of [-1, 1]) {
-    const altEpoch = Date.UTC(y, mo - 1, d, h + offsetHours + adj, m, s)
-    const alt = formatInTz(altEpoch, tz)
-    if (alt.hour === h && alt.minute === m && alt.day === d) return normalized
-  }
-
-  // DST gap — find first valid time after the gap
-  for (let i = 0; i <= 120; i++) {
-    const testEpoch = targetEpoch + i * 60000
-    const curr = formatInTz(testEpoch, tz)
-    if (curr.day !== d) continue
-    const prev = formatInTz(testEpoch - 60000, tz)
-    if (prev.hour < curr.hour || prev.day !== d) {
-      return makeTime(curr.hour, curr.minute, 0)
-    }
-  }
-
-  return makeTime(h + 1, 0, 0)
-}
-
-function getPatternDates(pattern: EnrichedPattern, start: LocalDate, end: LocalDate, seriesStart: LocalDate): Set<LocalDate> {
-  const effectiveStart = (seriesStart as string) > (start as string) ? seriesStart : start
-  const result = new Set<LocalDate>()
-
-  switch (pattern.type) {
-    case 'daily': {
-      let d = effectiveStart
-      while ((d as string) < (end as string)) {
-        result.add(d)
-        d = addDays(d, 1)
-      }
-      return result
-    }
-
-    case 'everyNDays': {
-      const n = pattern.n || 2
-      // Align to series anchor — only fire on days where (daysBetween(seriesStart, d) % n === 0)
-      const gap = daysBetween(seriesStart, effectiveStart)
-      const rem = ((gap % n) + n) % n
-      const offset = rem === 0 ? 0 : n - rem
-      let d = addDays(effectiveStart, offset)
-      while ((d as string) < (end as string)) {
-        result.add(d)
-        d = addDays(d, n)
-      }
-      return result
-    }
-
-    case 'weekly': {
-      if (pattern.daysOfWeek && Array.isArray(pattern.daysOfWeek)) {
-        return getWeeklyDaysOfWeekDates(pattern.daysOfWeek, start, end, seriesStart, pattern._anchor)
-      }
-      // Simple weekly: same day each week
-      const expandable = toExpandablePattern(pattern, seriesStart)
-      return expandPattern(expandable, { start, end }, seriesStart)
-    }
-
-    case 'monthly': {
-      const day = pattern.day || pattern.dayOfMonth || dayOf(seriesStart)
-      const startYear = yearOf(start)
-      const startMonth = monthOf(start)
-      const endYear = yearOf(end)
-      const endMonth = monthOf(end)
-      for (let y = startYear; y <= endYear; y++) {
-        const mStart = y === startYear ? startMonth : 1
-        const mEnd = y === endYear ? endMonth : 12
-        for (let m = mStart; m <= mEnd; m++) {
-          if (day > daysInMonth(y, m)) continue // skip invalid dates like Feb 30
-          const d = makeDate(y, m, day)
-          if ((d as string) >= (effectiveStart as string) && (d as string) < (end as string)) {
-            result.add(d)
-          }
-        }
-      }
-      return result
-    }
-
-    case 'yearly': {
-      const month = pattern.month || monthOf(seriesStart)
-      const day = pattern.day || pattern.dayOfMonth || dayOf(seriesStart)
-      for (let y = yearOf(start); y <= yearOf(end); y++) {
-        if (day > daysInMonth(y, month)) continue // skip Feb 29 on non-leap years etc.
-        const d = makeDate(y, month, day)
-        if ((d as string) >= (effectiveStart as string) && (d as string) < (end as string)) {
-          result.add(d)
-        }
-      }
-      return result
-    }
-
-    default: {
-      const expandable = toExpandablePattern(pattern, seriesStart)
-      return expandPattern(expandable, { start, end }, seriesStart)
-    }
-  }
-}
-
-function getWeeklyDaysOfWeekDates(
-  daysOfWeek: number[], start: LocalDate, end: LocalDate,
-  seriesStart: LocalDate, anchor?: LocalDate
-): Set<LocalDate> {
-  const result = new Set<LocalDate>()
-  const effectiveStart = (seriesStart as string) > (start as string) ? seriesStart : start
-
-  // Determine effective anchor:
-  // - If anchor provided (e.g., first completion date), use it directly
-  // - Otherwise, find first occurrence of the lowest daysOfWeek number >= effectiveStart
-  let effectiveAnchor: LocalDate
-  if (anchor) {
-    effectiveAnchor = anchor
-  } else {
-    const lowestDow = Math.min(...daysOfWeek)
-    // Find first occurrence of lowestDow on or after effectiveStart
-    effectiveAnchor = effectiveStart
-    while (dayOfWeekNum(effectiveAnchor) !== lowestDow) {
-      effectiveAnchor = addDays(effectiveAnchor, 1)
-    }
-  }
-
-  // Find first Monday on or before the effective start to establish week grid
-  let monday = effectiveStart
-  while (dayOfWeekNum(monday) !== 1) {
-    monday = addDays(monday, -1)
-  }
-
-  // Generate dates from Monday-aligned weeks
-  while ((monday as string) < (end as string)) {
-    for (const dow of daysOfWeek) {
-      const offset = ((dow - 1) + 7) % 7
-      const date = addDays(monday, offset)
-      if ((date as string) >= (start as string) &&
-          (date as string) < (end as string) &&
-          (date as string) >= (effectiveStart as string) &&
-          (date as string) >= (seriesStart as string)) {
-        result.add(date)
-      }
-    }
-    monday = addDays(monday, 7)
-  }
-
-  return result
-}
-
-function simpleHash(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0
-  }
-  return Math.abs(hash)
-}
-
-function addMinutesToTime(dt: LocalDateTime, mins: number): LocalDateTime {
-  const d = dateOf(dt)
-  const t = timeOf(dt)
-  const h = hourOf(t)
-  const m = minuteOf(t)
-  const s = secondOf(t)
-  let totalMinutes = h * 60 + m + mins
-  let dayAdj = 0
-  while (totalMinutes < 0) { totalMinutes += 1440; dayAdj-- }
-  while (totalMinutes >= 1440) { totalMinutes -= 1440; dayAdj++ }
-  const newH = Math.floor(totalMinutes / 60)
-  const newM = totalMinutes % 60
-  const newDate = dayAdj !== 0 ? addDays(d, dayAdj) : d
-  return makeDateTime(newDate, makeTime(newH, newM, s))
-}
-
-function subtractMinutes(dt: LocalDateTime, mins: number): LocalDateTime {
-  return addMinutesToTime(dt, -mins)
-}
-
 // ============================================================================
 // Implementation
 // ============================================================================
@@ -543,12 +275,20 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   const adapter = config.adapter
   const timezone = config.timezone
 
-  // Internal state
-  const seriesCache = new Map<string, FullSeries>()
-  const completions = new Map<string, InternalCompletion>()
-  const completionsByKey = new Map<string, string>()
-  const completionsBySeries = new Map<string, string[]>()
-  const exceptions = new Map<string, InternalException>()
+  // Phase 1 stores
+  const exceptionStore = createExceptionStore({ adapter })
+  const seriesStore = createSeriesStore({
+    adapter,
+    persistNewSeries: (data) => _persistNewSeries(adapter, data),
+    loadFullSeries: (id) => _loadFullSeries(adapter, id),
+    loadAllFullSeries: () => _loadAllFullSeries(adapter),
+  })
+  const completionTracker = createCompletionTracker({
+    adapter,
+    seriesReader: seriesStore.reader,
+  })
+
+  // Internal state (Phase 2+)
   const links = new Map<string, InternalLink>()
   const linksByParent = new Map<string, string[]>()
   const constraints = new Map<string, StoredConstraint>()
@@ -589,10 +329,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
   function buildConditionDependencyIndex(): void {
     conditionDeps.clear()
-    for (const [id, series] of seriesCache) {
+    for (const series of seriesStore.reader.getAll()) {
       for (const pattern of series.patterns || []) {
         if (pattern.condition) {
-          collectConditionRefs(pattern.condition, id)
+          collectConditionRefs(pattern.condition, series.id)
         }
       }
     }
@@ -620,15 +360,6 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     for (const key of [...patternDateCache.keys()]) {
       if (key.startsWith(seriesId + ':')) patternDateCache.delete(key)
     }
-  }
-
-  // ========== Invalidation Scope ==========
-  type InvalidationScope = {
-    type: 'series'; seriesId: string
-  } | {
-    type: 'global'
-  } | {
-    type: 'link' | 'constraint' | 'exception' | 'completion'
   }
 
   // ========== CSP Fingerprint Cache ==========
@@ -664,30 +395,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     return structuredClone(schedule)
   }
 
-  // ========== Adapter Helpers ==========
-  // Delegations to series-assembly.ts — fat-series marshaling
-
-  function loadFullSeries(id: string): Promise<FullSeries | null> {
-    return _loadFullSeries(adapter, id)
-  }
-
-  function loadAllFullSeries(): Promise<FullSeries[]> {
-    return _loadAllFullSeries(adapter)
-  }
-
-  // Cache-aware series loading: prefers seriesCache, falls back to adapter
-  async function getFullSeries(id: string): Promise<FullSeries | null> {
-    if (seriesCache.has(id)) return { ...seriesCache.get(id)! }
-    return loadFullSeries(id)
-  }
-
-  function persistNewSeries(data: FullSeries): Promise<void> {
-    return _persistNewSeries(adapter, data)
-  }
-
-  // Update only the core series fields in the adapter (not patterns/tags/etc)
-  async function updatePersistedSeries(id: string, changes: Record<string, unknown>): Promise<void> {
-    await adapter.updateSeries(id, changes)
+  // Cache-aware series loading — delegates to seriesStore
+  function getFullSeries(id: string): Promise<FullSeries | null> {
+    return seriesStore.getFullSeries(id)
   }
 
   // Event handlers
@@ -741,44 +451,17 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
   }
 
-  // Count completions for a series in a window [windowStart, asOf]
+  // Completion helpers — delegate to completionTracker
   function countCompletionsInWindow(seriesId: string, windowDays: number, asOf: LocalDate): number {
-    const windowStart = addDays(asOf, -(windowDays - 1))
-    let count = 0
-    const ids = completionsBySeries.get(seriesId) || []
-    for (const id of ids) {
-      const c = completions.get(id)
-      if (!c) continue
-      const d = c.date as string
-      if (d >= (windowStart as string) && d <= (asOf as string)) count++
-    }
-    return count
+    return completionTracker.countInWindow(seriesId, windowDays, asOf)
   }
 
-  // Get the last completion date for a series
   function getLastCompletionDate(seriesId: string): LocalDate | null {
-    const ids = completionsBySeries.get(seriesId) || []
-    let latest: string | null = null
-    for (const id of ids) {
-      const c = completions.get(id)
-      if (!c) continue
-      const d = c.date as string
-      if (latest === null || d > latest) latest = d
-    }
-    return latest as LocalDate | null
+    return completionTracker.getLastDate(seriesId)
   }
 
-  // Get the first (earliest) completion date for a series
   function getFirstCompletionDate(seriesId: string): LocalDate | null {
-    const ids = completionsBySeries.get(seriesId) || []
-    let earliest: string | null = null
-    for (const id of ids) {
-      const c = completions.get(id)
-      if (!c) continue
-      const d = c.date as string
-      if (earliest === null || d < earliest) earliest = d
-    }
-    return earliest as LocalDate | null
+    return completionTracker.getFirstDate(seriesId)
   }
 
   // Evaluate a condition on a given date
@@ -838,13 +521,13 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     const mode = cycling.mode || 'sequential'
 
     if (mode === 'random') {
-      const completionCount = (completionsBySeries.get(seriesId) || []).length
+      const completionCount = completionTracker.reader.getBySeriesId(seriesId).length
       const hash = simpleHash(seriesId + ':' + (completionCount + instanceOffset))
       return items[hash % items.length]!
     }
 
     // Sequential mode: base from completions, project forward by offset
-    const completionCount = (completionsBySeries.get(seriesId) || []).length
+    const completionCount = completionTracker.reader.getBySeriesId(seriesId).length
     const index = (completionCount + instanceOffset) % items.length
     return items[index]!
   }
@@ -852,11 +535,11 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   // Calculate adaptive duration for a series
   function calculateAdaptiveDuration(seriesId: string, config: AdaptiveDurationInput): number | null {
     if (!config) return null
-    const ids = completionsBySeries.get(seriesId) || []
+    const ids = completionTracker.reader.getBySeriesId(seriesId)
     const durations: number[] = []
 
     for (const id of ids) {
-      const c = completions.get(id)
+      const c = completionTracker.reader.get(id)
       if (!c || !c.startTime || !c.endTime) continue
       // Calculate duration in minutes
       const startT = timeOf(c.startTime as LocalDateTime)
@@ -894,9 +577,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     chainEndTimes?: Map<string, Map<string, LocalDateTime>>
   ): LocalDateTime | null {
     // 1. Check if parent has a completion on this date with endTime (actual data)
-    const parentCompIds = completionsBySeries.get(parentId) || []
+    const parentCompIds = completionTracker.reader.getBySeriesId(parentId)
     for (const cId of parentCompIds) {
-      const c = completions.get(cId)
+      const c = completionTracker.reader.get(cId)
       if (c && (c.date as string) === (instanceDate as string) && c.endTime) {
         return c.endTime as LocalDateTime
       }
@@ -904,7 +587,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
     // 2. Check if parent is rescheduled
     const exKey = `${parentId}:${instanceDate}`
-    const exception = exceptions.get(exKey)
+    const exception = exceptionStore.getByKey(exKey)
     if (exception?.type === 'rescheduled' && exception.newTime) {
       const parentDur = getSeriesDuration(parentSeries)
       return addMinutesToTime(exception.newTime, parentDur)
@@ -1009,10 +692,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         // position was already computed from the completion endTime in buildSchedule.
         // Don't send this chain to CSP — derivation would overwrite the
         // completion-adjusted time with the parent's pattern-based position.
-        const parentCompIds = completionsBySeries.get(link.parentId) || []
+        const parentCompIds = completionTracker.reader.getBySeriesId(link.parentId)
         let parentHasCompletionOnDate = false
         for (const cId of parentCompIds) {
-          const c = completions.get(cId)
+          const c = completionTracker.reader.get(cId)
           if (c && (c.date as string) === (date as string) && c.endTime) {
             parentHasCompletionOnDate = true
             break
@@ -1111,13 +794,13 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   async function buildSchedule(start: LocalDate, end: LocalDate): Promise<Schedule> {
     // Use local cache if available (has full data including patterns),
     // fall back to adapter for series created outside the planner
-    const adapterSeries = await loadAllFullSeries()
+    const adapterSeries = await _loadAllFullSeries(adapter)
     const allSeries: FullSeries[] = []
     const seen = new Set<string>()
     // Prefer cached versions (they include patterns, startDate, etc.)
-    for (const [id, s] of seriesCache) {
+    for (const s of seriesStore.reader.getAll()) {
       allSeries.push(s)
-      seen.add(id)
+      seen.add(s.id)
     }
     // Add any adapter-only series not in cache
     for (const s of adapterSeries) {
@@ -1258,7 +941,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
           // Check exceptions
           const exKey = `${s.id}:${date}`
-          const exception = exceptions.get(exKey)
+          const exception = exceptionStore.getByKey(exKey)
           if (exception?.type === 'cancelled') continue
 
           // Determine time
@@ -1588,10 +1271,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     return target.seriesId ? [target.seriesId] : []
   }
 
-  // Tag resolution cache
-  const tagCache = new Map<string, string[]>()
+  // Tag resolution — delegate to seriesStore reader
   function resolveTagFromAdapter(tag: string): string[] {
-    return tagCache.get(tag) || []
+    return seriesStore.reader.getByTag(tag)
   }
 
   function timesOverlap(timeA: LocalDateTime, durA: number, timeB: LocalDateTime, durB: number): boolean {
@@ -1608,47 +1290,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   // ========== Series Management ==========
 
   async function createSeries(input: CreateSeriesInput): Promise<string> {
-    if (!input.title || input.title.trim() === '') {
-      throw new ValidationError('Series title is required')
-    }
-    if (input.endDate != null && input.startDate != null &&
-        (input.endDate as string) <= (input.startDate as string)) {
-      throw new ValidationError('endDate must be > startDate (exclusive)')
-    }
-
-    const id = uuid()
-    const now = makeDateTime(
-      makeDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate()),
-      makeTime(new Date().getHours(), new Date().getMinutes(), new Date().getSeconds())
-    )
-
-    const seriesData: FullSeries = {
-      id,
-      title: input.title,
-      patterns: (input.patterns || []) as EnrichedPattern[],
-      locked: false,
-      createdAt: now,
-      updatedAt: now,
-      ...(input.tags != null ? { tags: input.tags } : {}),
-      ...(input.startDate != null ? { startDate: input.startDate } : {}),
-      ...(input.endDate != null ? { endDate: input.endDate } : {}),
-      ...(input.cycling != null ? { cycling: input.cycling } : {}),
-      ...(input.adaptiveDuration != null ? { adaptiveDuration: input.adaptiveDuration } : {}),
-    }
-
-    await persistNewSeries(seriesData)
-
-    // Cache full series object (including patterns) for buildSchedule
-    seriesCache.set(id, { ...seriesData })
-
-    // Update tag cache
-    if (input.tags && Array.isArray(input.tags)) {
-      for (const tag of input.tags) {
-        if (!tagCache.has(tag)) tagCache.set(tag, [])
-        tagCache.get(tag)!.push(id)
-      }
-    }
-
+    const id = await seriesStore.create(input)
     buildConditionDependencyIndex()
     await triggerReflow({ type: 'series', seriesId: id })
     return id
@@ -1681,8 +1323,8 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function getAllSeries(): Promise<FullSeries[]> {
-    const all = await loadAllFullSeries()
-    return all.filter(s => s && s.id).map(s => {
+    const all = await seriesStore.getAllSeries()
+    return all.map(s => {
       const link = links.get(s.id)
       const result: FullSeries = { ...s }
       if (link) result.parentId = link.parentId
@@ -1696,132 +1338,22 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
   }
 
   async function updateSeries(id: string, changes: Partial<CreateSeriesInput>): Promise<void> {
-    const s = await getFullSeries(id)
-    if (!s) throw new NotFoundError(`Series ${id} not found`)
-    if (s.locked) throw new LockedSeriesError(`Series ${id} is locked`)
-
-    const updated = { ...s, ...changes, id: s.id, createdAt: s.createdAt }
-    updated.updatedAt = makeDateTime(
-      makeDate(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate()),
-      makeTime(new Date().getHours(), new Date().getMinutes(), new Date().getSeconds())
-    )
-
-    // Persist core series fields (title, startDate, endDate, updatedAt)
-    await updatePersistedSeries(id, {
-      ...(changes.title != null ? { title: changes.title } : {}),
-      ...(changes.startDate != null ? { startDate: changes.startDate } : {}),
-      ...(changes.endDate != null ? { endDate: changes.endDate } : {}),
-      updatedAt: updated.updatedAt,
-    })
-
-    // Persist patterns: delete old, create new
-    if (changes.patterns != null) {
-      const oldConditions = await adapter.getConditionsBySeries(id)
-      for (const c of oldConditions) await adapter.deleteCondition(c.id)
-      const oldPatterns = await adapter.getPatternsBySeries(id)
-      for (const p of oldPatterns) await adapter.deletePattern(p.id)
-      for (const p of changes.patterns) {
-        let condId: string | null = null
-        if (p.condition) {
-          condId = await persistConditionTree(adapter, id, p.condition, null)
-        }
-        const patternId = crypto.randomUUID()
-        await adapter.createPattern({
-          id: patternId,
-          seriesId: id,
-          type: p.type,
-          conditionId: condId,
-          ...(p.time != null ? { time: p.time } : {}),
-          ...(p.n != null ? { n: p.n } : {}),
-          ...(p.day != null ? { day: p.day } : {}),
-          ...(p.month != null ? { month: p.month } : {}),
-          ...(p.weekday != null ? { weekday: p.weekday } : {}),
-          ...(p.allDay != null ? { allDay: p.allDay } : {}),
-          ...(p.duration != null ? { duration: p.duration } : {}),
-          ...(p.fixed != null ? { fixed: p.fixed } : {}),
-        })
-        if (p.daysOfWeek && Array.isArray(p.daysOfWeek)) {
-          await adapter.setPatternWeekdays(patternId, p.daysOfWeek.map(String))
-        }
-      }
-    }
-
-    // Persist tags: diff old vs new
-    if (changes.tags != null) {
-      const oldTags = (s.tags || []) as string[]
-      const newTags = changes.tags
-      for (const tag of oldTags) {
-        if (!newTags.includes(tag)) {
-          await adapter.removeTagFromSeries(id, tag)
-          // Update tagCache: remove this series from the tag
-          const cached = tagCache.get(tag)
-          if (cached) {
-            const idx = cached.indexOf(id)
-            if (idx >= 0) cached.splice(idx, 1)
-            if (cached.length === 0) tagCache.delete(tag)
-          }
-        }
-      }
-      for (const tag of newTags) {
-        if (!oldTags.includes(tag)) {
-          await adapter.addTagToSeries(id, tag)
-          // Update tagCache: add this series to the tag
-          if (!tagCache.has(tag)) tagCache.set(tag, [])
-          if (!tagCache.get(tag)!.includes(id)) tagCache.get(tag)!.push(id)
-        }
-      }
-    }
-
-    // Persist cycling config
-    if (changes.cycling != null) {
-      await adapter.setCyclingConfig(id, {
-        seriesId: id,
-        currentIndex: changes.cycling.currentIndex ?? 0,
-        gapLeap: changes.cycling.gapLeap ?? false,
-        ...(changes.cycling.mode != null ? { mode: changes.cycling.mode } : {}),
-      })
-      const items = changes.cycling.items && Array.isArray(changes.cycling.items)
-        ? changes.cycling.items
-        : []
-      await adapter.setCyclingItems(id,
-        items.map((title: string, i: number) => ({
-          seriesId: id,
-          position: i,
-          title,
-          duration: 0,
-        }))
-      )
-    }
-
-    // Persist adaptive duration
-    if (changes.adaptiveDuration != null) {
-      await adapter.setAdaptiveDuration(id, {
-        seriesId: id,
-        ...changes.adaptiveDuration,
-      } as import('./adapter').AdaptiveDurationConfig)
-    }
-
-    seriesCache.set(id, { ...updated } as FullSeries)
+    await seriesStore.update(id, changes)
     buildConditionDependencyIndex()
     await triggerReflow({ type: 'series', seriesId: id })
   }
 
   async function lock(id: string): Promise<void> {
-    const s = await getFullSeries(id)
-    if (!s) throw new NotFoundError(`Series ${id} not found`)
-    await updatePersistedSeries(id, { locked: true })
-    if (seriesCache.has(id)) seriesCache.set(id, { ...seriesCache.get(id)!, locked: true })
+    await seriesStore.lock(id)
   }
 
   async function unlock(id: string): Promise<void> {
-    const s = await getFullSeries(id)
-    if (!s) throw new NotFoundError(`Series ${id} not found`)
-    await updatePersistedSeries(id, { locked: false })
-    if (seriesCache.has(id)) seriesCache.set(id, { ...seriesCache.get(id)!, locked: false })
+    await seriesStore.unlock(id)
   }
 
   async function deleteSeries(id: string): Promise<void> {
-    const seriesCompletions = completionsBySeries.get(id) || []
+    // Cross-domain validation: check completions and links before deleting
+    const seriesCompletions = completionTracker.reader.getBySeriesId(id)
     if (seriesCompletions.length > 0) {
       throw new CompletionsExistError(`Cannot delete series ${id}: completions exist`)
     }
@@ -1829,8 +1361,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if (children.length > 0) {
       throw new LinkedChildrenExistError(`Cannot delete series ${id}: linked children exist`)
     }
-    await adapter.deleteSeries(id)
-    seriesCache.delete(id)
+    await seriesStore.delete(id)
     buildConditionDependencyIndex()
     await triggerReflow({ type: 'series', seriesId: id })
   }
@@ -1840,12 +1371,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if (!s) throw new NotFoundError(`Series ${id} not found`)
 
     const originalEnd = splitDate
-    const updatedOriginal = { ...(seriesCache.get(id) || s), endDate: originalEnd }
-    await updatePersistedSeries(id, { endDate: originalEnd })
-    seriesCache.set(id, { ...updatedOriginal })
+    const updatedOriginal = { ...(seriesStore.reader.get(id) || s), endDate: originalEnd }
+    await seriesStore.updatePersistedSeries(id, { endDate: originalEnd })
+    seriesStore.setCached(id, updatedOriginal as FullSeries)
 
     const newId = uuid()
-    const cachedOriginal = seriesCache.get(id) || s
+    const cachedOriginal = seriesStore.reader.get(id) || s
     const newSeries: FullSeries = {
       ...cachedOriginal,
       id: newId,
@@ -1858,15 +1389,12 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
         makeTime(new Date().getHours(), new Date().getMinutes(), new Date().getSeconds())
       ),
     }
-    await persistNewSeries(newSeries)
-    seriesCache.set(newId, { ...newSeries })
+    await seriesStore.persistNewSeries(newSeries)
+    seriesStore.setCached(newId, newSeries)
 
-    // Update tagCache for new series
+    // Update tag cache for new series
     if (newSeries.tags && Array.isArray(newSeries.tags)) {
-      for (const tag of newSeries.tags) {
-        if (!tagCache.has(tag)) tagCache.set(tag, [])
-        if (!tagCache.get(tag)!.includes(newId)) tagCache.get(tag)!.push(newId)
-      }
+      seriesStore.addToTagCache(newId, newSeries.tags)
     }
 
     // Copy constraints that reference the original series (snapshot to avoid mutation during iteration)
@@ -2053,7 +1581,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if (!found) return null
 
     const exKey = `${seriesId}:${date}`
-    const exception = exceptions.get(exKey)
+    const exception = exceptionStore.getByKey(exKey)
     if (exception?.type === 'cancelled') return null
 
     let instanceTime: LocalDateTime
@@ -2089,7 +1617,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
 
     const exKey = `${seriesId}:${date}`
-    const existing = exceptions.get(exKey)
+    const existing = exceptionStore.getByKey(exKey)
     if (existing?.type === 'cancelled') {
       throw new AlreadyCancelledError(`Instance on ${date} is already cancelled`)
     }
@@ -2097,7 +1625,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     await adapter.createInstanceException({
       id: uuid(), seriesId, originalDate: date, type: 'cancelled',
     })
-    exceptions.set(exKey, { seriesId, date, type: 'cancelled' })
+    exceptionStore.set(exKey, { seriesId, date, type: 'cancelled' })
     await triggerReflow({ type: 'exception' })
   }
 
@@ -2106,7 +1634,7 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     if (!s) throw new NotFoundError(`Series ${seriesId} not found`)
 
     const exKey = `${seriesId}:${date}`
-    const existing = exceptions.get(exKey)
+    const existing = exceptionStore.getByKey(exKey)
     if (existing?.type === 'cancelled') {
       throw new CancelledInstanceError(`Cannot reschedule cancelled instance on ${date}`)
     }
@@ -2132,70 +1660,24 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     await adapter.createInstanceException({
       id: uuid(), seriesId, originalDate: date, type: 'rescheduled', newTime,
     })
-    exceptions.set(exKey, { seriesId, date, type: 'rescheduled', newTime })
+    exceptionStore.set(exKey, { seriesId, date, type: 'rescheduled', newTime })
     await triggerReflow({ type: 'exception' })
   }
 
   // ========== Completions ==========
 
   async function logCompletion(seriesId: string, date: LocalDate, options?: LogCompletionOptions): Promise<string> {
-    const s = await getFullSeries(seriesId)
-    if (!s) throw new NotFoundError(`Series ${seriesId} not found`)
-
-    const key = `${seriesId}:${date}`
-    if (completionsByKey.has(key)) {
-      throw new DuplicateCompletionError(`Completion already exists for ${seriesId} on ${date}`)
-    }
-
-    const id = uuid()
-    const completion: InternalCompletion = {
-      id,
-      seriesId,
-      date,
-      instanceDate: date,
-      ...(options?.startTime != null ? { startTime: options.startTime } : {}),
-      ...(options?.endTime != null ? { endTime: options.endTime } : {}),
-    }
-
-    completions.set(id, completion)
-    completionsByKey.set(key, id)
-    if (!completionsBySeries.has(seriesId)) completionsBySeries.set(seriesId, [])
-    completionsBySeries.get(seriesId)!.push(id)
-
-    await adapter.createCompletion({
-      id,
-      seriesId,
-      instanceDate: date,
-      date,
-      ...(options?.startTime != null ? { startTime: options.startTime } : {}),
-      ...(options?.endTime != null ? { endTime: options.endTime } : {}),
-    })
+    const id = await completionTracker.log(seriesId, date, options)
     await triggerReflow({ type: 'completion' })
     return id
   }
 
   async function getCompletions(seriesId: string): Promise<Completion[]> {
-    // Try adapter first for persistence support
-    const fromAdapter = await adapter.getCompletionsBySeries(seriesId)
-    if (fromAdapter && fromAdapter.length > 0) return fromAdapter
-    // Fallback to local state
-    const ids = completionsBySeries.get(seriesId) || []
-    return ids.map(id => completions.get(id)).filter((c): c is InternalCompletion => c != null) as Completion[]
+    return completionTracker.getCompletions(seriesId)
   }
 
   async function deleteCompletion(id: string): Promise<void> {
-    const completion = completions.get(id)
-    if (completion) {
-      const key = `${completion.seriesId}:${completion.date}`
-      completionsByKey.delete(key)
-      const seriesIds = completionsBySeries.get(completion.seriesId)
-      if (seriesIds) {
-        const idx = seriesIds.indexOf(id)
-        if (idx >= 0) seriesIds.splice(idx, 1)
-      }
-      completions.delete(id)
-      await adapter.deleteCompletion(id)
-    }
+    await completionTracker.deleteCompletion(id)
     await triggerReflow({ type: 'completion' })
   }
 
@@ -2268,9 +1750,9 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
 
         for (const date of dates) {
           const exKey = `${reminder.seriesId}:${date}`
-          const exception = exceptions.get(exKey)
+          const exception = exceptionStore.getByKey(exKey)
           if (exception?.type === 'cancelled') continue
-          if (completionsByKey.has(exKey)) continue
+          if (completionTracker.reader.hasCompletionForKey(reminder.seriesId, date)) continue
 
           // Calculate fire time
           let instanceTime: LocalDateTime
@@ -2386,32 +1868,10 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
     }
 
     // Hydrate completions
-    const allComps = await adapter.getAllCompletions()
-    for (const c of allComps) {
-      if (!completions.has(c.id)) {
-        completions.set(c.id, c)
-        const dateKey = `${c.seriesId}:${c.date ?? c.instanceDate}`
-        completionsByKey.set(dateKey, c.id)
-        if (!completionsBySeries.has(c.seriesId)) completionsBySeries.set(c.seriesId, [])
-        if (!completionsBySeries.get(c.seriesId)!.includes(c.id)) {
-          completionsBySeries.get(c.seriesId)!.push(c.id)
-        }
-      }
-    }
+    await completionTracker.hydrate()
 
     // Hydrate exceptions
-    const allExceptions = await adapter.getAllExceptions()
-    for (const e of allExceptions) {
-      const key = `${e.seriesId}:${e.originalDate}`
-      if (!exceptions.has(key)) {
-        exceptions.set(key, {
-          seriesId: e.seriesId,
-          date: e.originalDate,
-          type: e.type as 'cancelled' | 'rescheduled',
-          ...(e.newTime != null ? { newTime: e.newTime } : {}),
-        })
-      }
-    }
+    await exceptionStore.hydrate()
 
     // Hydrate constraints
     const allConstraints = await adapter.getAllRelationalConstraints()
@@ -2465,19 +1925,8 @@ export function createAutoplanner(config: AutoplannerConfig): Autoplanner {
       reminderAcks.get(ack.reminderId)!.add(`${ack.instanceDate}:${ack.reminderId}`)
     }
 
-    // Rebuild tag cache and series cache from all series
-    const allSeries = await loadAllFullSeries()
-    for (const s of allSeries) {
-      seriesCache.set(s.id, { ...s })
-      if (s.tags && Array.isArray(s.tags)) {
-        for (const tag of s.tags) {
-          if (!tagCache.has(tag)) tagCache.set(tag, [])
-          if (!tagCache.get(tag)!.includes(s.id)) {
-            tagCache.get(tag)!.push(s.id)
-          }
-        }
-      }
-    }
+    // Rebuild series cache and tag cache
+    await seriesStore.hydrate()
 
     // Build condition dependency index from hydrated series
     buildConditionDependencyIndex()
