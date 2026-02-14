@@ -39,3 +39,5 @@ npm-debug.log*
 # Mutation testing
 .stryker-tmp/
 reports/
+
+.claude/
