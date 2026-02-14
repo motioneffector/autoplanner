@@ -1955,13 +1955,17 @@ describe('SQLite Schema Tests', () => {
         (tableDefinitions) => {
           const schema = new SQLiteSchemaSimulator()
 
+          // Deduplicate by tableName — last definition wins (mirrors real CREATE TABLE IF NOT EXISTS)
+          const uniqueTables = new Map(tableDefinitions.map(td => [td.tableName, td]))
+          const dedupedTables = [...uniqueTables.values()]
+
           // Create tables
-          for (const { tableName, columns } of tableDefinitions) {
+          for (const { tableName, columns } of dedupedTables) {
             schema.createTable(tableName, columns)
           }
 
           // Create indices for each table on first column
-          for (const { tableName, columns } of tableDefinitions) {
+          for (const { tableName, columns } of dedupedTables) {
             if (columns.length > 0) {
               const indexName = `idx_${tableName}_${columns[0]}`
               schema.createIndex(tableName, indexName, [columns[0]])
@@ -1969,7 +1973,7 @@ describe('SQLite Schema Tests', () => {
           }
 
           // Verify all tables exist and have their indices
-          for (const { tableName, columns } of tableDefinitions) {
+          for (const { tableName, columns } of dedupedTables) {
             expect(schema.tableExists(tableName)).toBe(true)
             if (columns.length > 0) {
               const indexName = `idx_${tableName}_${columns[0]}`
