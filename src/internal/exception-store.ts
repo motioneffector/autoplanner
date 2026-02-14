@@ -32,15 +32,12 @@ export function createExceptionStore(deps: ExceptionStoreDeps) {
   // ========== Operations ==========
 
   function set(key: string, exception: InternalException): void {
-    exceptions.set(key, exception)
+    exceptions.set(key, { ...exception })
   }
 
   function getByKey(key: string): InternalException | undefined {
-    return exceptions.get(key)
-  }
-
-  function entries(): Iterable<[string, InternalException]> {
-    return exceptions.entries()
+    const e = exceptions.get(key)
+    return e ? { ...e } : undefined
   }
 
   // ========== Hydration ==========
@@ -64,7 +61,6 @@ export function createExceptionStore(deps: ExceptionStoreDeps) {
     reader,
     set,
     getByKey,
-    entries,
     hydrate,
   }
 }
