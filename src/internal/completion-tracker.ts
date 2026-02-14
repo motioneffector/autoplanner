@@ -5,25 +5,21 @@
  * Handles logging, querying, deletion, and adapter persistence.
  */
 
-import type { LocalDate, LocalDateTime } from '../time-date'
+import type { LocalDate } from '../time-date'
 import { addDays } from '../time-date'
 import type { Adapter, Completion } from '../adapter'
-import { ValidationError, NotFoundError, DuplicateCompletionError } from '../errors'
-import type { CompletionReader, InternalCompletion, SeriesReader } from './types'
+import { NotFoundError, DuplicateCompletionError } from '../errors'
+import type { FullSeries, LogCompletionOptions } from '../public-api'
+import type { CompletionReader, InternalCompletion } from './types'
 import { uuid } from './helpers'
-
-type LogCompletionOptions = {
-  startTime?: LocalDateTime
-  endTime?: LocalDateTime
-}
 
 type CompletionTrackerDeps = {
   adapter: Adapter
-  seriesReader: SeriesReader
+  getFullSeries: (id: string) => Promise<FullSeries | null>
 }
 
 export function createCompletionTracker(deps: CompletionTrackerDeps) {
-  const { adapter, seriesReader } = deps
+  const { adapter, getFullSeries } = deps
 
   const completions = new Map<string, InternalCompletion>()
   const completionsByKey = new Map<string, string>()
@@ -47,7 +43,7 @@ export function createCompletionTracker(deps: CompletionTrackerDeps) {
   // ========== Operations ==========
 
   async function log(seriesId: string, date: LocalDate, options?: LogCompletionOptions): Promise<string> {
-    const s = seriesReader.get(seriesId)
+    const s = await getFullSeries(seriesId)
     if (!s) throw new NotFoundError(`Series ${seriesId} not found`)
 
     const key = `${seriesId}:${date}`
@@ -83,9 +79,9 @@ export function createCompletionTracker(deps: CompletionTrackerDeps) {
 
   async function getCompletions(seriesId: string): Promise<Completion[]> {
     const fromAdapter = await adapter.getCompletionsBySeries(seriesId)
-    if (fromAdapter && fromAdapter.length > 0) return fromAdapter
+    if (fromAdapter && fromAdapter.length > 0) return fromAdapter.map(c => ({ ...c }))
     const ids = completionsBySeries.get(seriesId) || []
-    return ids.map(id => completions.get(id)).filter((c): c is InternalCompletion => c != null) as Completion[]
+    return ids.map(id => completions.get(id)).filter((c): c is InternalCompletion => c != null).map(c => ({ ...c })) as Completion[]
   }
 
   async function deleteCompletion(id: string): Promise<void> {
@@ -111,6 +107,7 @@ export function createCompletionTracker(deps: CompletionTrackerDeps) {
       const c = completions.get(id)
       if (!c) continue
       const d = c.date as string
+      // Inclusive upper bound: "last N days including today" — not a [start, end) range query
       if (d >= (windowStart as string) && d <= (asOf as string)) count++
     }
     return count
@@ -146,7 +143,14 @@ export function createCompletionTracker(deps: CompletionTrackerDeps) {
     const allComps = await adapter.getAllCompletions()
     for (const c of allComps) {
       if (!completions.has(c.id)) {
-        completions.set(c.id, c)
+        completions.set(c.id, {
+          id: c.id,
+          seriesId: c.seriesId,
+          date: c.date,
+          instanceDate: c.instanceDate,
+          ...(c.startTime != null ? { startTime: c.startTime } : {}),
+          ...(c.endTime != null ? { endTime: c.endTime } : {}),
+        })
         const dateKey = `${c.seriesId}:${c.date ?? c.instanceDate}`
         completionsByKey.set(dateKey, c.id)
         if (!completionsBySeries.has(c.seriesId)) completionsBySeries.set(c.seriesId, [])
