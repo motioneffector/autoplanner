@@ -34,10 +34,28 @@ export type Series = {
   endDate?: LocalDate
   updatedAt?: LocalDateTime
   timeOfDay?: string
-  duration?: number | string
+  duration?: number | string | {
+    type: 'adaptive'
+    fallback: number
+    bufferPercent: number
+    min?: number
+    max?: number
+  }
   count?: number
   fixed?: boolean
   allDay?: boolean
+  cycling?: {
+    items: string[]
+    mode: string
+    gapLeap: boolean
+    currentIndex?: number
+  }
+  wiggle?: {
+    daysBefore: number
+    daysAfter: number
+    earliest?: string
+    latest?: string
+  }
 }
 
 export type Pattern = {

@@ -438,7 +438,13 @@ export async function updateSeries(
   }
 
   const now = nowISO()
-  await adapter.updateSeries(id, { ...changes, updatedAt: now })
+  // Strip undefined values so adapter only sees fields the caller actually set.
+  // Under exactOptionalPropertyTypes, Partial<Series> rejects undefined —
+  // and rightly so: a real adapter must distinguish "absent" from "set to null."
+  const defined = Object.fromEntries(
+    Object.entries({ ...changes, updatedAt: now }).filter(([, v]) => v !== undefined)
+  ) as Partial<import('./adapter').Series>
+  await adapter.updateSeries(id, defined)
 }
 
 export async function deleteSeries(
